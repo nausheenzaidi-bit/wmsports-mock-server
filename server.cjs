@@ -548,15 +548,14 @@ async function selectOp(name, type) {
   const prefix = type === 'MUTATION' ? 'mutation ' : '';
 
   if (schema) {
-    const args = getArgStr(schema, name, type);
     const retType = getReturnTypeName(schema, name, type);
     const fieldsStr = retType ? buildFieldsQuery(schema, retType) : null;
     if (fieldsStr) {
-      editor.value = prefix + '{\\n  ' + name + args + ' {\\n    ' + fieldsStr.split(' ').join('\\n    ') + '\\n  }\\n}';
+      editor.value = prefix + '{\\n  ' + name + ' {\\n    ' + fieldsStr.split(' ').join('\\n    ') + '\\n  }\\n}';
     } else {
-      editor.value = prefix + '{\\n  ' + name + args + '\\n}';
+      editor.value = prefix + '{\\n  ' + name + '\\n}';
     }
-    result.textContent = 'Query ready — click Run or Cmd+Enter.  Fields shown: scalar only (edit to add nested objects).';
+    result.textContent = 'Query ready — click Run or Cmd+Enter. Add arguments manually if needed.';
   } else {
     editor.value = prefix + '{\\n  ' + name + ' {\\n    id\\n    name\\n  }\\n}';
     result.textContent = 'Schema introspection failed — edit query manually. Click Run to execute.';
