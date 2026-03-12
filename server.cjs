@@ -18,6 +18,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { parse: gqlParse } = require('graphql');
 
 const app = express();
 app.use(cors());
@@ -104,12 +105,104 @@ function proxyToMicrocks(req, res, targetPath) {
   proxyReq.end();
 }
 
-// ── GraphQL proxy to Microcks ────────────────────────────────────────────
+// ── GraphQL field-selection filter ───────────────────────────────────────
 
-app.post('/graphql/:service', (req, res) => {
+function extractSelectionSet(queryStr) {
+  try {
+    const doc = gqlParse(queryStr);
+    const def = doc.definitions[0];
+    if (!def || !def.selectionSet) return null;
+    return buildSelectionMap(def.selectionSet);
+  } catch (_) {
+    return null;
+  }
+}
+
+function buildSelectionMap(selectionSet) {
+  if (!selectionSet || !selectionSet.selections) return null;
+  const map = {};
+  for (const sel of selectionSet.selections) {
+    if (sel.kind !== 'Field') continue;
+    const name = sel.name.value;
+    map[name] = sel.selectionSet ? buildSelectionMap(sel.selectionSet) : true;
+  }
+  return Object.keys(map).length > 0 ? map : null;
+}
+
+function filterResponseBySelection(data, selectionMap) {
+  if (!selectionMap || data === null || data === undefined) return data;
+  if (Array.isArray(data)) {
+    return data.map(item => filterResponseBySelection(item, selectionMap));
+  }
+  if (typeof data !== 'object') return data;
+
+  const filtered = {};
+  for (const key of Object.keys(selectionMap)) {
+    if (!(key in data)) continue;
+    const subSel = selectionMap[key];
+    if (subSel === true) {
+      filtered[key] = data[key];
+    } else {
+      filtered[key] = filterResponseBySelection(data[key], subSel);
+    }
+  }
+  return filtered;
+}
+
+function fetchFromMicrocks(targetPath, body) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(targetPath, MICROCKS_URL);
+    const mod = url.protocol === 'https:' ? https : http;
+    const postData = typeof body === 'string' ? body : JSON.stringify(body);
+    const opts = {
+      hostname: url.hostname, port: url.port, path: url.pathname + url.search,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
+      timeout: 10000,
+    };
+    const r = mod.request(opts, (resp) => {
+      let d = '';
+      resp.on('data', c => d += c);
+      resp.on('end', () => resolve({ status: resp.statusCode, body: d, headers: resp.headers }));
+    });
+    r.on('error', reject);
+    r.on('timeout', () => { r.destroy(); reject(new Error('timeout')); });
+    r.write(postData);
+    r.end();
+  });
+}
+
+// ── GraphQL proxy to Microcks (with field filtering) ────────────────────
+
+app.post('/graphql/:service', async (req, res) => {
   const service = req.params.service;
   const microcksPath = `/graphql/${service}/1.0`;
-  proxyToMicrocks(req, res, microcksPath);
+  const queryStr = req.body?.query || '';
+
+  // Introspection queries pass through unfiltered
+  if (queryStr.includes('__schema') || queryStr.includes('__type')) {
+    return proxyToMicrocks(req, res, microcksPath);
+  }
+
+  const selectionMap = extractSelectionSet(queryStr);
+
+  try {
+    const resp = await fetchFromMicrocks(microcksPath, req.body);
+
+    if (resp.status !== 200 || !selectionMap) {
+      res.status(resp.status);
+      res.setHeader('Content-Type', resp.headers['content-type'] || 'application/json');
+      return res.send(resp.body);
+    }
+
+    const parsed = JSON.parse(resp.body);
+    if (parsed.data) {
+      parsed.data = filterResponseBySelection(parsed.data, selectionMap);
+    }
+    res.json(parsed);
+  } catch (err) {
+    res.status(502).json({ error: 'Microcks proxy error', detail: err.message });
+  }
 });
 
 app.post('/graphql', async (req, res) => {
@@ -125,36 +218,19 @@ app.post('/graphql', async (req, res) => {
     });
   }
 
-  // Try each GraphQL service until one succeeds
   const { query, variables, operationName } = req.body;
+  const selectionMap = (query && !query.includes('__schema')) ? extractSelectionSet(query) : null;
+
   for (const svc of graphqlSvcs) {
-    const svcName = svc.name.replace(/API$/i, '').replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase() + '-api';
     try {
-      const data = await new Promise((resolve, reject) => {
-        const url = new URL(`/graphql/${svc.name}/${svc.version}`, MICROCKS_URL);
-        const mod = url.protocol === 'https:' ? https : http;
-        const postData = JSON.stringify({ query, variables, operationName });
-        const opts = {
-          hostname: url.hostname, port: url.port, path: url.pathname,
-          method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
-          timeout: 5000,
-        };
-        const r = mod.request(opts, (resp) => {
-          let d = '';
-          resp.on('data', c => d += c);
-          resp.on('end', () => {
-            if (resp.statusCode === 200) resolve(d);
-            else reject(new Error(`${resp.statusCode}`));
-          });
-        });
-        r.on('error', reject);
-        r.write(postData);
-        r.end();
-      });
-      const parsed = JSON.parse(data);
-      if (!parsed.errors || parsed.errors.length === 0) {
-        return res.json(parsed);
+      const resp = await fetchFromMicrocks(`/graphql/${svc.name}/${svc.version}`, { query, variables, operationName });
+      if (resp.status !== 200) continue;
+      const parsed = JSON.parse(resp.body);
+      if (parsed.errors && parsed.errors.length > 0) continue;
+      if (parsed.data && selectionMap) {
+        parsed.data = filterResponseBySelection(parsed.data, selectionMap);
       }
+      return res.json(parsed);
     } catch (_) {}
   }
 

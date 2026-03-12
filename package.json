@@ -11,7 +11,8 @@
     "docker:import": "docker compose run --rm import"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "cors": "^2.8.5"
+    "graphql": "^16.13.1"
   }
 }
