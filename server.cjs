@@ -560,16 +560,22 @@ app.post('/ai/generate', async (req, res) => {
 });
 
 app.post('/ai/override', async (req, res) => {
-  const { service, operation, data, prompt, scenario, count = 1 } = req.body;
+  const { service, operation, data, prompt, scenario, fields, count = 1 } = req.body;
   if (!service || !operation) return res.status(400).json({ error: 'Provide "service" and "operation"' });
 
   let overrideData = data;
   if (!overrideData && (prompt || scenario)) {
     const scenarioDef = scenario ? FAILURE_SCENARIOS[scenario] : null;
     const retType = getOperationReturnType(operation);
-    const schemaCtx = retType ? buildTypeSchema(retType) : '';
+    let schemaCtx = retType ? buildTypeSchema(retType) : '';
+
+    let fieldsConstraint = '';
+    if (fields && fields.length > 0) {
+      fieldsConstraint = `\n\nIMPORTANT: The response MUST contain ONLY these fields: ${fields.join(', ')}. Do NOT include any other fields. The object should have exactly these keys and nothing else.`;
+    }
+
     const opMsg = (scenarioDef ? scenarioDef.prompt : prompt) +
-      `\n\nSchema:\n${schemaCtx}\nReturn as {"data": {"${operation}": {...}}}`;
+      `\n\nSchema:\n${schemaCtx}${fieldsConstraint}\nReturn as {"data": {"${operation}": {${fields ? fields.map(f => `"${f}": ...`).join(', ') : '...'}}}}`;
     try {
       overrideData = await callLLM(AI_SYSTEM_PROMPT, opMsg);
     } catch (err) { return res.status(500).json({ error: err.message }); }
@@ -1201,18 +1207,34 @@ document.getElementById('editor-query').addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runQuery(); }
 });
 
+function extractFieldsFromQuery(queryText) {
+  const clean = queryText.replace(/^#.*$/gm, '').trim();
+  const braceIdx = clean.indexOf('{', clean.indexOf('{') + 1);
+  if (braceIdx === -1) return [];
+  let depth = 0;
+  let fieldBlock = '';
+  for (let i = braceIdx; i < clean.length; i++) {
+    if (clean[i] === '{') { depth++; continue; }
+    if (clean[i] === '}') { depth--; if (depth <= 0) break; continue; }
+    if (depth === 1) fieldBlock += clean[i];
+  }
+  return fieldBlock.split(/[\\s,]+/).map(f => f.trim()).filter(f => f && !f.startsWith('#'));
+}
+
 async function inlineAIInject() {
   if (!currentOpName || !currentService) return;
   const scenario = document.getElementById('inline-ai-scenario').value;
   const prompt = document.getElementById('inline-ai-prompt').value;
-  if (!scenario && !prompt) { document.getElementById('editor-result').textContent = 'Select a scenario or enter a prompt'; return; }
+  if (!scenario && !prompt) { document.getElementById('editor-result').textContent = 'Select a scenario or type a prompt, then click Inject'; return; }
 
   const result = document.getElementById('editor-result');
   const timingEl = document.getElementById('editor-timing');
   const srcLabel = document.getElementById('response-source');
   const editor = document.getElementById('editor-query');
 
-  result.textContent = 'AI generating...';
+  const fields = extractFieldsFromQuery(editor.value);
+
+  result.textContent = 'AI generating bad data for: ' + (fields.length ? fields.join(', ') : 'all fields') + '...';
   result.className = '';
   timingEl.innerHTML = '<span class="pg-status ai">AI</span> generating...';
   srcLabel.textContent = '(generating...)';
@@ -1222,6 +1244,7 @@ async function inlineAIInject() {
     const payload = { service: currentService, operation: currentOpName, count: 5 };
     if (scenario) payload.scenario = scenario;
     if (prompt) payload.prompt = prompt;
+    if (fields.length > 0) payload.fields = fields;
 
     const start = performance.now();
     const r = await fetch('/ai/override', {
@@ -1246,7 +1269,8 @@ async function inlineAIInject() {
     srcLabel.style.color = '#a371f7';
 
     const prefix = currentOpType === 'MUTATION' ? 'mutation ' : '';
-    editor.value = '# AI Override active (5 remaining)\\n# Scenario: ' + (scenario || 'custom prompt') + '\\n# Click Run to get AI data, or Clear to restore Microcks\\n\\n' + prefix + '{\\n  ' + currentOpName + '\\n}';
+    const fieldsBlock = fields.length > 0 ? ' {\\n    ' + fields.join('\\n    ') + '\\n  }' : '';
+    editor.value = '# AI Override active (5 remaining)\\n# Scenario: ' + (scenario || 'custom prompt') + '\\n# Fields: ' + (fields.length ? fields.join(', ') : 'all') + '\\n# Click Run to get AI data, or Clear to restore Microcks\\n\\n' + prefix + '{\\n  ' + currentOpName + fieldsBlock + '\\n}';
   } catch(e) {
     result.textContent = 'Error: ' + e.message;
     result.className = 'error';
