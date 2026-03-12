@@ -33,14 +33,8 @@ const ARTIFACTS_DIR = path.resolve(__dirname, 'artifacts');
 const graphqlServices = {};
 const schemaFiles = fs.readdirSync(ARTIFACTS_DIR).filter(f => f.endsWith('.graphql'));
 
-for (const file of schemaFiles) {
-  const raw = fs.readFileSync(path.join(ARTIFACTS_DIR, file), 'utf-8');
-  const serviceName = file
-    .replace(/-schema\.graphql$/, '')
-    .replace(/\.graphql$/, '');
-
-  // Strip federation directives that @graphql-tools can't parse
-  const cleaned = raw
+function cleanSchema(raw) {
+  return raw
     .replace(/extend schema[\s\S]*?(?=\n\n|\nscalar|\nenum|\ntype|\ninput|\ndirective)/m, '')
     .replace(/@link\([^)]*\)/g, '')
     .replace(/@key\([^)]*\)/g, '')
@@ -49,8 +43,26 @@ for (const file of schemaFiles) {
     .replace(/@external/g, '')
     .replace(/@inaccessible/g, '')
     .replace(/@cacheControl\([^)]*\)/g, '')
+    .replace(/@tag\([^)]*\)/g, '')
+    .replace(/@override\([^)]*\)/g, '')
+    .replace(/@provides\([^)]*\)/g, '')
+    .replace(/@interfaceObject/g, '')
+    .replace(/@composeDirective\([^)]*\)/g, '')
     .replace(/directive @cacheControl[\s\S]*?(?:UNION|ARGUMENT_DEFINITION)\s*/m, '')
-    .replace(/enum CacheControlScope \{[^}]*\}\s*/m, '');
+    .replace(/enum CacheControlScope \{[^}]*\}\s*/m, '')
+    .replace(/directive @\w+\([^)]*\)\s+(?:repeatable\s+)?on\s+[A-Z_|  \n]+/gm, '');
+}
+
+let supergraphSchema = null;
+
+for (const file of schemaFiles) {
+  if (file === 'supergraph-schema.graphql') continue;
+  const raw = fs.readFileSync(path.join(ARTIFACTS_DIR, file), 'utf-8');
+  const serviceName = file
+    .replace(/-schema\.graphql$/, '')
+    .replace(/\.graphql$/, '');
+
+  const cleaned = cleanSchema(raw);
 
   try {
     const schema = makeExecutableSchema({ typeDefs: cleaned });
@@ -66,6 +78,63 @@ for (const file of schemaFiles) {
   }
 }
 
+// Load the full federated supergraph schema (with deduplication)
+try {
+  const { buildASTSchema, parse, visit, Kind } = require('graphql');
+  const sgRaw = fs.readFileSync(path.join(ARTIFACTS_DIR, 'supergraph-schema.graphql'), 'utf-8');
+  const sgCleaned = cleanSchema(sgRaw);
+  
+  // Parse the SDL and deduplicate fields within each type definition
+  const doc = parse(sgCleaned);
+  const deduped = visit(doc, {
+    [Kind.OBJECT_TYPE_DEFINITION]: (node) => dedupeFields(node),
+    [Kind.OBJECT_TYPE_EXTENSION]: (node) => dedupeFields(node),
+    [Kind.INPUT_OBJECT_TYPE_DEFINITION]: (node) => dedupeFields(node),
+    [Kind.INTERFACE_TYPE_DEFINITION]: (node) => dedupeFields(node),
+  });
+  
+  function dedupeFields(node) {
+    if (!node.fields) return node;
+    const seen = new Set();
+    const unique = [];
+    for (const f of node.fields) {
+      if (!seen.has(f.name.value)) {
+        seen.add(f.name.value);
+        unique.push(f);
+      }
+    }
+    return { ...node, fields: unique };
+  }
+  
+  const sgSchemaRaw = buildASTSchema(deduped, { assumeValidSDL: true });
+  const { GraphQLScalarType } = require('graphql');
+  // Patch custom scalars directly so @graphql-tools/mock recognizes them
+  const typeMap = sgSchemaRaw.getTypeMap();
+  for (const [typeName, typeObj] of Object.entries(typeMap)) {
+    if (typeObj instanceof GraphQLScalarType && !typeObj.serialize.__isDefault) {
+      // Built-in scalars already have serialize — skip them
+    }
+    if (typeObj.constructor.name === 'GraphQLScalarType' && 
+        !['String', 'Int', 'Float', 'Boolean', 'ID'].includes(typeName)) {
+      typeMap[typeName] = new GraphQLScalarType({
+        name: typeName,
+        description: typeObj.description,
+        serialize: (v) => v,
+        parseValue: (v) => v,
+        parseLiteral: (ast) => ast.value,
+      });
+    }
+  }
+  supergraphSchema = addMocksToSchema({
+    schema: sgSchemaRaw,
+    mocks: buildServiceMocks('supergraph'),
+    preserveResolvers: false,
+  });
+  console.log(`  ✓ Loaded supergraph (${sgRaw.split('\n').length} lines, all subgraphs unified)`);
+} catch (err) {
+  console.log(`  ✗ Supergraph failed: ${err.message.split('\n')[0]}`);
+}
+
 function buildServiceMocks(serviceName) {
   const base = {
     ID: () => `mock-${serviceName}-${Math.floor(Math.random() * 100000)}`,
@@ -74,6 +143,23 @@ function buildServiceMocks(serviceName) {
     Float: () => Math.round(Math.random() * 100 * 100) / 100,
     Boolean: () => Math.random() > 0.5,
     DateTime: () => new Date().toISOString(),
+    DateTimeISO: () => new Date().toISOString(),
+    Date: () => new Date().toISOString().split('T')[0],
+    MongoID: () => `507f1f77bcf86cd799439${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+    JSON: () => ({ key: 'mock-value' }),
+    JSONObject: () => ({ key: 'mock-value' }),
+    JWT: () => 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock',
+    UUID: () => `${Math.random().toString(36).substring(2, 10)}-mock-uuid`,
+    URL: () => 'https://mock.wmsports.io/resource',
+    Locale: () => 'en-US',
+    Duration: () => 'PT1H30M',
+    NonEmptyString: () => `mock-${serviceName}`,
+    NonNegativeFloat: () => Math.abs(Math.round(Math.random() * 100 * 100) / 100),
+    NonNegativeInt: () => Math.floor(Math.random() * 1000),
+    PositiveInt: () => Math.floor(Math.random() * 999) + 1,
+    ComponentCursor: () => 'cursor-abc123',
+    ContentCursor: () => 'cursor-xyz789',
+    ContextFieldValue: () => 'context-mock-value',
   };
 
   const serviceSpecific = {
@@ -115,13 +201,27 @@ function buildServiceMocks(serviceName) {
 
 // ── GraphQL endpoint per service ──────────────────────────────────────────
 
+app.post('/graphql/supergraph', async (req, res) => {
+  if (!supergraphSchema) {
+    return res.status(503).json({ error: 'Supergraph schema not loaded' });
+  }
+  const { query, variables, operationName } = req.body;
+  if (!query) return res.status(400).json({ error: 'Missing query' });
+  try {
+    const result = await graphql({ schema: supergraphSchema, source: query, variableValues: variables, operationName });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ errors: [{ message: err.message }] });
+  }
+});
+
 app.post('/graphql/:service', async (req, res) => {
   const serviceName = req.params.service;
   const entry = graphqlServices[serviceName];
   if (!entry) {
     return res.status(404).json({
       error: `Unknown service: ${serviceName}`,
-      available: Object.keys(graphqlServices),
+      available: [...Object.keys(graphqlServices), 'supergraph'],
     });
   }
 
@@ -151,6 +251,17 @@ app.post('/graphql', async (req, res) => {
     return res.status(400).json({ error: 'Missing query in request body' });
   }
 
+  // Try supergraph first — it has all types from all subgraphs
+  if (supergraphSchema) {
+    try {
+      const result = await graphql({ schema: supergraphSchema, source: query, variableValues: variables, operationName });
+      if (!result.errors || result.errors.length === 0) {
+        return res.json(result);
+      }
+    } catch (_) {}
+  }
+
+  // Fallback to individual subgraphs
   for (const [name, entry] of Object.entries(graphqlServices)) {
     try {
       const result = await graphql({
@@ -239,6 +350,7 @@ app.get('/', (req, res) => {
     'tag-api': '{\n  getTagById(\n    id: "tag-001"\n    tenant: bleacherReport\n  ) {\n    id\n    name\n    permalink\n    type\n    abbreviation\n  }\n}',
     'user-api': '{\n  findTagByMatchTerm(\n    term: "sports"\n    tenant: bleacherReport\n  ) {\n    id\n    name\n    permalink\n  }\n}',
     'schema': '{\n  getScores(timezone: -5) {\n    leagues {\n      id\n      name\n    }\n  }\n}',
+    'supergraph': '# Cross-subgraph query — types from CMS + Stats + Push Notifications\n{\n  getArticleByCmsId(\n    cmsId: "test-001"\n    tenant: bleacherReport\n  ) {\n    uuid\n    cmsId\n    tenant\n    contentType\n    isPublished\n  }\n  getAllNotifications(\n    tenant: bleacherReport\n    limit: 2\n  ) {\n    id\n    title\n    text\n    createdAt\n  }\n  getGamesByGameDate(\n    startDate: "2026-03-01"\n    endDate: "2026-03-02"\n    timezone: 1\n  ) {\n    id\n    name\n    status\n  }\n}',
   };
   const sampleQueriesJson = JSON.stringify(sampleQueriesObj);
 
@@ -306,12 +418,29 @@ app.get('/', (req, res) => {
 
 <div class="stats">
   <div class="stat"><div class="stat-num">${Object.keys(graphqlServices).length}</div><div class="stat-label">GraphQL Subgraphs</div></div>
+  <div class="stat"><div class="stat-num">${supergraphSchema ? '1' : '0'}</div><div class="stat-label">Federated Supergraph</div></div>
   <div class="stat"><div class="stat-num">10</div><div class="stat-label">REST Endpoints</div></div>
   <div class="stat"><div class="stat-num">38</div><div class="stat-label">Artifacts Loaded</div></div>
 </div>
 
-<h2>GraphQL Services</h2>
-<p style="color:#8b949e;font-size:.85rem;margin-bottom:.5rem">Unified endpoint: <code>POST ${host}/graphql</code> (auto-routes to matching schema)</p>
+${supergraphSchema ? `
+<h2>Federated Supergraph</h2>
+<p style="color:#8b949e;font-size:.85rem;margin-bottom:.5rem">The full composed schema (9166 lines) with <strong>all types from all 15 subgraphs</strong> — like the real Apollo Gateway. Cross-subgraph queries work here.</p>
+<table>
+<thead><tr><th>Service</th><th>Protocol</th><th>Endpoint</th><th></th></tr></thead>
+<tbody>
+<tr>
+  <td><strong>supergraph</strong> (all subgraphs)</td>
+  <td><span style="color:#7ee787">GraphQL</span></td>
+  <td><code>POST ${host}/graphql/supergraph</code></td>
+  <td><button class="try-btn" onclick="tryGraphQL('supergraph')">Try it</button></td>
+</tr>
+</tbody>
+</table>
+` : ''}
+
+<h2>GraphQL Subgraphs (Individual)</h2>
+<p style="color:#8b949e;font-size:.85rem;margin-bottom:.5rem">Unified endpoint: <code>POST ${host}/graphql</code> (tries supergraph first, then auto-routes to matching subgraph)</p>
 <table>
 <thead><tr><th>Service</th><th>Protocol</th><th>Endpoint</th><th></th></tr></thead>
 <tbody>${rows}</tbody>
