@@ -231,61 +231,33 @@ app.get('/', async (req, res) => {
   const host = `${req.protocol}://${req.get('host')}`;
   const microcksUp = services.length > 0;
 
-  const graphqlRows = graphqlSvcs.map(s => {
-    const opsCount = s.operations?.length || 0;
-    const svcEndpoint = `${host}/graphql/${s.name}`;
-    const opsPreview = (s.operations || []).slice(0, 5).map(o => o.name).join(', ');
-    const moreOps = opsCount > 5 ? ` +${opsCount - 5} more` : '';
-    return `<tr>
-      <td><strong>${s.name}</strong></td>
-      <td><span class="badge graphql">GraphQL</span></td>
-      <td><span class="ops-count">${opsCount}</span> operations</td>
-      <td><code>POST ${svcEndpoint}</code></td>
-      <td><button onclick="tryGraphQL('${s.name}','${s.version}')">Try it</button></td>
-    </tr>
-    <tr class="ops-row"><td colspan="5"><span class="ops-list">${opsPreview}${moreOps}</span></td></tr>`;
-  }).join('\n');
+  // Build structured service data for the client-side explorer
+  const svcData = {};
+  for (const s of graphqlSvcs) {
+    const queries = (s.operations || []).filter(o => o.method === 'QUERY');
+    const mutations = (s.operations || []).filter(o => o.method === 'MUTATION');
+    svcData[s.name] = {
+      version: s.version,
+      queries: queries.map(o => ({ name: o.name, output: o.outputName || '' })),
+      mutations: mutations.map(o => ({ name: o.name, output: o.outputName || '' })),
+    };
+  }
+  const svcDataJson = JSON.stringify(svcData);
 
   const restRows = restSvcs.map(s => {
-    const opsCount = s.operations?.length || 0;
     const ops = (s.operations || []).map(o => {
       const parts = o.name.split(' ');
       const method = parts[0] || 'GET';
-      const path = parts.slice(1).join(' ') || '/';
-      return `<div class="rest-endpoint">
-        <span class="method ${method.toLowerCase()}">${method}</span>
-        <code>${host}/rest/${s.name}/${s.version}${path}</code>
-        <button onclick="tryRest('${method}','${host}/rest/${s.name}/${s.version}${path}')">Try it</button>
-      </div>`;
+      const opPath = parts.slice(1).join(' ') || '/';
+      return `<div class="rest-ep"><span class="method ${method.toLowerCase()}">${method}</span><code>${host}/rest/${s.name}/${s.version}${opPath}</code><button onclick="tryRest('${method}','${host}/rest/${s.name}/${s.version}${opPath}')">Try</button></div>`;
     }).join('\n');
-    return `<div class="rest-service">
-      <h3>${s.name} <span class="badge rest">REST</span> <span class="ops-count">${opsCount} endpoints</span></h3>
-      ${ops}
-    </div>`;
+    return `<div class="rest-svc"><h3>${s.name} <span class="badge rest">REST</span> <span class="ops-count">${s.operations?.length || 0}</span></h3>${ops}</div>`;
   }).join('\n');
 
   const eventRows = eventSvcs.map(s => {
-    const opsCount = s.operations?.length || 0;
     const ops = (s.operations || []).map(o => o.name).join(', ');
-    return `<tr>
-      <td><strong>${s.name}</strong></td>
-      <td><span class="badge event">Event</span></td>
-      <td><span class="ops-count">${opsCount}</span> topics</td>
-      <td colspan="2"><span class="ops-list">${ops}</span></td>
-    </tr>`;
+    return `<tr><td><strong>${s.name}</strong></td><td><span class="badge event">Event</span></td><td><span class="ops-count">${s.operations?.length || 0}</span></td><td>${ops}</td></tr>`;
   }).join('\n');
-
-  const sampleQueries = {};
-  for (const s of graphqlSvcs) {
-    const queries = (s.operations || []).filter(o => !o.name.startsWith('Mutation'));
-    if (queries.length > 0) {
-      const firstOp = queries[0].name;
-      sampleQueries[s.name] = `# ${s.name} — ${queries.length} queries available\n# Try: ${queries.slice(0, 3).map(q => q.name).join(', ')}\n{\n  __schema {\n    queryType {\n      fields { name description }\n    }\n  }\n}`;
-    } else {
-      sampleQueries[s.name] = '{ __schema { queryType { fields { name } } } }';
-    }
-  }
-  const sampleQueriesJson = JSON.stringify(sampleQueries);
 
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -293,234 +265,282 @@ app.get('/', async (req, res) => {
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>WM Sports Mock Server</title>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f1117;color:#e1e4e8;padding:2rem}
-  h1{font-size:1.8rem;margin-bottom:.3rem;color:#fff}
-  .subtitle{color:#8b949e;margin-bottom:2rem;font-size:.95rem}
-  .status-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600;margin-left:.5rem}
-  .status-badge.online{background:#238636;color:#fff}
-  .status-badge.offline{background:#da3633;color:#fff}
-  .stats{display:flex;gap:1rem;margin-bottom:2rem;flex-wrap:wrap}
-  .stat{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem 1.5rem;min-width:140px}
-  .stat-num{font-size:2rem;font-weight:700;color:#58a6ff}
-  .stat-label{color:#8b949e;font-size:.85rem}
-  h2{font-size:1.2rem;margin:1.5rem 0 .8rem;color:#c9d1d9}
-  h3{font-size:1rem;color:#c9d1d9;margin-bottom:.5rem}
-  table{width:100%;border-collapse:collapse;background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden;margin-bottom:1rem}
-  th{background:#1c2128;text-align:left;padding:.7rem 1rem;color:#8b949e;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
-  td{padding:.6rem 1rem;border-top:1px solid #21262d;font-size:.9rem}
-  .ops-row td{padding:.2rem 1rem .6rem;border-top:none}
-  .ops-list{color:#484f58;font-size:.8rem;font-style:italic}
-  .ops-count{background:#1f6feb22;color:#58a6ff;padding:1px 8px;border-radius:10px;font-size:.8rem;font-weight:600}
-  code{background:#1c2128;padding:2px 6px;border-radius:4px;font-size:.82rem;color:#79c0ff}
-  button{background:#238636;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:.8rem}
-  button:hover{background:#2ea043}
-  .badge{padding:2px 8px;border-radius:3px;font-size:.7rem;font-weight:700;text-transform:uppercase}
-  .badge.graphql{background:#e535ab22;color:#e535ab}
-  .badge.rest{background:#1f6feb22;color:#58a6ff}
-  .badge.event{background:#f0883e22;color:#f0883e}
-  .rest-service{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem}
-  .rest-endpoint{display:flex;align-items:center;gap:.5rem;padding:.4rem 0;flex-wrap:wrap;font-size:.9rem}
-  .method{padding:2px 8px;border-radius:3px;font-weight:700;font-size:.7rem;min-width:48px;text-align:center}
-  .get{background:#1f6feb;color:#fff}.post{background:#238636;color:#fff}.put{background:#f0883e;color:#fff}.delete{background:#da3633;color:#fff}.patch{background:#a371f7;color:#fff}
-  .rest-endpoint button{margin-left:auto}
-  .playground{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1.2rem;margin-top:1.5rem;display:none}
-  .playground.visible{display:block}
-  .playground h3{color:#c9d1d9;margin-bottom:.8rem;font-size:1rem;display:flex;align-items:center;gap:.5rem}
-  .playground h3 .close{margin-left:auto;background:#21262d;padding:2px 8px;font-size:.75rem;cursor:pointer;border-radius:3px}
-  .playground h3 .close:hover{background:#30363d}
-  .pg-row{display:flex;gap:1rem;margin-bottom:.8rem;flex-wrap:wrap}
-  .pg-col{flex:1;min-width:300px}
-  .pg-col label{display:block;color:#8b949e;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem}
-  textarea{width:100%;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-family:"SF Mono",Menlo,monospace;font-size:.85rem;padding:.8rem;resize:vertical}
-  .pg-query{min-height:120px}
-  .pg-vars{min-height:80px}
-  .pg-actions{display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem}
-  .pg-actions button.run{background:#238636;padding:6px 20px;font-size:.9rem;font-weight:600}
-  .pg-actions button.run:hover{background:#2ea043}
-  .pg-actions span{color:#8b949e;font-size:.8rem}
-  .pg-result{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:.8rem;font-family:"SF Mono",Menlo,monospace;font-size:.85rem;color:#7ee787;max-height:400px;overflow:auto;white-space:pre-wrap;min-height:60px}
-  .pg-result.error{color:#f85149}
-  .pg-status{display:inline-block;padding:1px 6px;border-radius:3px;font-size:.75rem;font-weight:600;margin-left:.5rem}
-  .pg-status.s2{background:#238636;color:#fff}.pg-status.s4{background:#da3633;color:#fff}.pg-status.s5{background:#da3633;color:#fff}
-  .footer{margin-top:2rem;padding-top:1rem;border-top:1px solid #21262d;color:#484f58;font-size:.8rem}
-  a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
-  .microcks-link{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:.8rem 1.2rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:1rem}
-  .microcks-link code{font-size:.9rem}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0d1117;color:#e1e4e8}
+.header{background:#161b22;border-bottom:1px solid #30363d;padding:1rem 1.5rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.header h1{font-size:1.3rem;color:#fff}
+.status-badge{padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:600}
+.status-badge.online{background:#238636;color:#fff}
+.status-badge.offline{background:#da3633;color:#fff}
+.stats-bar{display:flex;gap:1.5rem;margin-left:auto;font-size:.8rem;color:#8b949e}
+.stats-bar strong{color:#58a6ff}
+.layout{display:flex;height:calc(100vh - 56px)}
+.sidebar{width:280px;min-width:280px;background:#0d1117;border-right:1px solid #21262d;overflow-y:auto;display:flex;flex-direction:column}
+.sidebar-section{padding:.5rem 0}
+.sidebar-section h3{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#484f58;padding:.4rem 1rem;user-select:none}
+.svc-btn{display:flex;align-items:center;gap:.5rem;padding:.45rem 1rem;cursor:pointer;font-size:.85rem;color:#c9d1d9;border:none;background:none;width:100%;text-align:left}
+.svc-btn:hover{background:#161b22}
+.svc-btn.active{background:#1f6feb22;color:#58a6ff;border-left:2px solid #58a6ff}
+.svc-btn .cnt{margin-left:auto;font-size:.7rem;color:#484f58;background:#21262d;padding:1px 6px;border-radius:8px}
+.badge{padding:1px 6px;border-radius:3px;font-size:.6rem;font-weight:700;text-transform:uppercase}
+.badge.graphql{background:#e535ab22;color:#e535ab}
+.badge.rest{background:#1f6feb22;color:#58a6ff}
+.badge.event{background:#f0883e22;color:#f0883e}
+.badge.query{background:#23863622;color:#7ee787}.badge.mutation{background:#da363322;color:#f85149}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.explorer{display:none;flex:1;overflow:hidden}
+.explorer.active{display:flex}
+.explorer .ops-panel{width:260px;min-width:220px;background:#0d1117;border-right:1px solid #21262d;overflow-y:auto;padding:.5rem 0}
+.ops-panel h4{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:#484f58;padding:.5rem .8rem .3rem;margin-top:.3rem}
+.op-btn{display:flex;align-items:center;gap:.4rem;padding:.35rem .8rem;cursor:pointer;font-size:.82rem;color:#c9d1d9;border:none;background:none;width:100%;text-align:left}
+.op-btn:hover{background:#161b22}
+.op-btn.active{background:#1f6feb15;color:#58a6ff}
+.op-btn .ret{margin-left:auto;color:#484f58;font-size:.72rem;font-family:"SF Mono",Menlo,monospace;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.editor-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.editor-header{background:#161b22;border-bottom:1px solid #21262d;padding:.5rem 1rem;display:flex;align-items:center;gap:.5rem;font-size:.85rem}
+.editor-header strong{color:#fff}
+.editor-header .run-btn{margin-left:auto;background:#238636;color:#fff;border:none;padding:5px 16px;border-radius:4px;cursor:pointer;font-size:.85rem;font-weight:600}
+.editor-header .run-btn:hover{background:#2ea043}
+.editor-header .timing{color:#8b949e;font-size:.8rem;margin-right:.5rem}
+.editor-body{display:flex;flex:1;overflow:hidden}
+.editor-left{flex:1;display:flex;flex-direction:column;border-right:1px solid #21262d}
+.editor-left label,.editor-right label{display:block;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:#484f58;padding:.4rem .8rem;background:#0d1117;border-bottom:1px solid #21262d}
+.editor-left textarea{flex:1;width:100%;background:#0d1117;border:none;color:#c9d1d9;font-family:"SF Mono",Menlo,monospace;font-size:.85rem;padding:.8rem;resize:none;outline:none}
+.editor-right{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.editor-right pre{flex:1;margin:0;padding:.8rem;font-family:"SF Mono",Menlo,monospace;font-size:.82rem;color:#7ee787;overflow:auto;white-space:pre-wrap;background:#0d1117}
+.editor-right pre.error{color:#f85149}
+.pg-status{padding:1px 6px;border-radius:3px;font-size:.72rem;font-weight:600;margin-right:.3rem}
+.pg-status.s2{background:#238636;color:#fff}.pg-status.s4{background:#da3633;color:#fff}.pg-status.s5{background:#da3633;color:#fff}
+.welcome{padding:3rem;color:#484f58;font-size:1rem;text-align:center;margin:auto}
+.welcome h2{color:#c9d1d9;margin-bottom:.5rem;font-size:1.2rem}
+.rest-section,.event-section{display:none;padding:1.5rem;overflow-y:auto;flex:1}
+.rest-section.active,.event-section.active{display:block}
+.rest-svc{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem}
+.rest-svc h3{font-size:.95rem;margin-bottom:.5rem;color:#c9d1d9}
+.rest-ep{display:flex;align-items:center;gap:.5rem;padding:.3rem 0;font-size:.85rem;flex-wrap:wrap}
+.rest-ep button{margin-left:auto;background:#238636;color:#fff;border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:.75rem}
+.rest-ep button:hover{background:#2ea043}
+.method{padding:2px 6px;border-radius:3px;font-weight:700;font-size:.65rem;min-width:40px;text-align:center}
+.get{background:#1f6feb;color:#fff}.post{background:#238636;color:#fff}.put{background:#f0883e;color:#fff}.delete{background:#da3633;color:#fff}
+code{background:#1c2128;padding:1px 5px;border-radius:3px;font-size:.8rem;color:#79c0ff}
+.ops-count{background:#1f6feb22;color:#58a6ff;padding:1px 6px;border-radius:8px;font-size:.72rem;font-weight:600}
+table{width:100%;border-collapse:collapse;background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}
+th{background:#1c2128;text-align:left;padding:.5rem .8rem;color:#8b949e;font-size:.75rem;text-transform:uppercase}
+td{padding:.5rem .8rem;border-top:1px solid #21262d;font-size:.85rem}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+.footer-bar{background:#161b22;border-top:1px solid #21262d;padding:.4rem 1rem;font-size:.72rem;color:#484f58;display:flex;gap:1rem;align-items:center}
 </style>
 </head>
 <body>
-<h1>WM Sports Mock Server <span class="status-badge ${microcksUp ? 'online' : 'offline'}">${microcksUp ? 'Microcks Connected' : 'Microcks Offline'}</span></h1>
-<p class="subtitle">All mock data powered by <strong>Microcks</strong> — GraphQL, REST, Kafka, RabbitMQ</p>
-
-<div class="microcks-link">
-  <span>Microcks Backend:</span>
-  <code><a href="${MICROCKS_URL}" target="_blank">${MICROCKS_URL}</a></code>
-  <span style="color:#8b949e;font-size:.8rem">(${microcksUp ? services.length + ' services loaded' : 'unreachable'})</span>
+<div class="header">
+  <h1>WM Sports Mock Server</h1>
+  <span class="status-badge ${microcksUp ? 'online' : 'offline'}">${microcksUp ? 'Microcks Connected' : 'Offline'}</span>
+  <div class="stats-bar">
+    <span><strong>${graphqlSvcs.length}</strong> GraphQL</span>
+    <span><strong>${restSvcs.length}</strong> REST</span>
+    <span><strong>${eventSvcs.length}</strong> Event</span>
+    <span><strong>${totalOps}</strong> ops</span>
+  </div>
 </div>
-
-<div class="stats">
-  <div class="stat"><div class="stat-num">${graphqlSvcs.length}</div><div class="stat-label">GraphQL Services</div></div>
-  <div class="stat"><div class="stat-num">${restSvcs.length}</div><div class="stat-label">REST APIs</div></div>
-  <div class="stat"><div class="stat-num">${eventSvcs.length}</div><div class="stat-label">Event/Async APIs</div></div>
-  <div class="stat"><div class="stat-num">${totalOps}</div><div class="stat-label">Total Operations</div></div>
-</div>
-
-${graphqlSvcs.length > 0 ? `
-<h2>GraphQL Services</h2>
-<p style="color:#8b949e;font-size:.85rem;margin-bottom:.5rem">Unified endpoint: <code>POST ${host}/graphql</code> | Per-service: <code>POST ${host}/graphql/:serviceName</code></p>
-<table>
-<thead><tr><th>Service</th><th>Protocol</th><th>Operations</th><th>Endpoint</th><th></th></tr></thead>
-<tbody>${graphqlRows}</tbody>
-</table>
-` : '<p style="color:#8b949e">No GraphQL services found in Microcks</p>'}
-
-${restSvcs.length > 0 ? `
-<h2>REST APIs</h2>
-${restRows}
-` : ''}
-
-${eventSvcs.length > 0 ? `
-<h2>Event / Async APIs (Kafka, RabbitMQ)</h2>
-<table>
-<thead><tr><th>Service</th><th>Protocol</th><th>Operations</th><th colspan="2">Topics/Queues</th></tr></thead>
-<tbody>${eventRows}</tbody>
-</table>
-` : ''}
-
-<div id="playground" class="playground">
-  <h3>
-    <span id="pg-title">Playground</span>
-    <button class="close" onclick="closePg()">Close</button>
-  </h3>
-  <div class="pg-row">
-    <div class="pg-col">
-      <label id="pg-query-label">Query</label>
-      <textarea id="pg-query" class="pg-query" spellcheck="false"></textarea>
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <h3>GraphQL Services</h3>
+      ${graphqlSvcs.map(s => {
+        const qc = (s.operations||[]).filter(o=>o.method==='QUERY').length;
+        const mc = (s.operations||[]).filter(o=>o.method==='MUTATION').length;
+        return `<button class="svc-btn" data-svc="${s.name}" data-type="graphql" onclick="selectService('${s.name}')">${s.name}<span class="cnt">${qc}Q${mc?'/'+mc+'M':''}</span></button>`;
+      }).join('\n')}
     </div>
-    <div class="pg-col" id="pg-vars-col">
-      <label>Variables (JSON)</label>
-      <textarea id="pg-vars" class="pg-vars" spellcheck="false">{}</textarea>
+    <div class="sidebar-section">
+      <h3>REST APIs</h3>
+      ${restSvcs.map(s => `<button class="svc-btn" data-type="rest" onclick="showRest()">${s.name}<span class="cnt">${s.operations?.length||0}</span></button>`).join('\n')}
+    </div>
+    <div class="sidebar-section">
+      <h3>Event / Async</h3>
+      ${eventSvcs.map(s => `<button class="svc-btn" data-type="event" onclick="showEvents()">${s.name}<span class="cnt">${s.operations?.length||0}</span></button>`).join('\n')}
     </div>
   </div>
-  <div class="pg-actions">
-    <button class="run" id="pg-run" onclick="runQuery()">Run Query</button>
-    <span id="pg-timing"></span>
-  </div>
-  <label style="color:#8b949e;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;display:block">Response <span style="font-size:.7rem;color:#484f58">(from Microcks)</span></label>
-  <div id="pg-result" class="pg-result">Click "Run Query" to see the response from Microcks</div>
-</div>
+  <div class="main">
+    <div id="welcome" class="welcome" style="display:flex;flex-direction:column">
+      <h2>Select a service from the sidebar</h2>
+      <p>Click any GraphQL service to explore its queries and mutations, or click REST/Event to browse endpoints.</p>
+    </div>
 
-<div class="footer">
-  <a href="/health">Health Check</a> &middot;
-  <a href="${MICROCKS_URL}" target="_blank">Microcks Dashboard</a> &middot;
-  <a href="/api/services" target="_blank">Services API</a> &middot;
-  <a href="https://github.com/nausheenzaidi-bit/wmsports-mock-server">GitHub</a> &middot;
-  Powered by Microcks + Express
+    <div id="explorer" class="explorer">
+      <div class="ops-panel" id="ops-panel"></div>
+      <div class="editor-area">
+        <div class="editor-header">
+          <span class="badge graphql">GraphQL</span>
+          <strong id="editor-svc"></strong>
+          <span class="timing" id="editor-timing"></span>
+          <button class="run-btn" onclick="runQuery()">Run</button>
+        </div>
+        <div class="editor-body">
+          <div class="editor-left">
+            <label>Operation</label>
+            <textarea id="editor-query" spellcheck="false" placeholder="Select a query from the left panel..."></textarea>
+          </div>
+          <div class="editor-right">
+            <label>Response <span style="font-size:.6rem;color:#30363d">(from Microcks)</span></label>
+            <pre id="editor-result">Select a query and click Run</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="rest-view" class="rest-section">
+      <h2 style="color:#c9d1d9;margin-bottom:1rem">REST APIs</h2>
+      ${restRows}
+    </div>
+
+    <div id="event-view" class="event-section">
+      <h2 style="color:#c9d1d9;margin-bottom:1rem">Event / Async APIs</h2>
+      <table>
+        <thead><tr><th>Service</th><th>Protocol</th><th>Operations</th><th>Topics/Queues</th></tr></thead>
+        <tbody>${eventRows}</tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div class="footer-bar">
+  <a href="/health">Health</a>
+  <a href="${MICROCKS_URL}" target="_blank">Microcks</a>
+  <a href="/api/services" target="_blank">API</a>
+  <a href="https://github.com/nausheenzaidi-bit/wmsports-mock-server">GitHub</a>
+  <span style="margin-left:auto">Powered by Microcks + Express</span>
 </div>
 
 <script>
+const SVC_DATA = ${svcDataJson};
 let currentService = '';
-let currentVersion = '1.0';
-let currentMode = 'graphql';
 
-const sampleQueries = ${sampleQueriesJson};
+function hideAll() {
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('explorer').classList.remove('active');
+  document.getElementById('rest-view').classList.remove('active');
+  document.getElementById('event-view').classList.remove('active');
+  document.querySelectorAll('.svc-btn').forEach(b => b.classList.remove('active'));
+}
 
-function tryGraphQL(service, version) {
-  currentService = service;
-  currentVersion = version || '1.0';
-  currentMode = 'graphql';
-  const pg = document.getElementById('playground');
-  pg.classList.add('visible');
-  document.getElementById('pg-title').innerHTML = 'GraphQL: <strong>' + service + '</strong> <span class="badge graphql">via Microcks</span>';
-  document.getElementById('pg-query').value = sampleQueries[service] || '{ __schema { queryType { fields { name description } } } }';
-  document.getElementById('pg-query').readOnly = false;
-  document.getElementById('pg-query').style.opacity = '1';
-  document.getElementById('pg-query-label').textContent = 'Query';
-  document.getElementById('pg-vars').value = '{}';
-  document.getElementById('pg-vars-col').style.display = '';
-  document.getElementById('pg-result').textContent = 'Click "Run Query" to see the response from Microcks';
-  document.getElementById('pg-result').className = 'pg-result';
-  document.getElementById('pg-timing').textContent = '';
-  document.getElementById('pg-run').textContent = 'Run Query';
-  pg.scrollIntoView({behavior:'smooth'});
+function selectService(name) {
+  hideAll();
+  const data = SVC_DATA[name];
+  if (!data) return;
+  currentService = name;
+
+  document.querySelector('.svc-btn[data-svc="'+name+'"]').classList.add('active');
+  document.getElementById('explorer').classList.add('active');
+  document.getElementById('editor-svc').textContent = name;
+  document.getElementById('editor-result').textContent = 'Select a query and click Run';
+  document.getElementById('editor-result').className = '';
+  document.getElementById('editor-timing').innerHTML = '';
+
+  const panel = document.getElementById('ops-panel');
+  let html = '';
+  if (data.queries.length) {
+    html += '<h4>Queries (' + data.queries.length + ')</h4>';
+    data.queries.forEach(q => {
+      const ret = cleanRetType(q.output);
+      html += '<button class="op-btn" onclick="selectOp(\\x27'+q.name+'\\x27,\\x27QUERY\\x27)"><span class="badge query">Q</span>'+q.name+'<span class="ret" title="'+ret+'">'+ret+'</span></button>';
+    });
+  }
+  if (data.mutations.length) {
+    html += '<h4>Mutations (' + data.mutations.length + ')</h4>';
+    data.mutations.forEach(m => {
+      const ret = cleanRetType(m.output);
+      html += '<button class="op-btn" onclick="selectOp(\\x27'+m.name+'\\x27,\\x27MUTATION\\x27)"><span class="badge mutation">M</span>'+m.name+'<span class="ret" title="'+ret+'">'+ret+'</span></button>';
+    });
+  }
+  panel.innerHTML = html;
+}
+
+function cleanRetType(s) {
+  if (!s) return '';
+  return s
+    .replace(/NonNullType[{]type=TypeName[{]name='(\\w+)'[}][}]/g, '$1!')
+    .replace(/TypeName[{]name='(\\w+)'[}]/g, '$1')
+    .replace(/ListType[{]type=/g, '[')
+    .replace(/NonNullType[{]type=/g, '')
+    .replace(/[}]/g, '')
+    .replace(/\\[([^\\]]+)/g, '[$1]');
+}
+
+function selectOp(name, type) {
+  document.querySelectorAll('.op-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  const prefix = type === 'MUTATION' ? 'mutation' : '';
+  document.getElementById('editor-query').value = (prefix ? prefix + ' ' : '') + '{' + '\\n  ' + name + ' {' + '\\n    id' + '\\n    name' + '\\n  }' + '\\n}';
+  document.getElementById('editor-result').textContent = 'Click Run to execute ' + name;
+  document.getElementById('editor-result').className = '';
+  document.getElementById('editor-timing').innerHTML = '';
+}
+
+function showRest() {
+  hideAll();
+  document.getElementById('rest-view').classList.add('active');
+  document.querySelectorAll('.svc-btn[data-type="rest"]').forEach(b => b.classList.add('active'));
+}
+
+function showEvents() {
+  hideAll();
+  document.getElementById('event-view').classList.add('active');
+  document.querySelectorAll('.svc-btn[data-type="event"]').forEach(b => b.classList.add('active'));
 }
 
 function tryRest(method, fullUrl) {
-  currentMode = 'rest';
-  const pg = document.getElementById('playground');
-  pg.classList.add('visible');
-  document.getElementById('pg-title').innerHTML = 'REST: <strong>' + method + '</strong> <span class="badge rest">via Microcks</span>';
-  const queryEl = document.getElementById('pg-query');
-  document.getElementById('pg-query-label').textContent = 'URL';
-  queryEl.value = fullUrl;
-  queryEl.readOnly = method === 'GET';
-  queryEl.style.opacity = method === 'GET' ? '0.7' : '1';
-  document.getElementById('pg-vars-col').style.display = 'none';
-  document.getElementById('pg-run').textContent = 'Send Request';
-  document.getElementById('pg-result').textContent = 'Click "Send Request" to execute via Microcks';
-  document.getElementById('pg-result').className = 'pg-result';
-  document.getElementById('pg-timing').textContent = '';
-  currentService = JSON.stringify({method, url: fullUrl});
-  pg.scrollIntoView({behavior:'smooth'});
+  hideAll();
+  document.getElementById('explorer').classList.add('active');
+  currentService = '__rest__';
+  document.getElementById('editor-svc').textContent = method + ' ' + new URL(fullUrl).pathname;
+  document.getElementById('ops-panel').innerHTML = '<div style="padding:1rem;color:#484f58;font-size:.8rem">REST endpoint selected.<br>Click Run to send request.</div>';
+  document.getElementById('editor-query').value = fullUrl;
+  document.getElementById('editor-result').textContent = 'Click Run to send the request';
+  document.getElementById('editor-result').className = '';
+  document.getElementById('editor-timing').innerHTML = '';
+  window.__restCtx = {method, url: fullUrl};
 }
 
 async function runQuery() {
-  if (currentMode === 'rest') return sendRestRequest();
-  const query = document.getElementById('pg-query').value;
-  let variables = {};
-  try { variables = JSON.parse(document.getElementById('pg-vars').value); } catch(_) {}
-  const el = document.getElementById('pg-result');
-  el.textContent = 'Querying Microcks...';
-  el.className = 'pg-result';
+  const el = document.getElementById('editor-result');
+  const timingEl = document.getElementById('editor-timing');
+  el.textContent = 'Loading...';
+  el.className = '';
   const start = performance.now();
+
+  if (currentService === '__rest__') {
+    const {method, url} = window.__restCtx;
+    try {
+      const urlObj = new URL(url);
+      const r = await fetch(urlObj.pathname + urlObj.search, {method, headers:{'Content-Type':'application/json','x-api-key':'mock'}});
+      const ms = Math.round(performance.now() - start);
+      const text = await r.text();
+      let display; try { display = JSON.stringify(JSON.parse(text),null,2); } catch(_) { display = text; }
+      const sc = r.status < 300 ? 's2' : 's4';
+      timingEl.innerHTML = '<span class="pg-status '+sc+'">'+r.status+'</span> '+ms+'ms';
+      el.textContent = display;
+      if (r.status >= 400) el.className = 'error';
+    } catch(e) { el.textContent = 'Error: '+e.message; el.className = 'error'; }
+    return;
+  }
+
+  const query = document.getElementById('editor-query').value;
   try {
     const r = await fetch('/graphql/' + currentService, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({query, variables})
+      body: JSON.stringify({query})
     });
     const ms = Math.round(performance.now() - start);
     const text = await r.text();
-    let display;
-    try { display = JSON.stringify(JSON.parse(text), null, 2); } catch(_) { display = text; }
+    let display; try { display = JSON.stringify(JSON.parse(text),null,2); } catch(_) { display = text; }
     const sc = r.status < 300 ? 's2' : 's4';
-    document.getElementById('pg-timing').innerHTML = '<span class="pg-status ' + sc + '">' + r.status + '</span> ' + ms + 'ms';
+    timingEl.innerHTML = '<span class="pg-status '+sc+'">'+r.status+'</span> '+ms+'ms';
     el.textContent = display;
-    if (display.includes('"errors"')) el.className = 'pg-result error';
-  } catch(e) {
-    el.textContent = 'Error: ' + e.message;
-    el.className = 'pg-result error';
-  }
+    if (display.includes('"errors"')) el.className = 'error';
+  } catch(e) { el.textContent = 'Error: '+e.message; el.className = 'error'; }
 }
 
-async function sendRestRequest() {
-  const {method, url} = JSON.parse(currentService);
-  const el = document.getElementById('pg-result');
-  el.textContent = 'Sending to Microcks...';
-  el.className = 'pg-result';
-  const start = performance.now();
-  try {
-    const urlObj = new URL(url);
-    const opts = {method, headers:{'Content-Type':'application/json'}};
-    const r = await fetch(urlObj.pathname + urlObj.search, opts);
-    const ms = Math.round(performance.now() - start);
-    const text = await r.text();
-    let display;
-    try { display = JSON.stringify(JSON.parse(text), null, 2); } catch(_) { display = text; }
-    const sc = r.status < 300 ? 's2' : r.status < 500 ? 's4' : 's5';
-    document.getElementById('pg-timing').innerHTML = '<span class="pg-status ' + sc + '">' + r.status + '</span> ' + ms + 'ms';
-    el.textContent = display;
-  } catch(e) {
-    el.textContent = 'Error: ' + e.message;
-    el.className = 'pg-result error';
-  }
-}
-
-function closePg() {
-  document.getElementById('playground').classList.remove('visible');
-}
-
-document.getElementById('pg-query').addEventListener('keydown', e => {
+document.getElementById('editor-query').addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runQuery(); }
 });
 </script>
