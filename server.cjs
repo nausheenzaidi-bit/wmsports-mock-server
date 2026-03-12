@@ -18,12 +18,45 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { parse: gqlParse } = require('graphql');
+const { parse: gqlParse, Kind } = require('graphql');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.text({ type: 'text/*', limit: '5mb' }));
+
+// ── Load real GraphQL schemas for field validation ──────────────────────
+
+const fullTypeMap = {};
+
+function loadSchemaFiles() {
+  const artifactsDir = path.join(__dirname, 'artifacts');
+  if (!fs.existsSync(artifactsDir)) return;
+
+  const schemaFiles = fs.readdirSync(artifactsDir).filter(f => f.endsWith('.graphql'));
+  for (const file of schemaFiles) {
+    try {
+      const content = fs.readFileSync(path.join(artifactsDir, file), 'utf-8');
+      const doc = gqlParse(content);
+      for (const def of doc.definitions) {
+        if (def.kind === Kind.OBJECT_TYPE_DEFINITION || def.kind === Kind.OBJECT_TYPE_EXTENSION) {
+          const typeName = def.name.value;
+          if (!fullTypeMap[typeName]) {
+            fullTypeMap[typeName] = { name: typeName, fields: [] };
+          }
+          for (const field of (def.fields || [])) {
+            if (!fullTypeMap[typeName].fields.includes(field.name.value)) {
+              fullTypeMap[typeName].fields.push(field.name.value);
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  console.log(`  Schema: ${Object.keys(fullTypeMap).length} types loaded from ${schemaFiles.length} files`);
+}
+
+loadSchemaFiles();
 
 const PORT = process.env.PORT || 4010;
 const MICROCKS_URL = process.env.MICROCKS_URL || 'http://localhost:8585';
@@ -173,6 +206,80 @@ function fetchFromMicrocks(targetPath, body) {
   });
 }
 
+// ── Server-side schema introspection cache ──────────────────────────────
+
+const serverSchemaCache = {};
+const SCHEMA_CACHE_TTL = 120_000;
+
+async function getServiceSchema(service) {
+  const cached = serverSchemaCache[service];
+  if (cached && Date.now() - cached.ts < SCHEMA_CACHE_TTL) return cached.schema;
+
+  try {
+    const introspectionQuery = '{ __schema { types { name kind fields { name type { name kind ofType { name kind ofType { name kind ofType { name kind } } } } } } queryType { name } mutationType { name } } }';
+    const resp = await fetchFromMicrocks(`/graphql/${service}/1.0`, { query: introspectionQuery });
+    if (resp.status === 200) {
+      const parsed = JSON.parse(resp.body);
+      if (parsed.data && parsed.data.__schema) {
+        const schema = parsed.data.__schema;
+        serverSchemaCache[service] = { schema, ts: Date.now() };
+        return schema;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+function resolveTypeName(typeObj) {
+  if (!typeObj) return null;
+  if (typeObj.name) return typeObj.name;
+  if (typeObj.ofType) return resolveTypeName(typeObj.ofType);
+  return null;
+}
+
+function validateFieldsAgainstSchema(schema, queryStr, fullSchemaTypes) {
+  if (!schema) return [];
+  try {
+    const doc = gqlParse(queryStr);
+    const def = doc.definitions[0];
+    if (!def || !def.selectionSet) return [];
+    const isMutation = def.operation === 'mutation';
+    const rootName = isMutation ? (schema.mutationType || {}).name : (schema.queryType || {}).name;
+    const rootType = schema.types.find(t => t.name === rootName);
+    if (!rootType || !rootType.fields) return [];
+
+    const errors = [];
+    for (const sel of def.selectionSet.selections) {
+      if (sel.kind !== 'Field') continue;
+      const opField = rootType.fields.find(f => f.name === sel.name.value);
+      if (!opField) continue;
+      if (sel.selectionSet) {
+        const retTypeName = resolveTypeName(opField.type);
+        const retType = fullSchemaTypes ? fullSchemaTypes[retTypeName] : null;
+        if (retType) {
+          collectInvalidFields(fullSchemaTypes, retType, sel.selectionSet, sel.name.value, errors);
+        }
+      }
+    }
+    return errors;
+  } catch (_) { return []; }
+}
+
+function collectInvalidFields(typeMap, parentType, selectionSet, path, errors) {
+  if (!parentType || !parentType.fields || !selectionSet) return;
+  for (const sel of selectionSet.selections) {
+    if (sel.kind !== 'Field') continue;
+    const fieldName = sel.name.value;
+    if (!parentType.fields.includes(fieldName)) {
+      errors.push({
+        message: `Cannot query field "${fieldName}" on type "${parentType.name}".`,
+        locations: sel.loc ? [{ line: sel.loc.startToken.line, column: sel.loc.startToken.column }] : [],
+        extensions: { code: 'GRAPHQL_VALIDATION_FAILED' },
+      });
+    }
+  }
+}
+
 // ── GraphQL proxy to Microcks (with field filtering) ────────────────────
 
 function extractOperationName(queryStr) {
@@ -194,12 +301,21 @@ app.post('/graphql/:service', async (req, res) => {
     return proxyToMicrocks(req, res, microcksPath);
   }
 
+  // Validate fields against real schema — return errors for non-existent fields
+  const schema = await getServiceSchema(service);
+  const hasFullSchema = Object.keys(fullTypeMap).length > 0;
+  if (schema && hasFullSchema) {
+    const validationErrors = validateFieldsAgainstSchema(schema, queryStr, fullTypeMap);
+    if (validationErrors.length > 0) {
+      return res.json({ errors: validationErrors });
+    }
+  }
+
   const selectionMap = extractSelectionSet(queryStr);
 
   try {
     let resp = await fetchFromMicrocks(microcksPath, req.body);
 
-    // Microcks returns 500 for nested field selections — retry with a bare query
     if (resp.status === 500 && selectionMap) {
       const opName = extractOperationName(queryStr);
       if (opName) {
@@ -675,7 +791,7 @@ async function selectOp(name, type) {
     result.textContent = 'Query ready — click Run or Cmd+Enter. Add arguments manually if needed.';
   } else {
     editor.value = prefix + '{\\n  ' + name + '\\n}';
-    result.textContent = 'No fields discovered — edit query manually. Click Run to execute.';
+    result.textContent = 'Returns a scalar value — click Run to execute. Add fields with { } if needed.';
   }
 }
 
