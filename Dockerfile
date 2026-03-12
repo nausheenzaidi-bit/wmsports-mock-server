@@ -8,6 +8,7 @@ COPY package.json package-lock.json* ./
 RUN npm install --production
 
 COPY server.cjs ./
+COPY rest-mocks.cjs ./
 COPY import-to-microcks.sh ./
 COPY artifacts/ ./artifacts/
 
