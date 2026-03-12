@@ -550,18 +550,35 @@ async function selectOp(name, type) {
   const schema = await fetchSchema(currentService);
   const prefix = type === 'MUTATION' ? 'mutation ' : '';
 
+  let fieldsStr = null;
   if (schema) {
     const retType = getReturnTypeName(schema, name, type);
-    const fieldsStr = retType ? buildFieldsQuery(schema, retType) : null;
-    if (fieldsStr) {
-      editor.value = prefix + '{\\n  ' + name + ' {\\n    ' + fieldsStr.split(' ').join('\\n    ') + '\\n  }\\n}';
-    } else {
-      editor.value = prefix + '{\\n  ' + name + '\\n}';
-    }
-    result.textContent = 'Query ready — click Run or Cmd+Enter. Add arguments manually if needed. Expand nested objects with { subfield } as needed.';
+    fieldsStr = retType ? buildFieldsQuery(schema, retType) : null;
+  }
+
+  if (!fieldsStr) {
+    try {
+      const probe = await fetch('/graphql/' + currentService, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({query: prefix + '{ ' + name + ' }'})
+      });
+      const pd = await probe.json();
+      const val = pd && pd.data ? pd.data[name] : null;
+      if (val) {
+        const obj = Array.isArray(val) ? val[0] : val;
+        if (obj && typeof obj === 'object') {
+          fieldsStr = Object.keys(obj).slice(0, 20).join(' ');
+        }
+      }
+    } catch(_) {}
+  }
+
+  if (fieldsStr) {
+    editor.value = prefix + '{\\n  ' + name + ' {\\n    ' + fieldsStr.split(' ').join('\\n    ') + '\\n  }\\n}';
+    result.textContent = 'Query ready — click Run or Cmd+Enter. Add arguments manually if needed.';
   } else {
-    editor.value = prefix + '{\\n  ' + name + ' {\\n    id\\n    name\\n  }\\n}';
-    result.textContent = 'Schema introspection failed — edit query manually. Click Run to execute.';
+    editor.value = prefix + '{\\n  ' + name + '\\n}';
+    result.textContent = 'No fields discovered — edit query manually. Click Run to execute.';
   }
 }
 
