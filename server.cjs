@@ -502,15 +502,18 @@ function getReturnTypeName(schema, opName, method) {
 function buildFieldsQuery(schema, typeName) {
   const t = findType(schema, typeName);
   if (!t || !t.fields || t.fields.length === 0) return null;
-  const lines = [];
-  for (const f of t.fields.slice(0, 20)) {
+  const scalars = [];
+  const allNames = [];
+  for (const f of t.fields.slice(0, 25)) {
+    allNames.push(f.name);
     let inner = f.type;
     while (inner.ofType) inner = inner.ofType;
     if (inner.kind === 'SCALAR' || inner.kind === 'ENUM') {
-      lines.push(f.name);
+      scalars.push(f.name);
     }
   }
-  return lines.length > 0 ? lines.join(' ') : null;
+  if (scalars.length > 0) return scalars.join(' ');
+  return allNames.length > 0 ? allNames.slice(0, 10).join(' ') : null;
 }
 
 function getArgStr(schema, opName, method) {
@@ -555,7 +558,7 @@ async function selectOp(name, type) {
     } else {
       editor.value = prefix + '{\\n  ' + name + '\\n}';
     }
-    result.textContent = 'Query ready — click Run or Cmd+Enter. Add arguments manually if needed.';
+    result.textContent = 'Query ready — click Run or Cmd+Enter. Add arguments manually if needed. Expand nested objects with { subfield } as needed.';
   } else {
     editor.value = prefix + '{\\n  ' + name + ' {\\n    id\\n    name\\n  }\\n}';
     result.textContent = 'Schema introspection failed — edit query manually. Click Run to execute.';
