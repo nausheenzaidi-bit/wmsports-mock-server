@@ -473,7 +473,7 @@ async function fetchSchema(svc) {
   try {
     const r = await fetch('/graphql/' + svc, {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({query: '{ __schema { types { name kind fields { name type { name kind ofType { name kind ofType { name kind } } } } } queryType { name } mutationType { name } } }'})
+      body: JSON.stringify({query: '{ __schema { types { name kind fields { name args { name type { name kind ofType { name kind ofType { name } } } } type { name kind ofType { name kind ofType { name kind } } } } } queryType { name } mutationType { name } } }'})
     });
     const d = await r.json();
     if (d.data) { schemaCache[svc] = d.data.__schema; return d.data.__schema; }
@@ -499,35 +499,39 @@ function getReturnTypeName(schema, opName, method) {
   return t.name;
 }
 
-function buildFieldsQuery(schema, typeName, depth) {
-  if (!depth) depth = 0;
-  if (depth > 1) return null;
+function buildFieldsQuery(schema, typeName) {
   const t = findType(schema, typeName);
   if (!t || !t.fields || t.fields.length === 0) return null;
-  const scalars = ['String','Int','Float','Boolean','ID','DateTime','DateTimeISO','Date','MongoID','JSON','JSONObject','JWT','UUID','URL','Locale'];
   const lines = [];
-  for (const f of t.fields.slice(0, 15)) {
+  for (const f of t.fields.slice(0, 20)) {
     let inner = f.type;
     while (inner.ofType) inner = inner.ofType;
-    if (inner.kind === 'SCALAR' || inner.kind === 'ENUM' || scalars.includes(inner.name)) {
+    if (inner.kind === 'SCALAR' || inner.kind === 'ENUM') {
       lines.push(f.name);
-    } else if (inner.kind === 'OBJECT' && depth < 1) {
-      const sub = buildFieldsQuery(schema, inner.name, depth + 1);
-      if (sub) lines.push(f.name + ' { ' + sub + ' }');
-      else lines.push(f.name + ' { id }');
     }
-    if (lines.length >= 12) break;
   }
-  return lines.join(' ');
+  return lines.length > 0 ? lines.join(' ') : null;
 }
 
-function getArgs(schema, opName, method) {
+function getArgStr(schema, opName, method) {
   const rootName = method === 'MUTATION' ? (schema.mutationType||{}).name : (schema.queryType||{}).name;
   const root = schema.types.find(t => t.name === rootName);
   if (!root || !root.fields) return '';
   const field = root.fields.find(f => f.name === opName);
   if (!field || !field.args || field.args.length === 0) return '';
-  return '';
+  const parts = field.args.map(a => {
+    let t = a.type;
+    let required = false;
+    if (t.kind === 'NON_NULL') { required = true; t = t.ofType || t; }
+    let typeName = t.name || (t.ofType && t.ofType.name) || 'String';
+    const defaults = {
+      'String': '"example"', 'Int': '1', 'Float': '1.0', 'Boolean': 'true', 'ID': '"id-001"',
+      'Tenant': 'bleacherReport', 'DateTime': '"2026-03-01T00:00:00Z"', 'Date': '"2026-03-01"',
+    };
+    const val = defaults[typeName] || '"example"';
+    return a.name + ': ' + val;
+  });
+  return '(' + parts.join(', ') + ')';
 }
 
 async function selectOp(name, type) {
@@ -544,17 +548,18 @@ async function selectOp(name, type) {
   const prefix = type === 'MUTATION' ? 'mutation ' : '';
 
   if (schema) {
+    const args = getArgStr(schema, name, type);
     const retType = getReturnTypeName(schema, name, type);
-    const fieldsStr = retType ? buildFieldsQuery(schema, retType, 0) : null;
+    const fieldsStr = retType ? buildFieldsQuery(schema, retType) : null;
     if (fieldsStr) {
-      editor.value = prefix + '{\\n  ' + name + ' {\\n    ' + fieldsStr.split(' ').join('\\n    ') + '\\n  }\\n}';
+      editor.value = prefix + '{\\n  ' + name + args + ' {\\n    ' + fieldsStr.split(' ').join('\\n    ') + '\\n  }\\n}';
     } else {
-      editor.value = prefix + '{\\n  ' + name + '\\n}';
+      editor.value = prefix + '{\\n  ' + name + args + '\\n}';
     }
-    result.textContent = 'Query ready — click Run or press Cmd+Enter';
+    result.textContent = 'Query ready — click Run or Cmd+Enter.  Fields shown: scalar only (edit to add nested objects).';
   } else {
     editor.value = prefix + '{\\n  ' + name + ' {\\n    id\\n    name\\n  }\\n}';
-    result.textContent = 'Schema introspection failed — using default fields. Click Run to execute.';
+    result.textContent = 'Schema introspection failed — edit query manually. Click Run to execute.';
   }
 }
 
