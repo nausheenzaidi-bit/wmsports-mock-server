@@ -253,10 +253,29 @@ app.get('/', (req, res) => {
   button{background:#238636;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:.8rem}
   button:hover{background:#2ea043}
   .rest-section{margin-top:1rem}
-  .rest-endpoint{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:.5rem 1rem;margin:.4rem 0;font-size:.9rem;display:flex;align-items:center;gap:.5rem}
+  .rest-endpoint{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:.5rem 1rem;margin:.4rem 0;font-size:.9rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
   .method{padding:2px 8px;border-radius:3px;font-weight:700;font-size:.75rem;min-width:45px;text-align:center}
   .get{background:#1f6feb;color:#fff}.post{background:#238636;color:#fff}
-  #result{background:#1c2128;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-top:1rem;white-space:pre-wrap;font-family:monospace;font-size:.85rem;max-height:400px;overflow:auto;display:none;color:#7ee787}
+  .rest-endpoint button{margin-left:auto}
+  .playground{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1.2rem;margin-top:1.5rem;display:none}
+  .playground.visible{display:block}
+  .playground h3{color:#c9d1d9;margin-bottom:.8rem;font-size:1rem;display:flex;align-items:center;gap:.5rem}
+  .playground h3 .close{margin-left:auto;background:#21262d;padding:2px 8px;font-size:.75rem;cursor:pointer;border-radius:3px}
+  .playground h3 .close:hover{background:#30363d}
+  .pg-row{display:flex;gap:1rem;margin-bottom:.8rem;flex-wrap:wrap}
+  .pg-col{flex:1;min-width:300px}
+  .pg-col label{display:block;color:#8b949e;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem}
+  textarea{width:100%;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-family:"SF Mono",Menlo,monospace;font-size:.85rem;padding:.8rem;resize:vertical}
+  .pg-query{min-height:120px}
+  .pg-vars{min-height:80px}
+  .pg-actions{display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem}
+  .pg-actions button.run{background:#238636;padding:6px 20px;font-size:.9rem;font-weight:600}
+  .pg-actions button.run:hover{background:#2ea043}
+  .pg-actions span{color:#8b949e;font-size:.8rem}
+  .pg-result{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:.8rem;font-family:"SF Mono",Menlo,monospace;font-size:.85rem;color:#7ee787;max-height:400px;overflow:auto;white-space:pre-wrap;min-height:60px}
+  .pg-result.error{color:#f85149}
+  .pg-status{display:inline-block;padding:1px 6px;border-radius:3px;font-size:.75rem;font-weight:600;margin-left:.5rem}
+  .pg-status.s2{background:#238636;color:#fff}.pg-status.s4{background:#da3633;color:#fff}.pg-status.s5{background:#da3633;color:#fff}
   .footer{margin-top:2rem;padding-top:1rem;border-top:1px solid #21262d;color:#484f58;font-size:.8rem}
   a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
 </style>
@@ -280,22 +299,43 @@ app.get('/', (req, res) => {
 
 <h2>REST Endpoints (Census API)</h2>
 <div class="rest-section">
-  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/push_notifications</code><span style="color:#8b949e;font-size:.8rem">List notifications</span></div>
-  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/push_notifications/:id</code><span style="color:#8b949e;font-size:.8rem">Get by ID</span></div>
-  <div class="rest-endpoint"><span class="method post">POST</span><code>/v3/push_notifications</code><span style="color:#8b949e;font-size:.8rem">Create notification</span></div>
-  <div class="rest-endpoint"><span class="method post">POST</span><code>/v3/:tenant/users/:userId/device</code><span style="color:#8b949e;font-size:.8rem">Register device</span></div>
-  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/tags/:tagUUID/subscriptions/count</code><span style="color:#8b949e;font-size:.8rem">Follower count</span></div>
-  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/tags/:tagUUID/subscriptions</code><span style="color:#8b949e;font-size:.8rem">Subscribers</span></div>
-  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/user/:userId/tags</code><span style="color:#8b949e;font-size:.8rem">User tags</span></div>
-  <div class="rest-endpoint"><span class="method post">POST</span><code>/v3/alert_buzz/ranks</code><span style="color:#8b949e;font-size:.8rem">Alert ranks</span></div>
+  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/push_notifications</code><span style="color:#8b949e;font-size:.8rem">List notifications</span><button onclick="tryRest('GET','/v3/bleacherReport/push_notifications')">Try it</button></div>
+  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/push_notifications/:id</code><span style="color:#8b949e;font-size:.8rem">Get by ID</span><button onclick="tryRest('GET','/v3/bleacherReport/push_notifications/12345')">Try it</button></div>
+  <div class="rest-endpoint"><span class="method post">POST</span><code>/v3/push_notifications</code><span style="color:#8b949e;font-size:.8rem">Create notification</span><button onclick="tryRest('POST','/v3/push_notifications',{tenant:'bleacherReport',title:'Test Alert',text:'Hello from mock server'})">Try it</button></div>
+  <div class="rest-endpoint"><span class="method post">POST</span><code>/v3/:tenant/users/:userId/device</code><span style="color:#8b949e;font-size:.8rem">Register device</span><button onclick="tryRest('POST','/v3/bleacherReport/users/user-001/device',{device:{device_token:'test-token',platform:'iOS iPhone'}})">Try it</button></div>
+  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/tags/:tagUUID/subscriptions/count</code><span style="color:#8b949e;font-size:.8rem">Follower count</span><button onclick="tryRest('GET','/v3/bleacherReport/tags/tag-001/subscriptions/count')">Try it</button></div>
+  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/tags/:tagUUID/subscriptions</code><span style="color:#8b949e;font-size:.8rem">Subscribers</span><button onclick="tryRest('GET','/v3/bleacherReport/tags/tag-001/subscriptions')">Try it</button></div>
+  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/user/:userId/tags</code><span style="color:#8b949e;font-size:.8rem">User tags</span><button onclick="tryRest('GET','/v3/bleacherReport/user/user-001/tags')">Try it</button></div>
+  <div class="rest-endpoint"><span class="method post">POST</span><code>/v3/alert_buzz/ranks</code><span style="color:#8b949e;font-size:.8rem">Alert ranks</span><button onclick="tryRest('POST','/v3/alert_buzz/ranks',{alertRanks:[{pushNotificationId:'123',rank:5}]})">Try it</button></div>
 </div>
 
 <h2>REST Endpoints (StatMilk)</h2>
 <div class="rest-section">
-  <div class="rest-endpoint"><span class="method get">GET</span><code>/statmilk/*</code><span style="color:#8b949e;font-size:.8rem">StatMilk data</span></div>
+  <div class="rest-endpoint"><span class="method get">GET</span><code>/statmilk/*</code><span style="color:#8b949e;font-size:.8rem">StatMilk data</span><button onclick="tryRest('GET','/statmilk/test')">Try it</button></div>
 </div>
 
-<div id="result"></div>
+<div id="playground" class="playground">
+  <h3>
+    <span id="pg-title">Playground</span>
+    <button class="close" onclick="closePg()">Close</button>
+  </h3>
+  <div class="pg-row">
+    <div class="pg-col">
+      <label>Query</label>
+      <textarea id="pg-query" class="pg-query" spellcheck="false"></textarea>
+    </div>
+    <div class="pg-col">
+      <label>Variables (JSON)</label>
+      <textarea id="pg-vars" class="pg-vars" spellcheck="false">{}</textarea>
+    </div>
+  </div>
+  <div class="pg-actions">
+    <button class="run" id="pg-run" onclick="runQuery()">Run Query</button>
+    <span id="pg-timing"></span>
+  </div>
+  <label style="color:#8b949e;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;display:block">Response</label>
+  <div id="pg-result" class="pg-result">Click "Run Query" to see the response</div>
+</div>
 
 <div class="footer">
   <a href="/health">Health Check</a> &middot;
@@ -304,24 +344,108 @@ app.get('/', (req, res) => {
 </div>
 
 <script>
-async function tryGraphQL(service) {
-  const el = document.getElementById('result');
-  el.style.display = 'block';
-  el.textContent = 'Loading...';
-  try {
-    const r = await fetch('/graphql/' + service, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({query:'{ __schema { queryType { name } mutationType { name } types { name kind } } }'})
-    });
-    const data = await r.json();
-    const types = (data.data?.__schema?.types || []).filter(t => !t.name.startsWith('__'));
-    el.textContent = service + ' — ' + types.length + ' types\\n\\nQueries: ' +
-      (data.data?.__schema?.queryType?.name || 'none') +
-      '\\nMutations: ' + (data.data?.__schema?.mutationType?.name || 'none') +
-      '\\n\\nTypes:\\n' + types.map(t => '  ' + t.kind.padEnd(12) + t.name).join('\\n');
-  } catch(e) { el.textContent = 'Error: ' + e.message; }
+let currentService = '';
+let currentMode = 'graphql';
+
+const sampleQueries = {
+  'push-notification-api': '{ getAllNotifications(tenant: bleacherReport) { id title text createdAt spoiler alertCategories destinations { tagUUID contentModuleId } attachments { mediaType mediaUrl } } }',
+  'stats-api': '{ getGamesByGameDate(startDate: "2026-03-01", endDate: "2026-03-02", timezone: 1) { id name gameDate { iso8501 } score { away home } home { name abbreviation } away { name abbreviation } status } }',
+  'cms-api': '{ __schema { queryType { fields { name description } } } }',
+  'ads-api': '{ __schema { queryType { fields { name } } } }',
+  'hydration-station-api': '{ __schema { queryType { fields { name } } } }',
+};
+
+function tryGraphQL(service) {
+  currentService = service;
+  currentMode = 'graphql';
+  const pg = document.getElementById('playground');
+  pg.classList.add('visible');
+  document.getElementById('pg-title').innerHTML = 'GraphQL: <strong>' + service + '</strong>';
+  document.getElementById('pg-query').value = sampleQueries[service] || '{ __schema { queryType { fields { name description } } } }';
+  document.getElementById('pg-vars').value = '{}';
+  document.getElementById('pg-result').textContent = 'Click "Run Query" to see the response';
+  document.getElementById('pg-result').className = 'pg-result';
+  document.getElementById('pg-timing').textContent = '';
+  document.getElementById('pg-run').textContent = 'Run Query';
+  document.getElementById('pg-query').parentElement.querySelector('label').textContent = 'Query';
+  document.getElementById('pg-vars').parentElement.style.display = '';
+  pg.scrollIntoView({behavior:'smooth'});
 }
+
+async function tryRest(method, path, body) {
+  currentMode = 'rest';
+  const pg = document.getElementById('playground');
+  pg.classList.add('visible');
+  document.getElementById('pg-title').innerHTML = 'REST: <strong>' + method + ' ' + path + '</strong>';
+  document.getElementById('pg-query').value = body ? JSON.stringify(body, null, 2) : '(no request body)';
+  document.getElementById('pg-query').parentElement.querySelector('label').textContent = 'Request Body';
+  document.getElementById('pg-vars').parentElement.style.display = 'none';
+  document.getElementById('pg-run').textContent = 'Send Request';
+  document.getElementById('pg-result').textContent = 'Sending...';
+  document.getElementById('pg-result').className = 'pg-result';
+  document.getElementById('pg-timing').textContent = '';
+  pg.scrollIntoView({behavior:'smooth'});
+
+  currentService = JSON.stringify({method, path, body});
+  const start = performance.now();
+  try {
+    const opts = {method, headers:{'Content-Type':'application/json'}};
+    if (body) opts.body = JSON.stringify(body);
+    const r = await fetch(path, opts);
+    const ms = Math.round(performance.now() - start);
+    const data = await r.json();
+    const statusClass = r.status < 300 ? 's2' : r.status < 500 ? 's4' : 's5';
+    document.getElementById('pg-timing').innerHTML = '<span class="pg-status ' + statusClass + '">' + r.status + '</span> ' + ms + 'ms';
+    document.getElementById('pg-result').textContent = JSON.stringify(data, null, 2);
+  } catch(e) {
+    document.getElementById('pg-result').textContent = 'Error: ' + e.message;
+    document.getElementById('pg-result').className = 'pg-result error';
+  }
+}
+
+async function runQuery() {
+  if (currentMode === 'rest') {
+    try {
+      const {method, path} = JSON.parse(currentService);
+      const bodyText = document.getElementById('pg-query').value;
+      let body = null;
+      try { body = JSON.parse(bodyText); } catch(_) {}
+      return tryRest(method, path, body);
+    } catch(_) {}
+  }
+
+  const query = document.getElementById('pg-query').value;
+  let variables = {};
+  try { variables = JSON.parse(document.getElementById('pg-vars').value); } catch(_) {}
+  const el = document.getElementById('pg-result');
+  el.textContent = 'Loading...';
+  el.className = 'pg-result';
+
+  const start = performance.now();
+  try {
+    const r = await fetch('/graphql/' + currentService, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({query, variables})
+    });
+    const ms = Math.round(performance.now() - start);
+    const data = await r.json();
+    const statusClass = r.status < 300 ? 's2' : 's4';
+    document.getElementById('pg-timing').innerHTML = '<span class="pg-status ' + statusClass + '">' + r.status + '</span> ' + ms + 'ms';
+    el.textContent = JSON.stringify(data, null, 2);
+    if (data.errors) el.className = 'pg-result error';
+  } catch(e) {
+    el.textContent = 'Error: ' + e.message;
+    el.className = 'pg-result error';
+  }
+}
+
+function closePg() {
+  document.getElementById('playground').classList.remove('visible');
+}
+
+document.getElementById('pg-query').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runQuery(); }
+});
 </script>
 </body>
 </html>`);
