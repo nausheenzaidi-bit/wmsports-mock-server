@@ -302,13 +302,16 @@ app.post('/graphql/:service', async (req, res) => {
   }
 
   // Check for AI override
+  const isProbe = req.headers['x-probe'] === 'true';
   const opName = extractOperationName(queryStr);
   if (opName) {
     const overrideKey = `${service}:${opName}`;
     const override = responseOverrides[overrideKey];
     if (override && override.remaining > 0) {
-      override.remaining--;
-      if (override.remaining <= 0) delete responseOverrides[overrideKey];
+      if (!isProbe) {
+        override.remaining--;
+        if (override.remaining <= 0) delete responseOverrides[overrideKey];
+      }
       res.setHeader('X-Source', 'ai-override');
       res.setHeader('X-Override-Remaining', override.remaining);
       return res.json(override.data);
@@ -1060,7 +1063,7 @@ async function selectOp(name, type) {
   try {
     const start = performance.now();
     const probe = await fetch('/graphql/' + currentService, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: {'Content-Type':'application/json', 'X-Probe':'true'},
       body: JSON.stringify({query: prefix + '{ ' + name + ' }'})
     });
     probeMs = Math.round(performance.now() - start);
@@ -1246,12 +1249,10 @@ async function inlineAIInject() {
     if (prompt) payload.prompt = prompt;
     if (fields.length > 0) payload.fields = fields;
 
-    const start = performance.now();
     const r = await fetch('/ai/override', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     });
-    const ms = Math.round(performance.now() - start);
     const d = await r.json();
 
     if (d.error) {
@@ -1262,15 +1263,11 @@ async function inlineAIInject() {
       return;
     }
 
-    result.textContent = JSON.stringify(d.preview, null, 2);
-    result.className = '';
-    timingEl.innerHTML = '<span class="pg-status ai">AI</span> '+ms+'ms <span style="color:#a371f7;font-size:.72rem">5 override(s) left</span>';
-    srcLabel.textContent = '(from AI Agent)';
-    srcLabel.style.color = '#a371f7';
-
     const prefix = currentOpType === 'MUTATION' ? 'mutation ' : '';
     const fieldsBlock = fields.length > 0 ? ' {\\n    ' + fields.join('\\n    ') + '\\n  }' : '';
-    editor.value = '# AI Override active (5 remaining)\\n# Scenario: ' + (scenario || 'custom prompt') + '\\n# Fields: ' + (fields.length ? fields.join(', ') : 'all') + '\\n# Click Run to get AI data, or Clear to restore Microcks\\n\\n' + prefix + '{\\n  ' + currentOpName + fieldsBlock + '\\n}';
+    editor.value = prefix + '{\\n  ' + currentOpName + fieldsBlock + '\\n}';
+
+    await runQuery();
   } catch(e) {
     result.textContent = 'Error: ' + e.message;
     result.className = 'error';
