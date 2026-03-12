@@ -466,14 +466,96 @@ function cleanRetType(s) {
     .replace(/\\[([^\\]]+)/g, '[$1]');
 }
 
-function selectOp(name, type) {
+const schemaCache = {};
+
+async function fetchSchema(svc) {
+  if (schemaCache[svc]) return schemaCache[svc];
+  try {
+    const r = await fetch('/graphql/' + svc, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({query: '{ __schema { types { name kind fields { name type { name kind ofType { name kind ofType { name kind } } } } } queryType { name } mutationType { name } } }'})
+    });
+    const d = await r.json();
+    if (d.data) { schemaCache[svc] = d.data.__schema; return d.data.__schema; }
+  } catch(_) {}
+  return null;
+}
+
+function findType(schema, typeName) {
+  if (!schema || !typeName) return null;
+  const clean = typeName.replace(/[\\[\\]!]/g, '');
+  return schema.types.find(t => t.name === clean);
+}
+
+function getReturnTypeName(schema, opName, method) {
+  if (!schema) return null;
+  const rootName = method === 'MUTATION' ? (schema.mutationType||{}).name : (schema.queryType||{}).name;
+  const root = schema.types.find(t => t.name === rootName);
+  if (!root || !root.fields) return null;
+  const field = root.fields.find(f => f.name === opName);
+  if (!field) return null;
+  let t = field.type;
+  while (t.ofType) t = t.ofType;
+  return t.name;
+}
+
+function buildFieldsQuery(schema, typeName, depth) {
+  if (!depth) depth = 0;
+  if (depth > 1) return null;
+  const t = findType(schema, typeName);
+  if (!t || !t.fields || t.fields.length === 0) return null;
+  const scalars = ['String','Int','Float','Boolean','ID','DateTime','DateTimeISO','Date','MongoID','JSON','JSONObject','JWT','UUID','URL','Locale'];
+  const lines = [];
+  for (const f of t.fields.slice(0, 15)) {
+    let inner = f.type;
+    while (inner.ofType) inner = inner.ofType;
+    if (inner.kind === 'SCALAR' || inner.kind === 'ENUM' || scalars.includes(inner.name)) {
+      lines.push(f.name);
+    } else if (inner.kind === 'OBJECT' && depth < 1) {
+      const sub = buildFieldsQuery(schema, inner.name, depth + 1);
+      if (sub) lines.push(f.name + ' { ' + sub + ' }');
+      else lines.push(f.name + ' { id }');
+    }
+    if (lines.length >= 12) break;
+  }
+  return lines.join(' ');
+}
+
+function getArgs(schema, opName, method) {
+  const rootName = method === 'MUTATION' ? (schema.mutationType||{}).name : (schema.queryType||{}).name;
+  const root = schema.types.find(t => t.name === rootName);
+  if (!root || !root.fields) return '';
+  const field = root.fields.find(f => f.name === opName);
+  if (!field || !field.args || field.args.length === 0) return '';
+  return '';
+}
+
+async function selectOp(name, type) {
   document.querySelectorAll('.op-btn').forEach(b => b.classList.remove('active'));
-  event.currentTarget.classList.add('active');
-  const prefix = type === 'MUTATION' ? 'mutation' : '';
-  document.getElementById('editor-query').value = (prefix ? prefix + ' ' : '') + '{' + '\\n  ' + name + ' {' + '\\n    id' + '\\n    name' + '\\n  }' + '\\n}';
-  document.getElementById('editor-result').textContent = 'Click Run to execute ' + name;
-  document.getElementById('editor-result').className = '';
+  if (event && event.currentTarget) event.currentTarget.classList.add('active');
+
+  const editor = document.getElementById('editor-query');
+  const result = document.getElementById('editor-result');
+  result.textContent = 'Loading schema for ' + currentService + '...';
+  result.className = '';
   document.getElementById('editor-timing').innerHTML = '';
+
+  const schema = await fetchSchema(currentService);
+  const prefix = type === 'MUTATION' ? 'mutation ' : '';
+
+  if (schema) {
+    const retType = getReturnTypeName(schema, name, type);
+    const fieldsStr = retType ? buildFieldsQuery(schema, retType, 0) : null;
+    if (fieldsStr) {
+      editor.value = prefix + '{\\n  ' + name + ' {\\n    ' + fieldsStr.split(' ').join('\\n    ') + '\\n  }\\n}';
+    } else {
+      editor.value = prefix + '{\\n  ' + name + '\\n}';
+    }
+    result.textContent = 'Query ready — click Run or press Cmd+Enter';
+  } else {
+    editor.value = prefix + '{\\n  ' + name + ' {\\n    id\\n    name\\n  }\\n}';
+    result.textContent = 'Schema introspection failed — using default fields. Click Run to execute.';
+  }
 }
 
 function showRest() {
