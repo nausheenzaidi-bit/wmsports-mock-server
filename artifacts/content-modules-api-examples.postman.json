@@ -1,0 +1,884 @@
+{
+  "info": {
+    "_postman_id": "contentmodulesapi-mocks",
+    "name": "ContentModulesAPI",
+    "description": "version=1.0 - Mock examples for ContentModulesAPI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "contentModules",
+      "request": {
+        "method": "POST",
+        "url": "http://contentModules",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query contentModules { contentModules }\"}"
+        }
+      },
+      "response": [
+        {
+          "name": "default",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://contentModules",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query contentModules { contentModules }\"}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"contentModules\":[]}}"
+        }
+      ]
+    },
+    {
+      "name": "fetchContentModuleById",
+      "request": {
+        "method": "POST",
+        "url": "http://fetchContentModuleById",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query fetchContentModuleById($id: ID!) { fetchContentModuleById(id: $id) }\",\"variables\":{\"id\":\"id-id-001\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-id-001",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://fetchContentModuleById",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query fetchContentModuleById($id: ID!) { fetchContentModuleById(id: $id) }\",\"variables\":{\"id\":\"id-id-001\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"fetchContentModuleById\":null}}"
+        }
+      ]
+    },
+    {
+      "name": "fetchContentModuleByContentIdAndContentType",
+      "request": {
+        "method": "POST",
+        "url": "http://fetchContentModuleByContentIdAndContentType",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query fetchContentModuleByContentIdAndContentType($contentId: ID!, $contentType: String!, $state: [ModuleState]) { fetchContentModuleByContentIdAndContentType(contentId: $contentId, contentType: $contentType, state: $state) }\",\"variables\":{\"contentId\":\"id-contentId-001\",\"contentType\":\"DEFAULT\",\"state\":\"demo-state\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-contentId-001",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://fetchContentModuleByContentIdAndContentType",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query fetchContentModuleByContentIdAndContentType($contentId: ID!, $contentType: String!, $state: [ModuleState]) { fetchContentModuleByContentIdAndContentType(contentId: $contentId, contentType: $contentType, state: $state) }\",\"variables\":{\"contentId\":\"id-contentId-001\",\"contentType\":\"DEFAULT\",\"state\":\"demo-state\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"fetchContentModuleByContentIdAndContentType\":[]}}"
+        }
+      ]
+    },
+    {
+      "name": "fetchPackageByTypeAndTag",
+      "request": {
+        "method": "POST",
+        "url": "http://fetchPackageByTypeAndTag",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query fetchPackageByTypeAndTag($packageType: String!, $tagUUID: String!, $state: [ModuleState]) { fetchPackageByTypeAndTag(packageType: $packageType, tagUUID: $tagUUID, state: $state) { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children parent slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries composites { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components isAlerted allowedCountries composites commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata insertedAt programmingUpdatedAt wrapperContentModuleId metaData } orientation expiresAt scheduledDate state components { hash semanticID tag position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag author videoContentId tenant } } commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata { video { state } } insertedAt programmingUpdatedAt wrapperContentModuleId metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children parent slug } author { hash tagUUID uuid type followersCount startTime endTime children parent slug } videoContentId tenant } } orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } author { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } videoContentId tenant } } }\",\"variables\":{\"packageType\":\"DEFAULT\",\"tagUUID\":\"id-12345\",\"state\":\"demo-state\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "DEFAULT",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://fetchPackageByTypeAndTag",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query fetchPackageByTypeAndTag($packageType: String!, $tagUUID: String!, $state: [ModuleState]) { fetchPackageByTypeAndTag(packageType: $packageType, tagUUID: $tagUUID, state: $state) { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children parent slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries composites { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components isAlerted allowedCountries composites commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata insertedAt programmingUpdatedAt wrapperContentModuleId metaData } orientation expiresAt scheduledDate state components { hash semanticID tag position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag author videoContentId tenant } } commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata { video { state } } insertedAt programmingUpdatedAt wrapperContentModuleId metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children parent slug } author { hash tagUUID uuid type followersCount startTime endTime children parent slug } videoContentId tenant } } orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } author { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } videoContentId tenant } } }\",\"variables\":{\"packageType\":\"DEFAULT\",\"tagUUID\":\"id-12345\",\"state\":\"demo-state\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"fetchPackageByTypeAndTag\":[{\"id\":\"id-id-001\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"packageTag\":\"demo-packageTag\",\"packageType\":\"TopHeadlines\",\"contentType\":\"Article\",\"contents\":[{\"id\":\"id-id-001\",\"type\":\"Article\",\"contentID\":\"id-12345\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"content\":null,\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"composites\":[{\"id\":\"id-id-001\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"packageTag\":\"demo-packageTag\",\"packageType\":\"TopHeadlines\",\"contentType\":\"Article\",\"contents\":[{\"id\":\"id-id-001\",\"type\":\"Article\",\"contentID\":\"id-12345\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"content\":null,\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":null,\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"composites\":[{\"id\":\"id-id-001\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"packageTag\":\"demo-packageTag\",\"packageType\":\"TopHeadlines\",\"contentType\":\"Article\",\"contents\":[],\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"metaData\":null}],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\",\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"contentMetadata\":{\"video\":null},\"insertedAt\":\"2026-02-20T10:00:00Z\",\"programmingUpdatedAt\":\"2026-02-20T10:00:00Z\",\"wrapperContentModuleId\":\"id-wrapperContentModuleId-001\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":null,\"author\":null,\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}],\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"author\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\",\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"contentMetadata\":{\"video\":{\"state\":\"UPCOMING\"}},\"insertedAt\":\"2026-02-20T10:00:00Z\",\"programmingUpdatedAt\":\"2026-02-20T10:00:00Z\",\"wrapperContentModuleId\":\"id-wrapperContentModuleId-001\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"author\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}],\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"author\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}]}}"
+        }
+      ]
+    },
+    {
+      "name": "findPackageByTitle",
+      "request": {
+        "method": "POST",
+        "url": "http://findPackageByTitle",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query findPackageByTitle($title: String, $state: [ModuleState]) { findPackageByTitle(title: $title, state: $state) { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children parent slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries composites { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components isAlerted allowedCountries composites commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata insertedAt programmingUpdatedAt wrapperContentModuleId metaData } orientation expiresAt scheduledDate state components { hash semanticID tag position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag author videoContentId tenant } } commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata { video { state } } insertedAt programmingUpdatedAt wrapperContentModuleId metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children parent slug } author { hash tagUUID uuid type followersCount startTime endTime children parent slug } videoContentId tenant } } orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } author { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } videoContentId tenant } } }\",\"variables\":{\"title\":\"Demo Title\",\"state\":\"demo-state\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "DemoTitle",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://findPackageByTitle",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query findPackageByTitle($title: String, $state: [ModuleState]) { findPackageByTitle(title: $title, state: $state) { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children parent slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries composites { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components isAlerted allowedCountries composites commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata insertedAt programmingUpdatedAt wrapperContentModuleId metaData } orientation expiresAt scheduledDate state components { hash semanticID tag position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag author videoContentId tenant } } commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata { video { state } } insertedAt programmingUpdatedAt wrapperContentModuleId metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children parent slug } author { hash tagUUID uuid type followersCount startTime endTime children parent slug } videoContentId tenant } } orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } author { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } videoContentId tenant } } }\",\"variables\":{\"title\":\"Demo Title\",\"state\":\"demo-state\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"findPackageByTitle\":[{\"id\":\"id-id-001\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"packageTag\":\"demo-packageTag\",\"packageType\":\"TopHeadlines\",\"contentType\":\"Article\",\"contents\":[{\"id\":\"id-id-001\",\"type\":\"Article\",\"contentID\":\"id-12345\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"content\":null,\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"composites\":[{\"id\":\"id-id-001\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"packageTag\":\"demo-packageTag\",\"packageType\":\"TopHeadlines\",\"contentType\":\"Article\",\"contents\":[{\"id\":\"id-id-001\",\"type\":\"Article\",\"contentID\":\"id-12345\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"content\":null,\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":null,\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"composites\":[{\"id\":\"id-id-001\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"packageTag\":\"demo-packageTag\",\"packageType\":\"TopHeadlines\",\"contentType\":\"Article\",\"contents\":[],\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"metaData\":null}],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\",\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"contentMetadata\":{\"video\":null},\"insertedAt\":\"2026-02-20T10:00:00Z\",\"programmingUpdatedAt\":\"2026-02-20T10:00:00Z\",\"wrapperContentModuleId\":\"id-wrapperContentModuleId-001\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":null,\"author\":null,\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}],\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"author\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\",\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"contentMetadata\":{\"video\":{\"state\":\"UPCOMING\"}},\"insertedAt\":\"2026-02-20T10:00:00Z\",\"programmingUpdatedAt\":\"2026-02-20T10:00:00Z\",\"wrapperContentModuleId\":\"id-wrapperContentModuleId-001\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"author\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}],\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"author\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}]}}"
+        }
+      ]
+    },
+    {
+      "name": "findContentModulesBySemanticIdAndTag",
+      "request": {
+        "method": "POST",
+        "url": "http://findContentModulesBySemanticIdAndTag",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query findContentModulesBySemanticIdAndTag($tagUUID: String, $semanticID: SemanticID, $state: [ModuleState], $limit: Int, $tagSlug: String) { findContentModulesBySemanticIdAndTag(tagUUID: $tagUUID, semanticID: $semanticID, state: $state, limit: $limit, tagSlug: $tagSlug) }\",\"variables\":{\"tagUUID\":\"id-12345\",\"semanticID\":\"demo-semanticID\",\"state\":\"demo-state\",\"limit\":1,\"tagSlug\":\"demo-slug-001\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-12345",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://findContentModulesBySemanticIdAndTag",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query findContentModulesBySemanticIdAndTag($tagUUID: String, $semanticID: SemanticID, $state: [ModuleState], $limit: Int, $tagSlug: String) { findContentModulesBySemanticIdAndTag(tagUUID: $tagUUID, semanticID: $semanticID, state: $state, limit: $limit, tagSlug: $tagSlug) }\",\"variables\":{\"tagUUID\":\"id-12345\",\"semanticID\":\"demo-semanticID\",\"state\":\"demo-state\",\"limit\":1,\"tagSlug\":\"demo-slug-001\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"findContentModulesBySemanticIdAndTag\":[]}}"
+        }
+      ]
+    },
+    {
+      "name": "paginatedFindContentModulesBySemanticIdAndTag",
+      "request": {
+        "method": "POST",
+        "url": "http://paginatedFindContentModulesBySemanticIdAndTag",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query paginatedFindContentModulesBySemanticIdAndTag($tagUUID: String, $semanticID: SemanticID, $first: Int, $after: ContentCursor, $last: Int, $before: ContentCursor, $state: [ModuleState]) { paginatedFindContentModulesBySemanticIdAndTag(tagUUID: $tagUUID, semanticID: $semanticID, first: $first, after: $after, last: $last, before: $before, state: $state) { edges { cursor } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } totalCount } }\",\"variables\":{\"tagUUID\":\"id-12345\",\"semanticID\":\"demo-semanticID\",\"first\":1,\"after\":\"demo-after\",\"last\":1,\"before\":\"demo-before\",\"state\":\"demo-state\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-12345",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://paginatedFindContentModulesBySemanticIdAndTag",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query paginatedFindContentModulesBySemanticIdAndTag($tagUUID: String, $semanticID: SemanticID, $first: Int, $after: ContentCursor, $last: Int, $before: ContentCursor, $state: [ModuleState]) { paginatedFindContentModulesBySemanticIdAndTag(tagUUID: $tagUUID, semanticID: $semanticID, first: $first, after: $after, last: $last, before: $before, state: $state) { edges { cursor } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } totalCount } }\",\"variables\":{\"tagUUID\":\"id-12345\",\"semanticID\":\"demo-semanticID\",\"first\":1,\"after\":\"demo-after\",\"last\":1,\"before\":\"demo-before\",\"state\":\"demo-state\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"paginatedFindContentModulesBySemanticIdAndTag\":{\"edges\":[{\"cursor\":\"demo-cursor\",\"node\":null}],\"pageInfo\":{\"hasNextPage\":true,\"hasPreviousPage\":true,\"startCursor\":\"demo-startCursor\",\"endCursor\":\"demo-endCursor\"},\"totalCount\":10}}}"
+        }
+      ]
+    },
+    {
+      "name": "fetchScheduledModules",
+      "request": {
+        "method": "POST",
+        "url": "http://fetchScheduledModules",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query fetchScheduledModules($startDate: Date, $endDate: Date, $limit: Int) { fetchScheduledModules(startDate: $startDate, endDate: $endDate, limit: $limit) }\",\"variables\":{\"startDate\":\"2026-02-20T10:00:00Z\",\"endDate\":\"2026-02-20T10:00:00Z\",\"limit\":1}}"
+        }
+      },
+      "response": [
+        {
+          "name": "2026-02-20T100000Z",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://fetchScheduledModules",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query fetchScheduledModules($startDate: Date, $endDate: Date, $limit: Int) { fetchScheduledModules(startDate: $startDate, endDate: $endDate, limit: $limit) }\",\"variables\":{\"startDate\":\"2026-02-20T10:00:00Z\",\"endDate\":\"2026-02-20T10:00:00Z\",\"limit\":1}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"fetchScheduledModules\":[]}}"
+        }
+      ]
+    },
+    {
+      "name": "createStandaloneContentModule",
+      "request": {
+        "method": "POST",
+        "url": "http://createStandaloneContentModule",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation createStandaloneContentModule($contentId: ID!, $lastModifiedBy: String!, $channels: [TagComponent!]!, $title: String!, $description: String!, $thumbnail: String!, $contentType: ContentModuleType!, $orientation: ModuleOrientation, $expiresAt: Date, $scheduledDate: Date, $allowedCountries: [String], $commentsEnabled: Boolean, $thumbnailAccreditation: String, $thumbnailCopyright: String) { createStandaloneContentModule(contentId: $contentId, lastModifiedBy: $lastModifiedBy, channels: $channels, title: $title, description: $description, thumbnail: $thumbnail, contentType: $contentType, orientation: $orientation, expiresAt: $expiresAt, scheduledDate: $scheduledDate, allowedCountries: $allowedCountries, commentsEnabled: $commentsEnabled, thumbnailAccreditation: $thumbnailAccreditation, thumbnailCopyright: $thumbnailCopyright) { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries composites { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components { hash semanticID tag position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries composites { id title description packageTag packageType contentType contents orientation expiresAt scheduledDate state components isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData } commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata { video } insertedAt programmingUpdatedAt wrapperContentModuleId metaData { hash communityTag author videoContentId tenant } } orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children parent slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children parent slug } author { hash tagUUID uuid type followersCount startTime endTime children parent slug } videoContentId tenant } } commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata { video { state } } insertedAt programmingUpdatedAt wrapperContentModuleId metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } author { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } videoContentId tenant } } }\",\"variables\":{\"contentId\":\"id-contentId-001\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"channels\":\"demo-channels\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"contentType\":\"demo-contentType\",\"orientation\":\"demo-orientation\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"allowedCountries\":\"demo-allowedCountries\",\"commentsEnabled\":true,\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-contentId-001",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://createStandaloneContentModule",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation createStandaloneContentModule($contentId: ID!, $lastModifiedBy: String!, $channels: [TagComponent!]!, $title: String!, $description: String!, $thumbnail: String!, $contentType: ContentModuleType!, $orientation: ModuleOrientation, $expiresAt: Date, $scheduledDate: Date, $allowedCountries: [String], $commentsEnabled: Boolean, $thumbnailAccreditation: String, $thumbnailCopyright: String) { createStandaloneContentModule(contentId: $contentId, lastModifiedBy: $lastModifiedBy, channels: $channels, title: $title, description: $description, thumbnail: $thumbnail, contentType: $contentType, orientation: $orientation, expiresAt: $expiresAt, scheduledDate: $scheduledDate, allowedCountries: $allowedCountries, commentsEnabled: $commentsEnabled, thumbnailAccreditation: $thumbnailAccreditation, thumbnailCopyright: $thumbnailCopyright) { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries composites { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components { hash semanticID tag position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries composites { id title description packageTag packageType contentType contents orientation expiresAt scheduledDate state components isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData } commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata { video } insertedAt programmingUpdatedAt wrapperContentModuleId metaData { hash communityTag author videoContentId tenant } } orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children parent slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children parent slug } author { hash tagUUID uuid type followersCount startTime endTime children parent slug } videoContentId tenant } } commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata { video { state } } insertedAt programmingUpdatedAt wrapperContentModuleId metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } author { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } videoContentId tenant } } }\",\"variables\":{\"contentId\":\"id-contentId-001\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"channels\":\"demo-channels\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"contentType\":\"demo-contentType\",\"orientation\":\"demo-orientation\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"allowedCountries\":\"demo-allowedCountries\",\"commentsEnabled\":true,\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"createStandaloneContentModule\":{\"id\":\"id-id-001\",\"type\":\"Article\",\"contentID\":\"id-12345\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"content\":null,\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"composites\":[{\"id\":\"id-id-001\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"packageTag\":\"demo-packageTag\",\"packageType\":\"TopHeadlines\",\"contentType\":\"Article\",\"contents\":[{\"id\":\"id-id-001\",\"type\":\"Article\",\"contentID\":\"id-12345\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"content\":null,\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"composites\":[{\"id\":\"id-id-001\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"packageTag\":\"demo-packageTag\",\"packageType\":\"TopHeadlines\",\"contentType\":\"Article\",\"contents\":[{\"id\":\"id-id-001\",\"type\":\"Article\",\"contentID\":\"id-12345\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"content\":null,\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"composites\":[],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\",\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"contentMetadata\":null,\"insertedAt\":\"2026-02-20T10:00:00Z\",\"programmingUpdatedAt\":\"2026-02-20T10:00:00Z\",\"wrapperContentModuleId\":\"id-wrapperContentModuleId-001\",\"metaData\":null}],\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":null,\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":null,\"author\":null,\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\",\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"contentMetadata\":{\"video\":{\"state\":\"UPCOMING\"}},\"insertedAt\":\"2026-02-20T10:00:00Z\",\"programmingUpdatedAt\":\"2026-02-20T10:00:00Z\",\"wrapperContentModuleId\":\"id-wrapperContentModuleId-001\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"author\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}],\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"author\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\",\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"contentMetadata\":{\"video\":{\"state\":\"UPCOMING\"}},\"insertedAt\":\"2026-02-20T10:00:00Z\",\"programmingUpdatedAt\":\"2026-02-20T10:00:00Z\",\"wrapperContentModuleId\":\"id-wrapperContentModuleId-001\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"author\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}}}"
+        }
+      ]
+    },
+    {
+      "name": "updateStandaloneContentModule",
+      "request": {
+        "method": "POST",
+        "url": "http://updateStandaloneContentModule",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation updateStandaloneContentModule($contentId: ID, $lastModifiedBy: String, $channels: [TagComponent], $title: String, $description: String, $thumbnail: String, $contentType: ContentModuleType, $expiresAt: Date, $scheduledDate: Date, $id: ID!, $isAlerted: Boolean, $allowedCountries: [String], $commentsEnabled: Boolean, $thumbnailAccreditation: String, $thumbnailCopyright: String, $updateProgrammingTimestamp: Boolean) { updateStandaloneContentModule(contentId: $contentId, lastModifiedBy: $lastModifiedBy, channels: $channels, title: $title, description: $description, thumbnail: $thumbnail, contentType: $contentType, expiresAt: $expiresAt, scheduledDate: $scheduledDate, id: $id, isAlerted: $isAlerted, allowedCountries: $allowedCountries, commentsEnabled: $commentsEnabled, thumbnailAccreditation: $thumbnailAccreditation, thumbnailCopyright: $thumbnailCopyright, updateProgrammingTimestamp: $updateProgrammingTimestamp) }\",\"variables\":{\"contentId\":\"id-contentId-001\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"channels\":\"demo-channels\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"contentType\":\"demo-contentType\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"id\":\"id-id-001\",\"isAlerted\":true,\"allowedCountries\":\"demo-allowedCountries\",\"commentsEnabled\":true,\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\",\"updateProgrammingTimestamp\":true}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-contentId-001",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://updateStandaloneContentModule",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation updateStandaloneContentModule($contentId: ID, $lastModifiedBy: String, $channels: [TagComponent], $title: String, $description: String, $thumbnail: String, $contentType: ContentModuleType, $expiresAt: Date, $scheduledDate: Date, $id: ID!, $isAlerted: Boolean, $allowedCountries: [String], $commentsEnabled: Boolean, $thumbnailAccreditation: String, $thumbnailCopyright: String, $updateProgrammingTimestamp: Boolean) { updateStandaloneContentModule(contentId: $contentId, lastModifiedBy: $lastModifiedBy, channels: $channels, title: $title, description: $description, thumbnail: $thumbnail, contentType: $contentType, expiresAt: $expiresAt, scheduledDate: $scheduledDate, id: $id, isAlerted: $isAlerted, allowedCountries: $allowedCountries, commentsEnabled: $commentsEnabled, thumbnailAccreditation: $thumbnailAccreditation, thumbnailCopyright: $thumbnailCopyright, updateProgrammingTimestamp: $updateProgrammingTimestamp) }\",\"variables\":{\"contentId\":\"id-contentId-001\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"channels\":\"demo-channels\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"contentType\":\"demo-contentType\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"id\":\"id-id-001\",\"isAlerted\":true,\"allowedCountries\":\"demo-allowedCountries\",\"commentsEnabled\":true,\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\",\"updateProgrammingTimestamp\":true}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"updateStandaloneContentModule\":null}}"
+        }
+      ]
+    },
+    {
+      "name": "createPackageContentModule",
+      "request": {
+        "method": "POST",
+        "url": "http://createPackageContentModule",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation createPackageContentModule($contentId: ID, $lastModifiedBy: String!, $channels: [TagComponent!]!, $packageType: PackageType, $orientation: ModuleOrientation, $title: String!, $description: String, $contentType: ContentModuleType!, $expiresAt: Date, $scheduledDate: Date, $allowedCountries: [String], $commentsEnabled: Boolean, $packageTag: String) { createPackageContentModule(contentId: $contentId, lastModifiedBy: $lastModifiedBy, channels: $channels, packageType: $packageType, orientation: $orientation, title: $title, description: $description, contentType: $contentType, expiresAt: $expiresAt, scheduledDate: $scheduledDate, allowedCountries: $allowedCountries, commentsEnabled: $commentsEnabled, packageTag: $packageTag) }\",\"variables\":{\"contentId\":\"id-contentId-001\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"channels\":\"demo-channels\",\"packageType\":\"demo-packageType\",\"orientation\":\"demo-orientation\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"contentType\":\"demo-contentType\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"allowedCountries\":\"demo-allowedCountries\",\"commentsEnabled\":true,\"packageTag\":\"demo-packageTag\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-contentId-001",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://createPackageContentModule",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation createPackageContentModule($contentId: ID, $lastModifiedBy: String!, $channels: [TagComponent!]!, $packageType: PackageType, $orientation: ModuleOrientation, $title: String!, $description: String, $contentType: ContentModuleType!, $expiresAt: Date, $scheduledDate: Date, $allowedCountries: [String], $commentsEnabled: Boolean, $packageTag: String) { createPackageContentModule(contentId: $contentId, lastModifiedBy: $lastModifiedBy, channels: $channels, packageType: $packageType, orientation: $orientation, title: $title, description: $description, contentType: $contentType, expiresAt: $expiresAt, scheduledDate: $scheduledDate, allowedCountries: $allowedCountries, commentsEnabled: $commentsEnabled, packageTag: $packageTag) }\",\"variables\":{\"contentId\":\"id-contentId-001\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"channels\":\"demo-channels\",\"packageType\":\"demo-packageType\",\"orientation\":\"demo-orientation\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"contentType\":\"demo-contentType\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"allowedCountries\":\"demo-allowedCountries\",\"commentsEnabled\":true,\"packageTag\":\"demo-packageTag\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"createPackageContentModule\":null}}"
+        }
+      ]
+    },
+    {
+      "name": "updatePackageContentModule",
+      "request": {
+        "method": "POST",
+        "url": "http://updatePackageContentModule",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation updatePackageContentModule($lastModifiedBy: String, $channels: [TagComponent], $title: String, $description: String, $expiresAt: Date, $scheduledDate: Date, $contentModuleId: ID!, $isAlerted: Boolean, $allowedCountries: [String], $commentsEnabled: Boolean, $packageTag: String) { updatePackageContentModule(lastModifiedBy: $lastModifiedBy, channels: $channels, title: $title, description: $description, expiresAt: $expiresAt, scheduledDate: $scheduledDate, contentModuleId: $contentModuleId, isAlerted: $isAlerted, allowedCountries: $allowedCountries, commentsEnabled: $commentsEnabled, packageTag: $packageTag) }\",\"variables\":{\"lastModifiedBy\":\"demo-lastModifiedBy\",\"channels\":\"demo-channels\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"contentModuleId\":\"id-contentModuleId-001\",\"isAlerted\":true,\"allowedCountries\":\"demo-allowedCountries\",\"commentsEnabled\":true,\"packageTag\":\"demo-packageTag\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-lastModifiedBy",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://updatePackageContentModule",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation updatePackageContentModule($lastModifiedBy: String, $channels: [TagComponent], $title: String, $description: String, $expiresAt: Date, $scheduledDate: Date, $contentModuleId: ID!, $isAlerted: Boolean, $allowedCountries: [String], $commentsEnabled: Boolean, $packageTag: String) { updatePackageContentModule(lastModifiedBy: $lastModifiedBy, channels: $channels, title: $title, description: $description, expiresAt: $expiresAt, scheduledDate: $scheduledDate, contentModuleId: $contentModuleId, isAlerted: $isAlerted, allowedCountries: $allowedCountries, commentsEnabled: $commentsEnabled, packageTag: $packageTag) }\",\"variables\":{\"lastModifiedBy\":\"demo-lastModifiedBy\",\"channels\":\"demo-channels\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"contentModuleId\":\"id-contentModuleId-001\",\"isAlerted\":true,\"allowedCountries\":\"demo-allowedCountries\",\"commentsEnabled\":true,\"packageTag\":\"demo-packageTag\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"updatePackageContentModule\":null}}"
+        }
+      ]
+    },
+    {
+      "name": "addContentToPackage",
+      "request": {
+        "method": "POST",
+        "url": "http://addContentToPackage",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation addContentToPackage($packageModuleId: String!, $contentId: ID, $contentType: ContentModuleType, $position: Int!, $title: String!, $description: String!, $thumbnail: String!, $allowedCountries: [String], $lastModifiedBy: String!, $commentsEnabled: Boolean, $contentModuleId: ID, $thumbnailAccreditation: String, $thumbnailCopyright: String, $scheduledDate: Date) { addContentToPackage(packageModuleId: $packageModuleId, contentId: $contentId, contentType: $contentType, position: $position, title: $title, description: $description, thumbnail: $thumbnail, allowedCountries: $allowedCountries, lastModifiedBy: $lastModifiedBy, commentsEnabled: $commentsEnabled, contentModuleId: $contentModuleId, thumbnailAccreditation: $thumbnailAccreditation, thumbnailCopyright: $thumbnailCopyright, scheduledDate: $scheduledDate) }\",\"variables\":{\"packageModuleId\":\"id-12345\",\"contentId\":\"id-contentId-001\",\"contentType\":\"demo-contentType\",\"position\":1,\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"allowedCountries\":\"demo-allowedCountries\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"commentsEnabled\":true,\"contentModuleId\":\"id-contentModuleId-001\",\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\",\"scheduledDate\":\"2026-02-20T10:00:00Z\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-12345",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://addContentToPackage",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation addContentToPackage($packageModuleId: String!, $contentId: ID, $contentType: ContentModuleType, $position: Int!, $title: String!, $description: String!, $thumbnail: String!, $allowedCountries: [String], $lastModifiedBy: String!, $commentsEnabled: Boolean, $contentModuleId: ID, $thumbnailAccreditation: String, $thumbnailCopyright: String, $scheduledDate: Date) { addContentToPackage(packageModuleId: $packageModuleId, contentId: $contentId, contentType: $contentType, position: $position, title: $title, description: $description, thumbnail: $thumbnail, allowedCountries: $allowedCountries, lastModifiedBy: $lastModifiedBy, commentsEnabled: $commentsEnabled, contentModuleId: $contentModuleId, thumbnailAccreditation: $thumbnailAccreditation, thumbnailCopyright: $thumbnailCopyright, scheduledDate: $scheduledDate) }\",\"variables\":{\"packageModuleId\":\"id-12345\",\"contentId\":\"id-contentId-001\",\"contentType\":\"demo-contentType\",\"position\":1,\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"allowedCountries\":\"demo-allowedCountries\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"commentsEnabled\":true,\"contentModuleId\":\"id-contentModuleId-001\",\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\",\"scheduledDate\":\"2026-02-20T10:00:00Z\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"addContentToPackage\":null}}"
+        }
+      ]
+    },
+    {
+      "name": "deleteContentModule",
+      "request": {
+        "method": "POST",
+        "url": "http://deleteContentModule",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation deleteContentModule($id: ID!) { deleteContentModule(id: $id) }\",\"variables\":{\"id\":\"id-id-001\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-id-001",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://deleteContentModule",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation deleteContentModule($id: ID!) { deleteContentModule(id: $id) }\",\"variables\":{\"id\":\"id-id-001\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"deleteContentModule\":\"demo-deleteContentModule\"}}"
+        }
+      ]
+    },
+    {
+      "name": "expireContentModules",
+      "request": {
+        "method": "POST",
+        "url": "http://expireContentModules",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation expireContentModules { expireContentModules }\"}"
+        }
+      },
+      "response": [
+        {
+          "name": "default",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://expireContentModules",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation expireContentModules { expireContentModules }\"}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"expireContentModules\":[1]}}"
+        }
+      ]
+    },
+    {
+      "name": "upsertStandaloneContentModules",
+      "request": {
+        "method": "POST",
+        "url": "http://upsertStandaloneContentModules",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation upsertStandaloneContentModules($data: [ContentModuleInput!]!, $delete: [ID!]) { upsertStandaloneContentModules(data: $data, delete: $delete) }\",\"variables\":{\"data\":\"demo-data\",\"delete\":\"id-delete-001\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-data",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://upsertStandaloneContentModules",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation upsertStandaloneContentModules($data: [ContentModuleInput!]!, $delete: [ID!]) { upsertStandaloneContentModules(data: $data, delete: $delete) }\",\"variables\":{\"data\":\"demo-data\",\"delete\":\"id-delete-001\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"upsertStandaloneContentModules\":[]}}"
+        }
+      ]
+    },
+    {
+      "name": "createExternalArticle",
+      "request": {
+        "method": "POST",
+        "url": "http://createExternalArticle",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation createExternalArticle($url: String!, $source: String!, $providerName: String!, $created: Date) { createExternalArticle(url: $url, source: $source, providerName: $providerName, created: $created) { id url source providerName created } }\",\"variables\":{\"url\":\"https://example.com/demo\",\"source\":\"demo-source\",\"providerName\":\"Demo Name\",\"created\":\"2026-02-20T10:00:00Z\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "httpsexamplecomdemo",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://createExternalArticle",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation createExternalArticle($url: String!, $source: String!, $providerName: String!, $created: Date) { createExternalArticle(url: $url, source: $source, providerName: $providerName, created: $created) { id url source providerName created } }\",\"variables\":{\"url\":\"https://example.com/demo\",\"source\":\"demo-source\",\"providerName\":\"Demo Name\",\"created\":\"2026-02-20T10:00:00Z\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"createExternalArticle\":{\"id\":\"id-id-001\",\"url\":\"https://example.com/demo\",\"source\":\"demo-source\",\"providerName\":\"Demo Name\",\"created\":\"2026-02-20T10:00:00Z\"}}}"
+        }
+      ]
+    },
+    {
+      "name": "createStaticPackages",
+      "request": {
+        "method": "POST",
+        "url": "http://createStaticPackages",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation createStaticPackages($packageTypes: [PackageType!]!, $channels: [TagComponent!], $lastModifiedBy: String!, $contentType: ContentModuleType!, $allowedCountries: [String], $commentsEnabled: Boolean) { createStaticPackages(packageTypes: $packageTypes, channels: $channels, lastModifiedBy: $lastModifiedBy, contentType: $contentType, allowedCountries: $allowedCountries, commentsEnabled: $commentsEnabled) }\",\"variables\":{\"packageTypes\":\"demo-packageTypes\",\"channels\":\"demo-channels\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"contentType\":\"demo-contentType\",\"allowedCountries\":\"demo-allowedCountries\",\"commentsEnabled\":true}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-packageTypes",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://createStaticPackages",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation createStaticPackages($packageTypes: [PackageType!]!, $channels: [TagComponent!], $lastModifiedBy: String!, $contentType: ContentModuleType!, $allowedCountries: [String], $commentsEnabled: Boolean) { createStaticPackages(packageTypes: $packageTypes, channels: $channels, lastModifiedBy: $lastModifiedBy, contentType: $contentType, allowedCountries: $allowedCountries, commentsEnabled: $commentsEnabled) }\",\"variables\":{\"packageTypes\":\"demo-packageTypes\",\"channels\":\"demo-channels\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"contentType\":\"demo-contentType\",\"allowedCountries\":\"demo-allowedCountries\",\"commentsEnabled\":true}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"createStaticPackages\":[]}}"
+        }
+      ]
+    },
+    {
+      "name": "deleteContentFromPackage",
+      "request": {
+        "method": "POST",
+        "url": "http://deleteContentFromPackage",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation deleteContentFromPackage($packageContentModuleId: String!, $contentModuleId: String!) { deleteContentFromPackage(packageContentModuleId: $packageContentModuleId, contentModuleId: $contentModuleId) }\",\"variables\":{\"packageContentModuleId\":\"id-12345\",\"contentModuleId\":\"id-12345\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-12345",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://deleteContentFromPackage",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation deleteContentFromPackage($packageContentModuleId: String!, $contentModuleId: String!) { deleteContentFromPackage(packageContentModuleId: $packageContentModuleId, contentModuleId: $contentModuleId) }\",\"variables\":{\"packageContentModuleId\":\"id-12345\",\"contentModuleId\":\"id-12345\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"deleteContentFromPackage\":true}}"
+        }
+      ]
+    },
+    {
+      "name": "upsertPackageContentModules",
+      "request": {
+        "method": "POST",
+        "url": "http://upsertPackageContentModules",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation upsertPackageContentModules($contents: [PackageContent], $packages: [PackageInput], $delete: [ID!]) { upsertPackageContentModules(contents: $contents, packages: $packages, delete: $delete) { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children parent slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries composites { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components isAlerted allowedCountries composites commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata insertedAt programmingUpdatedAt wrapperContentModuleId metaData } orientation expiresAt scheduledDate state components { hash semanticID tag position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag author videoContentId tenant } } commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata { video { state } } insertedAt programmingUpdatedAt wrapperContentModuleId metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children parent slug } author { hash tagUUID uuid type followersCount startTime endTime children parent slug } videoContentId tenant } } orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } author { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } videoContentId tenant } } }\",\"variables\":{\"contents\":\"demo-contents\",\"packages\":\"demo-packages\",\"delete\":\"id-delete-001\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-contents",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://upsertPackageContentModules",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation upsertPackageContentModules($contents: [PackageContent], $packages: [PackageInput], $delete: [ID!]) { upsertPackageContentModules(contents: $contents, packages: $packages, delete: $delete) { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children parent slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries composites { id title description packageTag packageType contentType contents { id type contentID title description thumbnail lastModifiedBy orientation expiresAt scheduledDate state components isAlerted allowedCountries composites commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata insertedAt programmingUpdatedAt wrapperContentModuleId metaData } orientation expiresAt scheduledDate state components { hash semanticID tag position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag author videoContentId tenant } } commentsEnabled alertedChannelTagUUID updatedAt thumbnailAccreditation thumbnailCopyright position isPositionLocked positionLockExpiresAt contentMetadata { video { state } } insertedAt programmingUpdatedAt wrapperContentModuleId metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children parent slug } author { hash tagUUID uuid type followersCount startTime endTime children parent slug } videoContentId tenant } } orientation expiresAt scheduledDate state components { hash semanticID tag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } position isPositionLocked positionLockExpiresAt insertedAt isPinned } isAlerted allowedCountries commentsEnabled alertedChannelTagUUID updatedAt insertedAt metaData { hash communityTag { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } author { hash tagUUID uuid type followersCount startTime endTime children { hash tagUUID uuid type followersCount startTime endTime children parent slug } parent { hash tagUUID uuid type followersCount startTime endTime children parent slug } slug } videoContentId tenant } } }\",\"variables\":{\"contents\":\"demo-contents\",\"packages\":\"demo-packages\",\"delete\":\"id-delete-001\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"upsertPackageContentModules\":[{\"id\":\"id-id-001\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"packageTag\":\"demo-packageTag\",\"packageType\":\"TopHeadlines\",\"contentType\":\"Article\",\"contents\":[{\"id\":\"id-id-001\",\"type\":\"Article\",\"contentID\":\"id-12345\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"content\":null,\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"composites\":[{\"id\":\"id-id-001\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"packageTag\":\"demo-packageTag\",\"packageType\":\"TopHeadlines\",\"contentType\":\"Article\",\"contents\":[{\"id\":\"id-id-001\",\"type\":\"Article\",\"contentID\":\"id-12345\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnail\":\"demo-thumbnail\",\"lastModifiedBy\":\"demo-lastModifiedBy\",\"content\":null,\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":null,\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"composites\":[{\"id\":\"id-id-001\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"packageTag\":\"demo-packageTag\",\"packageType\":\"TopHeadlines\",\"contentType\":\"Article\",\"contents\":[],\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"metaData\":null}],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\",\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"contentMetadata\":{\"video\":null},\"insertedAt\":\"2026-02-20T10:00:00Z\",\"programmingUpdatedAt\":\"2026-02-20T10:00:00Z\",\"wrapperContentModuleId\":\"id-wrapperContentModuleId-001\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":null,\"author\":null,\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}],\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"author\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"thumbnailAccreditation\":\"demo-thumbnailAccreditation\",\"thumbnailCopyright\":\"demo-thumbnailCopyright\",\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"contentMetadata\":{\"video\":{\"state\":\"UPCOMING\"}},\"insertedAt\":\"2026-02-20T10:00:00Z\",\"programmingUpdatedAt\":\"2026-02-20T10:00:00Z\",\"wrapperContentModuleId\":\"id-wrapperContentModuleId-001\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"author\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}],\"orientation\":\"Landscape\",\"expiresAt\":\"2026-02-20T10:00:00Z\",\"scheduledDate\":\"2026-02-20T10:00:00Z\",\"state\":\"SCHEDULED\",\"components\":[{\"hash\":\"demo-hash\",\"semanticID\":\"StatsGamecast\",\"tag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"position\":1,\"isPositionLocked\":true,\"positionLockExpiresAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"isPinned\":true}],\"isAlerted\":true,\"allowedCountries\":[\"demo-allowedCountries\"],\"commentsEnabled\":true,\"alertedChannelTagUUID\":\"id-12345\",\"updatedAt\":\"2026-02-20T10:00:00Z\",\"insertedAt\":\"2026-02-20T10:00:00Z\",\"metaData\":{\"hash\":\"demo-hash\",\"communityTag\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"author\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"}],\"parent\":{\"hash\":\"demo-hash\",\"tagUUID\":\"id-12345\",\"uuid\":\"id-12345\",\"type\":\"Conference\",\"followersCount\":10,\"startTime\":\"2026-02-20T10:00:00Z\",\"endTime\":\"2026-02-20T10:00:00Z\",\"children\":[],\"parent\":null,\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"slug\":\"demo-slug-001\"},\"videoContentId\":\"id-12345\",\"tenant\":\"aewGame\"}}]}}"
+        }
+      ]
+    },
+    {
+      "name": "upsertVideoState",
+      "request": {
+        "method": "POST",
+        "url": "http://upsertVideoState",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation upsertVideoState($data: VideoMetadataInput!) { upsertVideoState(data: $data) { state } }\",\"variables\":{\"data\":\"demo-data\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-data",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://upsertVideoState",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation upsertVideoState($data: VideoMetadataInput!) { upsertVideoState(data: $data) { state } }\",\"variables\":{\"data\":\"demo-data\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"upsertVideoState\":{\"state\":\"UPCOMING\"}}}"
+        }
+      ]
+    },
+    {
+      "name": "deleteDuplicateScheduledHighlightsPackages",
+      "request": {
+        "method": "POST",
+        "url": "http://deleteDuplicateScheduledHighlightsPackages",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation deleteDuplicateScheduledHighlightsPackages { deleteDuplicateScheduledHighlightsPackages }\"}"
+        }
+      },
+      "response": [
+        {
+          "name": "default",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://deleteDuplicateScheduledHighlightsPackages",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation deleteDuplicateScheduledHighlightsPackages { deleteDuplicateScheduledHighlightsPackages }\"}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"deleteDuplicateScheduledHighlightsPackages\":\"demo-deleteDuplicateScheduledHighlightsPackages\"}}"
+        }
+      ]
+    },
+    {
+      "name": "deleteContentModuleByContentId",
+      "request": {
+        "method": "POST",
+        "url": "http://deleteContentModuleByContentId",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation deleteContentModuleByContentId($contentId: String!, $contentType: ContentModuleType) { deleteContentModuleByContentId(contentId: $contentId, contentType: $contentType) { deletedCount deletedModuleIds contentId } }\",\"variables\":{\"contentId\":\"id-12345\",\"contentType\":\"demo-contentType\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-12345",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://deleteContentModuleByContentId",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation deleteContentModuleByContentId($contentId: String!, $contentType: ContentModuleType) { deleteContentModuleByContentId(contentId: $contentId, contentType: $contentType) { deletedCount deletedModuleIds contentId } }\",\"variables\":{\"contentId\":\"id-12345\",\"contentType\":\"demo-contentType\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"deleteContentModuleByContentId\":{\"deletedCount\":10,\"deletedModuleIds\":[\"id-12345\"],\"contentId\":\"id-12345\"}}}"
+        }
+      ]
+    }
+  ]
+}

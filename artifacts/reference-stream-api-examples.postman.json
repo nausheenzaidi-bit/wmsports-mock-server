@@ -1,0 +1,86 @@
+{
+  "info": {
+    "_postman_id": "referencestreamapi-mocks",
+    "name": "ReferenceStreamAPI",
+    "description": "version=1.0 - Mock examples for ReferenceStreamAPI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "getReferenceStreamByName",
+      "request": {
+        "method": "POST",
+        "url": "http://getReferenceStreamByName",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query getReferenceStreamByName($referenceStreamName: String!, $limit: Int) { getReferenceStreamByName(referenceStreamName: $referenceStreamName, limit: $limit) { id title description thumbnailUrl permalink url author { name } tag { id } type metadata { genres labels { id } providerName photoCredit shareUrl video { analytics { id creationTimePeriod publishMethod publishedAt rating ruleId ruleName stream title videoId videoType team league } duration hlsUrl mp4Url videoUrl videoId impressionTracking { name url } width height state } gamecast { gamePermalink analytics { awayTeamTag coverageType gamePeriod gamePermalinkTag gameStart headlineTitle headlineTitleAbbreviated homeTeamTag seasonType tournamentName } scoreBoard { id status sport league gameDate teamOne teamTwo progress } } } createdAt updatedAt } }\",\"variables\":{\"referenceStreamName\":\"Demo Name\",\"limit\":1}}"
+        }
+      },
+      "response": [
+        {
+          "name": "DemoName",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://getReferenceStreamByName",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query getReferenceStreamByName($referenceStreamName: String!, $limit: Int) { getReferenceStreamByName(referenceStreamName: $referenceStreamName, limit: $limit) { id title description thumbnailUrl permalink url author { name } tag { id } type metadata { genres labels { id } providerName photoCredit shareUrl video { analytics { id creationTimePeriod publishMethod publishedAt rating ruleId ruleName stream title videoId videoType team league } duration hlsUrl mp4Url videoUrl videoId impressionTracking { name url } width height state } gamecast { gamePermalink analytics { awayTeamTag coverageType gamePeriod gamePermalinkTag gameStart headlineTitle headlineTitleAbbreviated homeTeamTag seasonType tournamentName } scoreBoard { id status sport league gameDate teamOne teamTwo progress } } } createdAt updatedAt } }\",\"variables\":{\"referenceStreamName\":\"Demo Name\",\"limit\":1}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"getReferenceStreamByName\":[{\"id\":\"id-id-001\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnailUrl\":\"https://example.com/demo\",\"permalink\":\"demo-permalink\",\"url\":\"https://example.com/demo\",\"author\":{\"name\":\"Demo Name\"},\"tag\":{\"id\":\"id-id-001\"},\"type\":\"InternalArticle\",\"metadata\":{\"genres\":[\"demo-genres\"],\"labels\":[{\"id\":\"id-id-001\"}],\"providerName\":\"Demo Name\",\"photoCredit\":\"demo-photoCredit\",\"shareUrl\":\"https://example.com/demo\",\"video\":{\"analytics\":{\"id\":\"id-12345\",\"creationTimePeriod\":\"Q1\",\"publishMethod\":\"demo-publishMethod\",\"publishedAt\":\"2026-02-20T10:00:00Z\",\"rating\":\"demo-rating\",\"ruleId\":\"id-12345\",\"ruleName\":\"Demo Name\",\"stream\":\"demo-stream\",\"title\":\"Demo Title\",\"videoId\":1,\"videoType\":\"id-12345\",\"team\":\"demo-team\",\"league\":\"NFL\"},\"duration\":1,\"hlsUrl\":\"https://example.com/demo\",\"mp4Url\":\"https://example.com/demo\",\"videoUrl\":\"https://example.com/demo\",\"videoId\":1,\"impressionTracking\":[{\"name\":\"Demo Name\",\"url\":\"https://example.com/demo\"}],\"width\":1,\"height\":1,\"state\":\"demo-state\"},\"gamecast\":{\"gamePermalink\":\"demo-permalink\",\"analytics\":{\"awayTeamTag\":{\"id\":\"id-id-001\"},\"coverageType\":\"DEFAULT\",\"gamePeriod\":1,\"gamePermalinkTag\":{\"id\":\"id-id-001\"},\"gameStart\":\"demo-gameStart\",\"headlineTitle\":\"Demo Title\",\"headlineTitleAbbreviated\":\"Demo Title\",\"homeTeamTag\":{\"id\":\"id-id-001\"},\"seasonType\":\"DEFAULT\",\"tournamentName\":\"Demo Name\"},\"scoreBoard\":{\"id\":\"id-12345\",\"status\":\"Active\",\"sport\":\"Football\",\"league\":\"NFL\",\"gameDate\":\"2026-02-20\",\"teamOne\":{\"shortName\":\"Demo Name\",\"score\":\"21\",\"permalink\":\"demo-permalink\",\"name\":\"Demo Name\",\"logo\":\"demo-logo\",\"isWinner\":true,\"abbrev\":\"DMO\",\"hasPossession\":true},\"teamTwo\":{\"shortName\":\"Demo Name\",\"score\":\"21\",\"permalink\":\"demo-permalink\",\"name\":\"Demo Name\",\"logo\":\"demo-logo\",\"isWinner\":true,\"abbrev\":\"DMO\",\"hasPossession\":true},\"progress\":{\"header\":\"demo-header\",\"primary\":\"demo-primary\",\"footer\":\"demo-footer\"}}}},\"createdAt\":\"2026-02-20T10:00:00Z\",\"updatedAt\":\"2026-02-20\"}]}}"
+        }
+      ]
+    },
+    {
+      "name": "getReferenceStreamByComponentId",
+      "request": {
+        "method": "POST",
+        "url": "http://getReferenceStreamByComponentId",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query getReferenceStreamByComponentId($componentID: String!, $limit: Int) { getReferenceStreamByComponentId(componentID: $componentID, limit: $limit) { id name tag { id } type references { id title description thumbnailUrl permalink url author { name } tag { id } type metadata { genres labels { id } providerName photoCredit shareUrl video { analytics duration hlsUrl mp4Url videoUrl videoId impressionTracking width height state } gamecast { gamePermalink analytics scoreBoard } } createdAt updatedAt } } }\",\"variables\":{\"componentID\":\"id-12345\",\"limit\":1}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-12345",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://getReferenceStreamByComponentId",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query getReferenceStreamByComponentId($componentID: String!, $limit: Int) { getReferenceStreamByComponentId(componentID: $componentID, limit: $limit) { id name tag { id } type references { id title description thumbnailUrl permalink url author { name } tag { id } type metadata { genres labels { id } providerName photoCredit shareUrl video { analytics duration hlsUrl mp4Url videoUrl videoId impressionTracking width height state } gamecast { gamePermalink analytics scoreBoard } } createdAt updatedAt } } }\",\"variables\":{\"componentID\":\"id-12345\",\"limit\":1}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"getReferenceStreamByComponentId\":{\"id\":\"id-id-001\",\"name\":\"Demo Name\",\"tag\":{\"id\":\"id-id-001\"},\"type\":\"DEFAULT\",\"references\":[{\"id\":\"id-id-001\",\"title\":\"Demo Title\",\"description\":\"A sample description\",\"thumbnailUrl\":\"https://example.com/demo\",\"permalink\":\"demo-permalink\",\"url\":\"https://example.com/demo\",\"author\":{\"name\":\"Demo Name\"},\"tag\":{\"id\":\"id-id-001\"},\"type\":\"InternalArticle\",\"metadata\":{\"genres\":[\"demo-genres\"],\"labels\":[{\"id\":\"id-id-001\"}],\"providerName\":\"Demo Name\",\"photoCredit\":\"demo-photoCredit\",\"shareUrl\":\"https://example.com/demo\",\"video\":{\"analytics\":{\"id\":\"id-12345\",\"creationTimePeriod\":\"Q1\",\"publishMethod\":\"demo-publishMethod\",\"publishedAt\":\"2026-02-20T10:00:00Z\",\"rating\":\"demo-rating\",\"ruleId\":\"id-12345\",\"ruleName\":\"Demo Name\",\"stream\":\"demo-stream\",\"title\":\"Demo Title\",\"videoId\":1,\"videoType\":\"id-12345\",\"team\":\"demo-team\",\"league\":\"NFL\"},\"duration\":1,\"hlsUrl\":\"https://example.com/demo\",\"mp4Url\":\"https://example.com/demo\",\"videoUrl\":\"https://example.com/demo\",\"videoId\":1,\"impressionTracking\":[{\"name\":\"Demo Name\",\"url\":\"https://example.com/demo\"}],\"width\":1,\"height\":1,\"state\":\"demo-state\"},\"gamecast\":{\"gamePermalink\":\"demo-permalink\",\"analytics\":{\"awayTeamTag\":null,\"coverageType\":\"DEFAULT\",\"gamePeriod\":1,\"gamePermalinkTag\":null,\"gameStart\":\"demo-gameStart\",\"headlineTitle\":\"Demo Title\",\"headlineTitleAbbreviated\":\"Demo Title\",\"homeTeamTag\":null,\"seasonType\":\"DEFAULT\",\"tournamentName\":\"Demo Name\"},\"scoreBoard\":{\"id\":\"id-12345\",\"status\":\"Active\",\"sport\":\"Football\",\"league\":\"NFL\",\"gameDate\":\"2026-02-20\",\"teamOne\":null,\"teamTwo\":null,\"progress\":null}}},\"createdAt\":\"2026-02-20T10:00:00Z\",\"updatedAt\":\"2026-02-20\"}]}}}"
+        }
+      ]
+    }
+  ]
+}

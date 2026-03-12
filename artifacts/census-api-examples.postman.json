@@ -1,0 +1,241 @@
+{
+  "info": {
+    "_postman_id": "census-api-rest-examples",
+    "name": "Census API",
+    "description": "version=1.0 - REST examples sourced from sports-census-go handler structs",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "POST /v3/push_notifications",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-api-key", "value": "census:TgARhS9yjFFCSsAx7K0sK4EZTFfrLNH2" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"destinations\":[{\"tagUUID\":\"b8c58b47-1b42-4f29-ac0d-4d926f674938\",\"tagDisplayName\":\"Detroit Red Wings\",\"contentModuleId\":\"09e8f004-5725-4952-b6bd-e273e4a43fdf\"}],\"text\":\"Test NEW 2\",\"title\":\"Test NEW 2\",\"analytics\":{\"genres\":[\"news\"]},\"url\":\"\",\"adParameters\":\"\",\"allowInRegions\":[\"US\",\"GB\",\"CA\"],\"attachments\":[],\"alertCategories\":[\"news\"],\"createdBy\":\"Rahul Ray\",\"spoiler\":true,\"showAlertCard\":false}"
+        },
+        "url": "/v3/push_notifications"
+      },
+      "response": [
+        {
+          "name": "create-notification",
+          "originalRequest": { "method": "POST", "url": "/v3/push_notifications" },
+          "code": 201,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\"id\":42,\"createdAt\":\"2026-02-20T10:00:00.000000Z\",\"createdBy\":\"Rahul Ray\",\"title\":\"Test NEW 2\",\"text\":\"Test NEW 2\",\"url\":\"\",\"adParameters\":\"\",\"destinationOverride\":null,\"showAlertCard\":false,\"spoiler\":true,\"tenant\":\"bleacherReport\",\"alertCategories\":[\"news\"],\"allowInRegions\":[\"US\",\"GB\",\"CA\"],\"destinations\":[{\"id\":1,\"contentModuleId\":\"09e8f004-5725-4952-b6bd-e273e4a43fdf\",\"tagUUID\":\"b8c58b47-1b42-4f29-ac0d-4d926f674938\"}],\"attachments\":[],\"analytics\":{\"genres\":[\"news\"],\"gamecastType\":null},\"tags\":[{\"uuid\":\"b8c58b47-1b42-4f29-ac0d-4d926f674938\"}]}"
+        }
+      ]
+    },
+    {
+      "name": "GET /v3/{tenant}/push_notifications",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-api-key", "value": "census:TgARhS9yjFFCSsAx7K0sK4EZTFfrLNH2" }],
+        "url": "/v3/bleacherReport/push_notifications?limit=5"
+      },
+      "response": [
+        {
+          "name": "list-notifications",
+          "originalRequest": { "method": "GET", "url": "/v3/bleacherReport/push_notifications?limit=5" },
+          "code": 200,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\"push_notifications\":[{\"id\":237,\"createdAt\":\"2026-02-20T10:00:00.000000Z\",\"createdBy\":\"Rahul Ray\",\"title\":\"NFL Alert\",\"text\":\"Breaking: Trade confirmed\",\"url\":\"https://bleacherreport.com/articles/123\",\"adParameters\":\"\",\"destinationOverride\":null,\"showAlertCard\":true,\"spoiler\":false,\"tenant\":\"bleacherReport\",\"alertCategories\":[\"news\"],\"allowInRegions\":[\"US\"],\"destinations\":[{\"id\":1,\"contentModuleId\":\"09e8f004-5725-4952-b6bd-e273e4a43fdf\",\"tagUUID\":\"b8c58b47-1b42-4f29-ac0d-4d926f674938\"}],\"attachments\":[{\"id\":1,\"mediaType\":\"jpg\",\"mediaUrl\":\"https://example.com/image.jpg\",\"height\":400,\"width\":400,\"editId\":null}],\"analytics\":{\"genres\":[\"news\"],\"gamecastType\":\"pregame\"},\"tags\":[{\"uuid\":\"b8c58b47-1b42-4f29-ac0d-4d926f674938\"}]}]}"
+        }
+      ]
+    },
+    {
+      "name": "GET /v3/{tenant}/push_notifications/{id}",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-api-key", "value": "census:TgARhS9yjFFCSsAx7K0sK4EZTFfrLNH2" }],
+        "url": "/v3/bleacherReport/push_notifications/237"
+      },
+      "response": [
+        {
+          "name": "get-by-id",
+          "originalRequest": { "method": "GET", "url": "/v3/bleacherReport/push_notifications/237" },
+          "code": 200,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\"id\":237,\"createdAt\":\"2026-02-20T10:00:00.000000Z\",\"createdBy\":\"Rahul Ray\",\"title\":\"NFL Alert\",\"text\":\"Breaking: Trade confirmed\",\"url\":\"https://bleacherreport.com/articles/123\",\"adParameters\":\"\",\"destinationOverride\":null,\"showAlertCard\":true,\"spoiler\":false,\"tenant\":\"bleacherReport\",\"alertCategories\":[\"news\"],\"allowInRegions\":[\"US\"],\"destinations\":[{\"id\":1,\"contentModuleId\":\"09e8f004-5725-4952-b6bd-e273e4a43fdf\",\"tagUUID\":\"b8c58b47-1b42-4f29-ac0d-4d926f674938\"}],\"attachments\":[{\"id\":1,\"mediaType\":\"jpg\",\"mediaUrl\":\"https://example.com/image.jpg\",\"height\":400,\"width\":400,\"editId\":null}],\"analytics\":{\"genres\":[\"news\"],\"gamecastType\":\"pregame\"},\"tags\":[{\"uuid\":\"b8c58b47-1b42-4f29-ac0d-4d926f674938\"}]}"
+        }
+      ]
+    },
+    {
+      "name": "POST /v3/alert_buzz/ranks",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "x-api-key", "value": "dev-api-key" }],
+        "body": { "mode": "raw", "raw": "{\"tenant\":\"bleacherReport\",\"alert_ranks\":[{\"push_notification_id\":\"1\",\"rank\":1}]}" },
+        "url": "/v3/alert_buzz/ranks"
+      },
+      "response": [
+        {
+          "name": "ranks-accepted",
+          "originalRequest": { "method": "POST", "url": "/v3/alert_buzz/ranks" },
+          "code": 202,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\"status\":\"accepted\"}"
+        }
+      ]
+    },
+    {
+      "name": "GET /v3/{tenant}/alert_buzz/ranks/{id}",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-api-key", "value": "dev-api-key" }],
+        "url": "/v3/bleacherReport/alert_buzz/ranks/1"
+      },
+      "response": [
+        {
+          "name": "rank-value",
+          "originalRequest": { "method": "GET", "url": "/v3/bleacherReport/alert_buzz/ranks/1" },
+          "code": 200,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\"rank\":5}"
+        }
+      ]
+    },
+    {
+      "name": "GET /v3/{tenant}/tags/{tag_uuid}/subscriptions",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-api-key", "value": "census:TgARhS9yjFFCSsAx7K0sK4EZTFfrLNH2" }],
+        "url": "/v3/bleacherReport/tags/0177b48b-0ab4-4dba-b132-de8e1e96cec8/subscriptions?limit=5"
+      },
+      "response": [
+        {
+          "name": "tag-subscriptions",
+          "originalRequest": { "method": "GET", "url": "/v3/bleacherReport/tags/0177b48b-0ab4-4dba-b132-de8e1e96cec8/subscriptions?limit=5" },
+          "code": 200,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\"users\":[{\"id\":1,\"bolt_id\":\"1250616d-b38d-4d74-864e-9e1016394fec\",\"profile_id\":\"e87cdfce-0a86-436c-8632-9cae79bc90df\",\"geo_region_code\":\"GA\",\"geo_country_code\":\"US\"},{\"id\":2,\"bolt_id\":\"006320e5-ceea-431e-9dab-8b5c368a8c0c\",\"profile_id\":\"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\"geo_region_code\":\"NY\",\"geo_country_code\":\"US\"}]}"
+        }
+      ]
+    },
+    {
+      "name": "GET /v3/{tenant}/tags/{tag_uuid}/subscriptions/count",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-api-key", "value": "census:TgARhS9yjFFCSsAx7K0sK4EZTFfrLNH2" }],
+        "url": "/v3/bleacherReport/tags/0177b48b-0ab4-4dba-b132-de8e1e96cec8/subscriptions/count"
+      },
+      "response": [
+        {
+          "name": "tag-count",
+          "originalRequest": { "method": "GET", "url": "/v3/bleacherReport/tags/0177b48b-0ab4-4dba-b132-de8e1e96cec8/subscriptions/count" },
+          "code": 200,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\"count\":1500}"
+        }
+      ]
+    },
+    {
+      "name": "POST /v3/{tenant}/users/{bolt_id}/device",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "x-api-key", "value": "census:TgARhS9yjFFCSsAx7K0sK4EZTFfrLNH2" }],
+        "body": { "mode": "raw", "raw": "{\"device\":{\"device_token\":\"5c54ea4c1a059477f4762d350eb5a115c9c3162ff7deeb65c9f3a9c49f0a88a3\",\"platform\":\"ios\",\"app_version\":\"10.17.0\",\"os_version\":\"26.0.1\"},\"user\":{\"profile_id\":\"e87cdfce-0a86-436c-8632-9cae79bc90df\"}}" },
+        "url": "/v3/bleacherReport/users/1250616d-b38d-4d74-864e-9e1016394fec/device"
+      },
+      "response": [
+        {
+          "name": "register-device",
+          "originalRequest": { "method": "POST", "url": "/v3/bleacherReport/users/1250616d-b38d-4d74-864e-9e1016394fec/device" },
+          "code": 201,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\"device\":{\"id\":1,\"user_id\":42,\"device_id\":\"5c54ea4c1a059477f4762d350eb5a115c9c3162ff7deeb65c9f3a9c49f0a88a3\",\"device_type\":\"ios\",\"app_version\":\"10.17.0\",\"os_version\":\"26.0.1\",\"created_at\":\"2026-02-20T10:00:00Z\",\"updated_at\":\"2026-02-20T10:00:00Z\"}}"
+        }
+      ]
+    },
+    {
+      "name": "GET /v3/{tenant}/users/{bolt_id}/push_notifications",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-api-key", "value": "census:TgARhS9yjFFCSsAx7K0sK4EZTFfrLNH2" }],
+        "url": "/v3/bleacherReport/users/1250616d-b38d-4d74-864e-9e1016394fec/push_notifications"
+      },
+      "response": [
+        {
+          "name": "user-notifications",
+          "originalRequest": { "method": "GET", "url": "/v3/bleacherReport/users/1250616d-b38d-4d74-864e-9e1016394fec/push_notifications" },
+          "code": 200,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\"push_notifications\":[{\"id\":232,\"createdAt\":\"2026-02-20T10:00:00\",\"createdBy\":\"Rahul Ray\",\"title\":\"NFL Alert\",\"text\":\"Breaking: Trade confirmed\",\"url\":\"https://bleacherreport.com/articles/123\",\"adParameters\":\"\",\"destinationOverrideId\":null,\"showAlertCard\":true,\"spoiler\":false,\"tenant\":\"bleacherReport\",\"news\":true,\"highlights\":false,\"viral\":false,\"creators\":false,\"alertCategories\":[\"news\"],\"allowInRegions\":[\"US\"],\"destinations\":[{\"id\":1,\"contentModuleId\":\"09e8f004-5725-4952-b6bd-e273e4a43fdf\",\"tagUUID\":\"b8c58b47-1b42-4f29-ac0d-4d926f674938\"}],\"attachments\":[{\"id\":1,\"mediaType\":\"jpg\",\"mediaUrl\":\"https://example.com/image.jpg\",\"height\":400,\"width\":400,\"editId\":null}],\"analytics\":{\"genres\":[\"news\"],\"gamecast_type\":\"pregame\"},\"tags\":[{\"uuid\":\"b8c58b47-1b42-4f29-ac0d-4d926f674938\"}]}]}"
+        }
+      ]
+    },
+    {
+      "name": "GET /v3/{tenant}/users/{bolt_id}/push_notifications/{id}",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-api-key", "value": "census:TgARhS9yjFFCSsAx7K0sK4EZTFfrLNH2" }],
+        "url": "/v3/bleacherReport/users/1250616d-b38d-4d74-864e-9e1016394fec/push_notifications/232"
+      },
+      "response": [
+        {
+          "name": "user-notification-by-id",
+          "originalRequest": { "method": "GET", "url": "/v3/bleacherReport/users/1250616d-b38d-4d74-864e-9e1016394fec/push_notifications/232" },
+          "code": 200,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\"id\":232,\"createdAt\":\"2026-02-20T10:00:00.000000Z\",\"createdBy\":\"Rahul Ray\",\"title\":\"NFL Alert\",\"text\":\"Breaking: Trade confirmed\",\"url\":\"https://bleacherreport.com/articles/123\",\"adParameters\":\"\",\"destinationOverride\":null,\"showAlertCard\":true,\"spoiler\":false,\"tenant\":\"bleacherReport\",\"alertCategories\":[\"news\"],\"allowInRegions\":[\"US\"],\"destinations\":[{\"id\":1,\"contentModuleId\":\"09e8f004-5725-4952-b6bd-e273e4a43fdf\",\"tagUUID\":\"b8c58b47-1b42-4f29-ac0d-4d926f674938\"}],\"attachments\":[],\"analytics\":{\"genres\":[\"news\"],\"gamecastType\":null},\"tags\":[{\"uuid\":\"b8c58b47-1b42-4f29-ac0d-4d926f674938\"}]}"
+        }
+      ]
+    },
+    {
+      "name": "GET /v3/{tenant}/user/{user_id}/tags",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-api-key", "value": "dev-api-key" }],
+        "url": "/v3/bleacherReport/user/006320e5-ceea-431e-9dab-8b5c368a8c0c/tags"
+      },
+      "response": [
+        {
+          "name": "user-tags",
+          "originalRequest": { "method": "GET", "url": "/v3/bleacherReport/user/006320e5-ceea-431e-9dab-8b5c368a8c0c/tags" },
+          "code": 200,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\"subscriptions\":[{\"tag_uuid\":\"b8c58b47-1b42-4f29-ac0d-4d926f674938\",\"push_notifications\":true,\"news\":true,\"highlights\":false,\"spoilers\":false,\"viral\":false,\"creators\":false},{\"tag_uuid\":\"0177b48b-0ab4-4dba-b132-de8e1e96cec8\",\"push_notifications\":true,\"news\":true,\"highlights\":true,\"spoilers\":false,\"viral\":false,\"creators\":false}]}"
+        }
+      ]
+    },
+    {
+      "name": "GET /v3/{tenant}/user/{user_id}/tags/count",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-api-key", "value": "dev-api-key" }],
+        "url": "/v3/bleacherReport/user/006320e5-ceea-431e-9dab-8b5c368a8c0c/tags/count"
+      },
+      "response": [
+        {
+          "name": "user-tags-count",
+          "originalRequest": { "method": "GET", "url": "/v3/bleacherReport/user/006320e5-ceea-431e-9dab-8b5c368a8c0c/tags/count" },
+          "code": 200,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\"count\":25}"
+        }
+      ]
+    },
+    {
+      "name": "POST /v3/{tenant}/content_modules/push_notifications",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"content_module_ids\":[\"09e8f004-5725-4952-b6bd-e273e4a43fdf\",\"a1b2c3d4-e5f6-7890-abcd-ef1234567890\"]}" },
+        "url": "/v3/bleacherReport/content_modules/push_notifications"
+      },
+      "response": [
+        {
+          "name": "modules-with-notifications",
+          "originalRequest": { "method": "POST", "url": "/v3/bleacherReport/content_modules/push_notifications" },
+          "code": 200,
+          "header": [{ "key": "Content-Type", "value": "application/json" }],
+          "body": "{\"content_module_ids\":[\"09e8f004-5725-4952-b6bd-e273e4a43fdf\"]}"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+# microcksId: UserAPI : 1.0
+
+scalar URL
+
+enum Tenant {
+  aewGame
+  bleacherReport
+  estadioArgentina
+  estadioBrazil
+  estadioChile
+  ncaa
+}
+
+enum TagType {
+  Aggregated
+  Archived
+  Blog
+  CampaignHub
+  Chain
+  City
+  Conference
+  Division
+  Editorial
+  Event
+  ExternalContributor
+  GridHub
+  Grouping
+  LeadWriter
+  League
+  Location
+  Moment
+  National
+  Person
+  Sport
+  State
+  Tag
+  Talent
+  Team
+  Topic
+  Venue
+  Video
+}
+
+type Tag   {
+  id: ID!
+  "Full display name for the tag"
+  name: String!
+  "A unique name for the tag in a URL friendly format (i.e. nfl)"
+  permalink: String!
+  "Programmable abbreviation to avoid complicated rules in the client"
+  abbreviation: String
+  "Active is a control for discoverability; inactive tags are hidden by default in searchTags"
+  active: Boolean
+  "The logo filename (currently) assumes that it is the tail of a URI"
+  logoFileName: String
+  "Type of the tag and the entity it represents"
+  type: TagType
+  "The primary color associated with the tag, represented as a string in hexadecimal format"
+  color1: String
+  "The secondary color associated with the tag, represented as a string in hexadecimal format"
+  color2: String
+  "A boolean value indicating whether the tag should display a logo or not"
+  displayLogo: Boolean
+  "The date and time when the tag expires, represented as a string in ISO 8601 format"
+  expiresAt: String
+  "A URL for the tag the origin resource"
+  href: String
+  "Indicates if a tag "
+  newsletterEnabled: Boolean
+  "The parent tag"
+  parent: Tag
+  "A display hint for relative positioning. Siblings should be well-ordered, but positions don't freely translate elsewhere"
+  position: Int
+  "The root tag in the particular subtree"
+  root: Tag
+  "The URL BR Shop related to tag or campaign"
+  shopUrl: String
+  "A short name for representing the tag"
+  shortName: String
+  "Site section the tag belongs to"
+  site: String
+  "The color associated with a team, represented as a string in hexadecimal format"
+  teamColor: String
+  "A URL linking to a page where tickets for events associated with the tag can be purchased"
+  ticketsLink: String
+  "A list of child tags associated with a tag"
+  children: [Tag!]!
+  "A list of parents tags associated with a tag"
+  parents: [Tag!]!
+}
+
+type Query {
+  getTagById(id: ID!, tenant: Tenant!): Tag!
+  getTagsByPermalinks(permalinks: [String!]!, tenant: Tenant!): [Tag]
+  getAllTeamsByPermalink(permalink: String!, tenant: Tenant!): [Tag!]!
+  getSiteMap(permalink: String!, client: String!, tenant: Tenant!): Tag!
+  "search for a tag by name or fragment. it is recommended (but not enforced) to provide at least 3 characters"
+  findTagByMatchTerm(term: String!, tenant: Tenant!): [Tag!]!
+}
+
+schema {
+  query: Query
+}

@@ -1,0 +1,210 @@
+# microcksId: ReferenceStreamAPI : 1.0
+
+scalar Time
+scalar Date
+
+enum ReferenceType {
+  InternalArticle
+  Video
+  LiveVideo
+  Highlight
+  Gamecast
+}
+
+"The object used for filtering references."
+input ReferenceInput {
+  "The reference type we want to filter."
+  types: [String!]
+}
+
+type Component  {
+  type: String
+  id: String "The reference stream"
+  referenceStream: ReferenceStream 
+}
+
+type StreamMetaData  {
+  id: String "The reference stream"
+  referenceStream: ReferenceStream
+}
+
+type ReferenceStream  {
+  id: ID!
+  "The Stream name"
+  name: String!
+  "Tags of the reference from tagapi"
+  tag: Tag!
+  "The Stream type"
+  type: String!
+  "A list of References with optional limit query parameter"
+  references(limit: Int, filter: ReferenceInput): [Reference!]
+}
+
+type Reference {
+  id: ID!
+  "Title of the reference"
+  title: String
+  "Description of the reference"
+  description: String
+  "Illustration to display of the reference"
+  thumbnailUrl: String
+  "Permalink of the reference"
+  permalink: String!
+  "Url of the reference content"
+  url: String!
+  "Author of the reference"
+  author: Author
+  "Tags of the reference from tagapi"
+  tag: Tag!
+  "Type of reference"
+  type: ReferenceType
+  "Metadata of reference"
+  metadata: ReferenceMetadata
+  "When reference was created"
+  createdAt: String!
+  "When reference was updated"
+  updatedAt: String!
+}
+
+type Author {
+  "The author name for internal articles"
+  name: String
+}
+
+type ReferenceMetadata {
+  "Metadata's genres (i.e. breaking_news, analysis, rumors, game_action, live_event, etc.)"
+  genres: [String!]
+  "Metadata's labels is a list of tags that the reference was programmed into"
+  labels: [Tag!]!
+  "Metadata's provider name"
+  providerName: String
+  "Image accreditation display information"
+  photoCredit: String
+  "The content share url"
+  shareUrl: String
+  "Video's Metadata"
+  video: VideoMetadata
+  "Gamecast's Metadata"
+  gamecast: GamecastMetadata
+}
+
+type Tag  {
+  id: ID!
+}
+
+type VideoMetadata {
+  "Video's analytics"
+  analytics: VideoAnalytics
+  "Video's duration"
+  duration: Int
+  "Video's hlsUrl"
+  hlsUrl: String
+  "Video's mp4Url"
+  mp4Url: String
+  "Video's videoUrl"
+  videoUrl: String
+  "Video's Id"
+  videoId: Int
+  "Video's impressionTracking"
+  impressionTracking: [VideoImpressionTracking]
+  "Video's width"
+  width: Int
+  "Video's height"
+  height: Int
+  "Video's state from airchain and hotmic (i.e. live, upcoming, etc.)"
+  state: String
+}
+
+type VideoAnalytics {
+  "Video Analytics id"
+  id: String!
+  "Video Analytics creationTimePeriod"
+  creationTimePeriod: String
+  "Video Analytics publishMethod"
+  publishMethod: String
+  "Video Analytics publishedAt time"
+  publishedAt: String
+  "Video Analytics rating"
+  rating: String
+  "Video Analytics rule Id"
+  ruleId: String
+  "Video Analytics rule Name"
+  ruleName: String
+  "Video Analytics stream"
+  stream: String
+  "Video Analytics title"
+  title: String
+  "Video Analytics video Id"
+  videoId: Int
+  "Video Analytics video Type from vid - (i.e. video/highlight)"
+  videoType: String
+  "Video Analytics team"
+  team: String
+  "Video Analytics league"
+  league: String
+}
+
+type VideoImpressionTracking {
+  "Video Impression Tracking name"
+  name: String
+  "Video Impression Tracking url"
+  url: String
+}
+
+type GamecastMetadata {
+  gamePermalink: String
+  analytics: GamecastAnalytics
+  scoreBoard: GamecastScoreboard
+}
+
+type GamecastAnalytics {
+  awayTeamTag: Tag
+  coverageType: String
+  gamePeriod: Int
+  gamePermalinkTag: Tag
+  gameStart: String
+  headlineTitle: String
+  headlineTitleAbbreviated: String
+  homeTeamTag: Tag
+  seasonType: String
+  tournamentName: String
+}
+
+type GamecastScoreboard {
+  id: String
+  status: String
+  sport: String
+  league: String
+  gameDate: String
+  teamOne: GamecastTeam
+  teamTwo: GamecastTeam
+  progress: GamecastProgress
+}
+
+type GamecastTeam {
+  shortName: String
+  score: String
+  permalink: String
+  name: String
+  logo: String
+  isWinner: Boolean!
+  abbrev: String
+  hasPossession: Boolean!
+}
+
+type GamecastProgress {
+  header: String
+  primary: String
+  footer: String
+}
+
+type Query {
+  "Grab references by name with optional limit"
+  getReferenceStreamByName(referenceStreamName: String!, limit: Int): [Reference!] 
+  "Grab reference stream by name with optional limit"
+  getReferenceStreamByComponentId(componentID: String!, limit: Int): ReferenceStream
+}
+
+schema {
+  query: Query
+}

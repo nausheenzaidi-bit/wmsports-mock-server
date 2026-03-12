@@ -1,0 +1,314 @@
+{
+  "info": {
+    "_postman_id": "socialprocessorapi-mocks",
+    "name": "SocialProcessorAPI",
+    "description": "version=1.0 - Mock examples for SocialProcessorAPI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "getMediaId",
+      "request": {
+        "method": "POST",
+        "url": "http://getMediaId",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query getMediaId($id: String) { getMediaId(id: $id) }\",\"variables\":{\"id\":\"id-12345\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-12345",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://getMediaId",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query getMediaId($id: String) { getMediaId(id: $id) }\",\"variables\":{\"id\":\"id-12345\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"getMediaId\":\"id-12345\"}}"
+        }
+      ]
+    },
+    {
+      "name": "prepareImage",
+      "request": {
+        "method": "POST",
+        "url": "http://prepareImage",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation prepareImage($tenant: Tenant!, $imageCount: Int!, $imageTypes: ImageTypes!) { prepareImage(tenant: $tenant, imageCount: $imageCount, imageTypes: $imageTypes) { uploadId errorMsg urlMappings { uploadUrl mediaId status } } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"imageCount\":10,\"imageTypes\":\"demo-imageTypes\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-tenant",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://prepareImage",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation prepareImage($tenant: Tenant!, $imageCount: Int!, $imageTypes: ImageTypes!) { prepareImage(tenant: $tenant, imageCount: $imageCount, imageTypes: $imageTypes) { uploadId errorMsg urlMappings { uploadUrl mediaId status } } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"imageCount\":10,\"imageTypes\":\"demo-imageTypes\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"prepareImage\":{\"uploadId\":\"id-uploadId-001\",\"errorMsg\":\"demo-errorMsg\",\"urlMappings\":[{\"uploadUrl\":\"https://example.com/demo\",\"mediaId\":\"id-12345\",\"status\":\"Active\"}]}}}"
+        }
+      ]
+    },
+    {
+      "name": "createPostByTenant",
+      "request": {
+        "method": "POST",
+        "url": "http://createPostByTenant",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation createPostByTenant($tenant: Tenant!, $post: PostInput!) { createPostByTenant(tenant: $tenant, post: $post) { created errorMsg post { id contentId content } status } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"post\":\"demo-post\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-tenant",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://createPostByTenant",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation createPostByTenant($tenant: Tenant!, $post: PostInput!) { createPostByTenant(tenant: $tenant, post: $post) { created errorMsg post { id contentId content } status } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"post\":\"demo-post\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"createPostByTenant\":{\"created\":true,\"errorMsg\":\"demo-errorMsg\",\"post\":{\"id\":\"id-id-001\",\"contentId\":\"id-contentId-001\",\"content\":\"demo-content\"},\"status\":\"Active\"}}}"
+        }
+      ]
+    },
+    {
+      "name": "updatePostByTenant",
+      "request": {
+        "method": "POST",
+        "url": "http://updatePostByTenant",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation updatePostByTenant($tenant: Tenant!, $post: UpdatePostInput!) { updatePostByTenant(tenant: $tenant, post: $post) { created errorMsg post { id contentId content } status } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"post\":\"demo-post\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-tenant",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://updatePostByTenant",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation updatePostByTenant($tenant: Tenant!, $post: UpdatePostInput!) { updatePostByTenant(tenant: $tenant, post: $post) { created errorMsg post { id contentId content } status } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"post\":\"demo-post\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"updatePostByTenant\":{\"created\":true,\"errorMsg\":\"demo-errorMsg\",\"post\":{\"id\":\"id-id-001\",\"contentId\":\"id-contentId-001\",\"content\":\"demo-content\"},\"status\":\"Active\"}}}"
+        }
+      ]
+    },
+    {
+      "name": "createTextPollByTenant",
+      "request": {
+        "method": "POST",
+        "url": "http://createTextPollByTenant",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation createTextPollByTenant($tenant: Tenant!, $poll: TextPollInput!) { createTextPollByTenant(tenant: $tenant, poll: $poll) { created errorMsg poll { id contentId } status } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"poll\":\"demo-poll\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-tenant",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://createTextPollByTenant",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation createTextPollByTenant($tenant: Tenant!, $poll: TextPollInput!) { createTextPollByTenant(tenant: $tenant, poll: $poll) { created errorMsg poll { id contentId } status } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"poll\":\"demo-poll\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"createTextPollByTenant\":{\"created\":true,\"errorMsg\":\"demo-errorMsg\",\"poll\":{\"id\":\"id-id-001\",\"contentId\":\"id-contentId-001\"},\"status\":\"Active\"}}}"
+        }
+      ]
+    },
+    {
+      "name": "updateTextPollByTenant",
+      "request": {
+        "method": "POST",
+        "url": "http://updateTextPollByTenant",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation updateTextPollByTenant($tenant: Tenant!, $poll: UpdateTextPollInput!) { updateTextPollByTenant(tenant: $tenant, poll: $poll) { created errorMsg poll { id contentId } status } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"poll\":\"demo-poll\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-tenant",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://updateTextPollByTenant",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation updateTextPollByTenant($tenant: Tenant!, $poll: UpdateTextPollInput!) { updateTextPollByTenant(tenant: $tenant, poll: $poll) { created errorMsg poll { id contentId } status } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"poll\":\"demo-poll\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"updateTextPollByTenant\":{\"created\":true,\"errorMsg\":\"demo-errorMsg\",\"poll\":{\"id\":\"id-id-001\",\"contentId\":\"id-contentId-001\"},\"status\":\"Active\"}}}"
+        }
+      ]
+    },
+    {
+      "name": "createImagePollByTenant",
+      "request": {
+        "method": "POST",
+        "url": "http://createImagePollByTenant",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation createImagePollByTenant($tenant: Tenant!, $poll: ImagePollInput!) { createImagePollByTenant(tenant: $tenant, poll: $poll) { created errorMsg poll { id contentId } status } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"poll\":\"demo-poll\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-tenant",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://createImagePollByTenant",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation createImagePollByTenant($tenant: Tenant!, $poll: ImagePollInput!) { createImagePollByTenant(tenant: $tenant, poll: $poll) { created errorMsg poll { id contentId } status } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"poll\":\"demo-poll\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"createImagePollByTenant\":{\"created\":true,\"errorMsg\":\"demo-errorMsg\",\"poll\":{\"id\":\"id-id-001\",\"contentId\":\"id-contentId-001\"},\"status\":\"Active\"}}}"
+        }
+      ]
+    },
+    {
+      "name": "createProgramForTaxonomy",
+      "request": {
+        "method": "POST",
+        "url": "http://createProgramForTaxonomy",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation createProgramForTaxonomy($tenant: Tenant!, $taxonomyId: String!) { createProgramForTaxonomy(tenant: $tenant, taxonomyId: $taxonomyId) { created errorMsg program } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"taxonomyId\":\"id-12345\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-tenant",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://createProgramForTaxonomy",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation createProgramForTaxonomy($tenant: Tenant!, $taxonomyId: String!) { createProgramForTaxonomy(tenant: $tenant, taxonomyId: $taxonomyId) { created errorMsg program } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"taxonomyId\":\"id-12345\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"createProgramForTaxonomy\":{\"created\":true,\"errorMsg\":\"demo-errorMsg\",\"program\":\"demo-program\"}}}"
+        }
+      ]
+    }
+  ]
+}

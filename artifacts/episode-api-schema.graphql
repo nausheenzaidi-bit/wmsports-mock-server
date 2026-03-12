@@ -1,0 +1,79 @@
+# microcksId: EpisodeAPI : 1.0
+
+scalar Time
+scalar DateTime
+scalar Date
+
+type Content
+  
+  
+{
+  hash: String
+  episodes: [Show]
+}
+
+enum Feeds {
+  CDFH_CL
+  TNTSPO_AR
+}
+
+type Feed
+  
+{
+  code: String
+  link: String
+  logo: String
+  description: String
+  shows: [Show]
+}
+
+type Query
+  
+{
+  getScheduleByFeeds(feed: Feeds!, from: String, to: String, count: Int): Schedule
+}
+
+type Schedule
+  
+{
+  dateFrom: String
+  dateTo: String
+  offset: String
+  feeds: [Feed]
+}
+
+type Show
+  
+  
+{
+  id: String
+  titleId: String
+  title: String
+  originalTitle: String
+  genreList: String
+  highlightList: String
+  airDateTime: String
+  lang: String
+  begin: String
+  end: String
+  rate: String
+  serie: String
+  season: String
+  episode: String
+  storyline: String
+  offset: String
+  franchiseName: String
+  franchiseId: String
+  ratingArgentina: String
+  ratingBrasil: String
+  ratingMexico: String
+  length: String
+  summary: String
+  hash: String
+
+  status: String
+}
+
+schema {
+  query: Query
+}

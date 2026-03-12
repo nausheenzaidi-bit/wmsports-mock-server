@@ -1,0 +1,181 @@
+asyncapi: '2.6.0'
+info:
+  title: Push Notifications Kafka Events
+  version: '1.0'
+  description: >
+    Kafka topics consumed by the Push Notifications Worker.
+    Contract C: PushNotificationsWorker → Kafka providers (Statmilk, Preferences Service)
+
+channels:
+  entity.pushNotification.v4:
+    description: Automated alerts from Statmilk — protobuf binary, shown here as decoded JSON
+    subscribe:
+      operationId: consumeAutomatedAlert
+      message:
+        name: PushNotificationMessage
+        contentType: application/json
+        payload:
+          type: object
+          required: [pushNotification]
+          properties:
+            header:
+              type: object
+              properties:
+                correlationId: { type: string }
+                eventId: { type: string }
+                operation: { type: string }
+                producer: { type: string }
+            pushNotification:
+              type: object
+              required: [id, territories, synopsis, alertCategories, destinations]
+              properties:
+                id:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    namespace: { type: string }
+                title:
+                  type: object
+                  properties:
+                    localizations:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          language: { type: string }
+                          value: { type: string }
+                synopsis:
+                  type: object
+                  properties:
+                    localizations:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          language: { type: string }
+                          value: { type: string }
+                territories:
+                  type: array
+                  items: { type: string }
+                alertCategories:
+                  type: array
+                  items: { type: string }
+                attributes:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type: { type: string }
+                      value:
+                        type: array
+                        items: { type: string }
+                destinations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      contentId:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          namespace: { type: string }
+                      taxonomyId:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          namespace: { type: string }
+                showAlertCard: { type: boolean }
+                spoiler: { type: boolean }
+                url: { type: string }
+                createdDateTime: { type: string, format: date-time }
+        examples:
+          - name: statmilk-automated-alert
+            payload:
+              header:
+                correlationId: "corr-001"
+                eventId: "evt-001"
+                operation: "OPERATION_TYPE_INGEST"
+                producer: "content-orchestration.bolt-meta-manager"
+              pushNotification:
+                id:
+                  id: "ebfe664b-2c8a-44cd-b639-e5628a624db6"
+                  namespace: "urn:wbd:identifier:statmilk:pushnotification-id"
+                synopsis:
+                  localizations:
+                    - language: "en-US"
+                      value: "7:30pm ET on TNT, Max — Celtics -13.5, ou: 201.5"
+                territories: ["US"]
+                alertCategories: ["ALERT_CATEGORY_NEWS", "ALERT_CATEGORY_HIGHLIGHTS"]
+                attributes:
+                  - type: "genres"
+                    value: ["automated"]
+                  - type: "gamecast_type"
+                    value: ["pregame"]
+                destinations:
+                  - contentId:
+                      id: "cm-001"
+                      namespace: "urn:wbd:identifier:content-module:composite-id"
+                    taxonomyId:
+                      id: "tag-001"
+                      namespace: "urn:wbd:identifier:sp-cms:taxonomy-id"
+                showAlertCard: true
+                spoiler: false
+                url: "undefined"
+                createdDateTime: "2026-02-20T10:00:00Z"
+
+  entity.preferences.v1:
+    description: User preference changes from the Preferences Service
+    subscribe:
+      operationId: consumePreferenceUpdate
+      message:
+        name: PreferencesEntityEvent
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            metadata: { type: object }
+            preferences:
+              type: object
+              required: [userId, selections]
+              properties:
+                userId: { type: string }
+                profileId: { type: string }
+                selections:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      settings: { type: object }
+                      notifications:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            notificationMethods:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  type: { type: string }
+                                  enabled: { type: boolean }
+                settings: { type: object }
+        examples:
+          - name: user-follows-tag
+            payload:
+              metadata: {}
+              preferences:
+                userId: "USERID:bolt:0ee9f5d4-fc43-4ea9-a674-9d2e1cab2aa1"
+                profileId: ""
+                selections:
+                  - id: "0d658c9d-1022-42bf-bbe7-5f52bcf6bedb"
+                    settings:
+                      news: "true"
+                      viral: "true"
+                      highlights: "false"
+                    notifications: []
+                settings:
+                  news: "true"
+                  viral: "true"
+                  highlights: "true"

@@ -1,0 +1,52 @@
+{
+  "info": {
+    "_postman_id": "statmilk-rest-examples",
+    "name": "StatMilk",
+    "description": "version=1.0 - REST examples for StatMilk",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "GET /api/leagues",
+      "request": {
+        "method": "GET",
+        "url": "/api/leagues"
+      },
+      "response": [
+        {
+          "name": "leagues-list",
+          "originalRequest": {
+            "method": "GET",
+            "url": "/api/leagues"
+          },
+          "code": 200,
+          "header": [
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": "{\"leagues\":[{\"league_name\":\"NBA\",\"league_code\":\"nba\",\"br_tag_id\":10000,\"br_tag_permalink\":\"nba\",\"sportsbook\":\"draftkings\"},{\"league_name\":\"NFL\",\"league_code\":\"nfl\",\"br_tag_id\":10001,\"br_tag_permalink\":\"nfl\",\"sportsbook\":\"draftkings\"}],\"update_date\":\"2026-02-20T10:00:00Z\",\"processing_time\":\"12ms\",\"success\":true,\"error_message\":null}"
+        }
+      ]
+    },
+    {
+      "name": "GET /api/events",
+      "request": {
+        "method": "GET",
+        "url": "/api/events"
+      },
+      "response": [
+        {
+          "name": "nba-events",
+          "originalRequest": {
+            "method": "GET",
+            "url": "/api/events?league_slug=nba"
+          },
+          "code": 200,
+          "header": [
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": "{\"league\":\"nba\",\"start_date\":\"2026-01-01\",\"end_date\":\"2026-06-30\",\"events\":[{\"event_permalink\":\"nba-lakers-celtics-20260201\",\"event_name\":\"Lakers vs Celtics\",\"start_date\":\"2026-02-01\",\"end_date\":\"2026-02-01\"}],\"update_date\":\"2026-02-20T10:00:00Z\",\"processing_time\":\"15ms\",\"success\":true,\"error_message\":null}"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,354 @@
+# microcksId: SocialProcessorAPI : 1.0
+
+scalar UUID
+scalar Time
+
+type Mutation {
+  prepareImage(tenant: Tenant!, imageCount: Int!, imageTypes: ImageTypes!): PrepareImageResponse
+  createPostByTenant(tenant: Tenant!, post: PostInput!): CreatePostResponse
+  updatePostByTenant(tenant: Tenant!, post: UpdatePostInput!): CreatePostResponse
+  createTextPollByTenant(tenant: Tenant!, poll: TextPollInput!): CreatePollResponse
+  updateTextPollByTenant(tenant: Tenant!, poll: UpdateTextPollInput!): CreatePollResponse
+  createImagePollByTenant(tenant: Tenant!, poll: ImagePollInput!): CreatePollResponse
+  createProgramForTaxonomy(tenant: Tenant!, taxonomyId: String!): CreateProgramResponse
+}
+
+type Query {
+  getMediaId(id: String): String
+}
+
+type UrlMapping {
+  uploadUrl: String!
+  mediaId: String!
+  status: String!
+}
+
+type UGCWidget   {
+  clientId: String!
+  widgetId: String!
+  fireReactionId: String
+  targetGroupId: String
+  type: String!
+}
+
+type SocialWidget   {
+  clientId: String!
+  widgetId: String!
+  fireReactionId: String
+  targetGroupId: String
+  commentBoardReactionSpaceId: String
+  type: String!
+  count: Int 
+  liveLikeUserReaction: CustomLiveLikeUserReaction 
+}
+
+type CustomLiveLikeUserReaction {
+  id: String!
+  clientId: String!
+  targetId: String!
+  reactionId: String!
+  reactionSpaceId: String!
+  customData: String
+  reactedById: String!
+  createdAt: String!
+}
+
+type TagV2  {
+  hash: String
+  tagUUID: String }
+
+enum ContentModuleType {
+  Article
+  ExternalArticle
+  StatsBetting
+  StatsGamecast
+  Tweet
+  UGCImagePoll
+  UGCTextPoll
+  UGCPost
+  VideoV2
+  Mixed
+}
+
+type ComponentModule   {
+  hash: String
+  widgets: [UGCWidget] 
+}
+
+type StandaloneContentModule  {
+  type: ContentModuleType!
+  contentID: String
+  wrapperContentModuleId: ID socialWidgets: [SocialWidget] 
+}
+
+type ChatModule  {
+  chatroom: String
+}
+
+type ChannelComponent   {
+  uuid: String!
+  semanticID: SemanticID semanticType: SemanticType tagUUID: String chat: ChatModule 
+  userContents(
+    profileID: String
+    offset: Int
+    limit: Int
+  ): [StandaloneContentModule] 
+}
+
+type UGCPost   {
+  id: ID!
+  uploadId: String
+}
+
+enum ImageTypes {
+  jpg
+  png
+}
+
+type PrepareImageResponse   {
+  uploadId: ID!
+  errorMsg: String
+  urlMappings: [UrlMapping!]!
+}
+
+type CreateProgramResponse {
+  created: Boolean!
+  errorMsg: String
+  program: String
+}
+
+input PostInput {
+  uploadId: ID
+  content: String!
+  tagUUIDs: [String!]!
+}
+
+input UpdatePostInput {
+  uploadId: ID
+  content: String!
+  postId: String!
+}
+
+type CreatePostResponse {
+  created: Boolean!
+  errorMsg: String
+  post: Post
+  status: String!
+}
+
+type CreatePollResponse {
+  created: Boolean!
+  errorMsg: String
+  poll: Poll
+  status: String!
+}
+
+type Post {
+  id: ID!
+  contentId: ID
+  content: String!
+}
+
+input TextPollInput {
+  uploadId: ID
+  contentId: ID
+  question: String!
+  options: [TextPollOptionInput!]
+  timeout: String
+  interactiveUntil: String
+  tagUUIDs: [String!]!
+  widget_attributes: [TextPollWidgetInput!]
+  semanticId: SemanticID
+}
+
+input UpdateTextPollInput {
+  uploadId: ID
+  contentId: ID
+  question: String!
+  options: [TextPollOptionInput!]
+  timeout: String
+  interactiveUntil: String
+  widget_attributes: [TextPollWidgetInput!]
+  pollId: String!
+  semanticId: SemanticID
+}
+
+input TextPollOptionInput {
+  description: String!
+  id: ID
+}
+
+input TextPollWidgetInput {
+  key: String!
+  value: String!
+}
+
+input ImagePollInput {
+  uploadId: ID!
+  contentId: ID
+  question: String!
+  options: [ImagePollOptionInput!]
+  timeout: String
+  interactiveUntil: String
+  tagUUIDs: [String!]!
+  userAuth: String!
+}
+
+input ImagePollOptionInput {
+  description: String!
+  imageUrl: String!
+}
+
+type Poll {
+  id: ID!
+  contentId: ID!
+}
+
+enum Actions {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+enum ChannelType {
+  League
+  SmallTeam
+  PopularTeam
+  Interest
+  GameCast
+  Home
+  Following
+  FollowingAddTags
+  Alerts
+  Discovery
+  Creator
+  User
+  Onboarding
+  OnboardingAddTags
+  Scores
+}
+
+enum CreatorTier {
+  Platinum
+  Gold
+  Silver
+  Bronze
+}
+
+enum SemanticID {
+  StatsGamecast
+  StatsScoreboard
+  StatsScorecard
+  StatsBetting
+  StatsVenue
+  StatsInjuryReport
+  StatsLiveOdds
+  StatsSeasonPerformance
+  StatsLeagueRankings
+  StatsGameInfo
+  StatsPreviousMeetings
+  StatsLineScore
+  StatsPlayPreview
+  StatsPlaySummary
+  StatsMatchTimeline
+  StatsDriveChart
+  StatsBaseball
+  StatsPlays
+  StatsGameStats
+  StatsTeamComparison
+  StatsOdds
+  StatsSeasonLeaders
+  StatsPlayersOnIce
+  StatsHockeyGameState
+  StatsPitchingInfo
+  StatsLineup
+  StatsSubstitutions
+  StatsStandings
+  StatsScores
+  StatsSchedule
+  StatsMoneyline
+  StatsTotalPoints
+  StatsSpread
+  StatsScoringPlays
+  StatsDrawNoBet
+  Header
+  UserHeader
+  SearchBar
+  Chat
+  ExternalLink
+  TrendingClips
+  Ads
+  TagFollowing
+  TagRecommended
+  TagOnboarding
+  TagSearch
+  ContentPremiumVideo
+  ContentSocialFeed
+  ContentCommunityFeed
+  ContentHighlights
+  ContentFullGameHighlights
+  ContentChannelFeed
+  ContentWhatsBuzzing
+  ContentTopHeadlines
+  ContentTrendingVideos
+  UgcFromTheFans
+  UgcFeed
+  UgcPosts
+  UgcComments
+  Dummy
+  AlertFollowingFeed
+  AlertActivitiesFeed
+  LiveAndUpcoming
+  LiveNow
+  LiveUpcoming
+  ContentHomeLandscape
+  ContentHomePortraitCollection
+  ContentHomeHeadlines
+  ContentHomeCommunityCollections
+  ContentShortGameHighlights
+  ContentTrendingBets
+  RecForYou
+  RecYouMightLike
+  RecCreatorsInYourCommunities
+  RecMostFollowedTeams
+  RecMostFollowedLeagues
+  RecTopInterests
+  RecTopCreators
+  RecRelatedCommunities
+  StatsPlayerStats
+  StatsScoresStrip
+  StatsThreeWayMoneyline
+  StatsHeadToHead
+  StatsPlayerProp
+  StatsPodium
+  StatsPodiumEntry
+  StatsRaceInfo
+  AffiliateWatchBanner
+}
+
+enum SemanticType {
+  AdsData
+  ContentModuleData
+  StatsData
+  SocialData
+  StatsPlaceholder
+  TagData
+  UserData
+  AlertData
+  Default
+  RecommendationData
+}
+
+enum Tenant {
+  aewGame
+  bleacherReport
+  estadioArgentina
+  estadioBrazil
+  estadioChile
+  ncaa
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+}

@@ -1,0 +1,124 @@
+{
+  "info": {
+    "_postman_id": "sportssearchapi-mocks",
+    "name": "SportsSearchAPI",
+    "description": "version=1.0 - Mock examples for SportsSearchAPI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "popularSearches",
+      "request": {
+        "method": "POST",
+        "url": "http://popularSearches",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query popularSearches($tenant: Tenant!, $first: Int, $filterTerms: String) { popularSearches(tenant: $tenant, first: $first, filterTerms: $filterTerms) { results { term } } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"first\":1,\"filterTerms\":\"search-term\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-tenant",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://popularSearches",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query popularSearches($tenant: Tenant!, $first: Int, $filterTerms: String) { popularSearches(tenant: $tenant, first: $first, filterTerms: $filterTerms) { results { term } } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"first\":1,\"filterTerms\":\"search-term\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"popularSearches\":{\"results\":[{\"term\":\"search-term\"}]}}}"
+        }
+      ]
+    },
+    {
+      "name": "search",
+      "request": {
+        "method": "POST",
+        "url": "http://search",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query search($after: String, $algorithm: String, $tenant: Tenant!, $contentTypes: [ContentType!]!, $facets: [FacetRequest!], $filters: [Filter!], $first: Int, $searchTerms: String, $didYouMeanResults: Int) { search(after: $after, algorithm: $algorithm, tenant: $tenant, contentTypes: $contentTypes, facets: $facets, filters: $filters, first: $first, searchTerms: $searchTerms, didYouMeanResults: $didYouMeanResults) { connection { edges { cursor } pageInfo { endCursor hasNextPage hasPreviousPage startCursor } totalCount } errors facetResponse { facetResults { count value } field } didYouMeanResponse { results { term } } } }\",\"variables\":{\"after\":\"demo-after\",\"algorithm\":\"demo-algorithm\",\"tenant\":\"demo-tenant\",\"contentTypes\":\"demo-contentTypes\",\"facets\":\"demo-facets\",\"filters\":\"demo-filters\",\"first\":1,\"searchTerms\":\"search-term\",\"didYouMeanResults\":1}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-after",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://search",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query search($after: String, $algorithm: String, $tenant: Tenant!, $contentTypes: [ContentType!]!, $facets: [FacetRequest!], $filters: [Filter!], $first: Int, $searchTerms: String, $didYouMeanResults: Int) { search(after: $after, algorithm: $algorithm, tenant: $tenant, contentTypes: $contentTypes, facets: $facets, filters: $filters, first: $first, searchTerms: $searchTerms, didYouMeanResults: $didYouMeanResults) { connection { edges { cursor } pageInfo { endCursor hasNextPage hasPreviousPage startCursor } totalCount } errors facetResponse { facetResults { count value } field } didYouMeanResponse { results { term } } } }\",\"variables\":{\"after\":\"demo-after\",\"algorithm\":\"demo-algorithm\",\"tenant\":\"demo-tenant\",\"contentTypes\":\"demo-contentTypes\",\"facets\":\"demo-facets\",\"filters\":\"demo-filters\",\"first\":1,\"searchTerms\":\"search-term\",\"didYouMeanResults\":1}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"search\":{\"connection\":{\"edges\":[{\"cursor\":\"demo-cursor\",\"node\":null}],\"nodes\":[],\"pageInfo\":{\"endCursor\":\"demo-endCursor\",\"hasNextPage\":true,\"hasPreviousPage\":true,\"startCursor\":\"demo-startCursor\"},\"totalCount\":10},\"errors\":[\"demo-errors\"],\"facetResponse\":[{\"facetResults\":[{\"count\":10,\"value\":\"demo-value\"}],\"field\":\"demo-field\"}],\"didYouMeanResponse\":{\"results\":[{\"term\":\"search-term\"}]}}}}"
+        }
+      ]
+    },
+    {
+      "name": "typeAhead",
+      "request": {
+        "method": "POST",
+        "url": "http://typeAhead",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query typeAhead($tenant: Tenant!, $first: Int, $input: String) { typeAhead(tenant: $tenant, first: $first, input: $input) { results { term } } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"first\":1,\"input\":\"demo-input\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-tenant",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://typeAhead",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query typeAhead($tenant: Tenant!, $first: Int, $input: String) { typeAhead(tenant: $tenant, first: $first, input: $input) { results { term } } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"first\":1,\"input\":\"demo-input\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"typeAhead\":{\"results\":[{\"term\":\"search-term\"}]}}}"
+        }
+      ]
+    }
+  ]
+}

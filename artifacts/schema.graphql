@@ -1,0 +1,140 @@
+# microcksId: StatsAPI : 1.0
+
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+type Query {
+  getGamecastBySlug(slug: String!): StatsGamecast
+  getScores(timezone: Int!, date: String, league: String): Scores
+  getSchedule(slug: String!, timezone: Int, season: Int): StatsSchedule
+  getStandings(permalink: String!, season: Int): StatsStanding
+  getUser(profileId: String): User
+  getChannelBySlug(slug: String!): Channel
+  getSocialAlerts: [SocialAlert]
+}
+
+type Mutation {
+  setGlobalAlerts(input: SetGlobalAlertsInput!): Boolean
+}
+
+input SetGlobalAlertsInput {
+  enabled: Boolean!
+}
+
+type StatsGamecast {
+  slug: String
+  status: String
+  sport: String
+  gameDate: String
+  scoreboard: Scoreboard
+}
+
+type Scoreboard {
+  gameDate: String
+  progress: GameProgress
+  teamOne: TeamScore
+  teamTwo: TeamScore
+}
+
+type GameProgress {
+  clock: String
+  playPeriod: String
+}
+
+type TeamScore {
+  name: String
+  abbrev: String
+  score: String
+  mainScore: String
+  record: String
+}
+
+type Scores {
+  leagues: [League]
+  gameGroups: [GameGroup]
+}
+
+type League {
+  id: String
+  name: String
+  slug: String
+}
+
+type GameGroup {
+  name: String
+  current: Boolean
+  games: [Game]
+}
+
+type Game {
+  id: String
+  name: String
+  status: String
+  teamOne: TeamScore
+  teamTwo: TeamScore
+}
+
+type StatsSchedule {
+  slug: String
+  name: String
+  league: String
+  scheduleGroupings: [ScheduleGroup]
+}
+
+type ScheduleGroup {
+  title: String
+  current: Boolean
+  entries: [ScheduleEntry]
+}
+
+type ScheduleEntry {
+  date: String
+  opponent: String
+  startTimeTbd: Boolean
+  status: String
+}
+
+type StatsStanding {
+  slug: String
+  name: String
+  season: Int
+  standingGroupings: [StandingGroup]
+}
+
+type StandingGroup {
+  title: String
+  entries: [StandingEntry]
+}
+
+type StandingEntry {
+  title: String
+  current: Boolean
+}
+
+type User {
+  displayName: String
+  email: String
+  favoriteTeamIds: [String]
+  watchlist: [WatchlistItem]
+}
+
+type WatchlistItem {
+  slug: String
+  sport: String
+}
+
+type Channel {
+  slug: String
+  name: String
+  description: String
+  sport: String
+  league: String
+}
+
+type SocialAlert {
+  title: String
+  body: String
+  type: String
+}

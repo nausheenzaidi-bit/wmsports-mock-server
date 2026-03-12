@@ -1,0 +1,48 @@
+{
+  "info": {
+    "_postman_id": "episodeapi-mocks",
+    "name": "EpisodeAPI",
+    "description": "version=1.0 - Mock examples for EpisodeAPI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "getScheduleByFeeds",
+      "request": {
+        "method": "POST",
+        "url": "http://getScheduleByFeeds",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query getScheduleByFeeds($feed: Feeds!, $from: String, $to: String, $count: Int) { getScheduleByFeeds(feed: $feed, from: $from, to: $to, count: $count) { dateFrom dateTo offset feeds { code link logo description shows { id titleId title originalTitle genreList highlightList airDateTime lang begin end rate serie season episode storyline offset franchiseName franchiseId ratingArgentina ratingBrasil ratingMexico length summary hash status } } } }\",\"variables\":{\"feed\":\"demo-feed\",\"from\":\"demo-from\",\"to\":\"demo-to\",\"count\":10}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-feed",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://getScheduleByFeeds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query getScheduleByFeeds($feed: Feeds!, $from: String, $to: String, $count: Int) { getScheduleByFeeds(feed: $feed, from: $from, to: $to, count: $count) { dateFrom dateTo offset feeds { code link logo description shows { id titleId title originalTitle genreList highlightList airDateTime lang begin end rate serie season episode storyline offset franchiseName franchiseId ratingArgentina ratingBrasil ratingMexico length summary hash status } } } }\",\"variables\":{\"feed\":\"demo-feed\",\"from\":\"demo-from\",\"to\":\"demo-to\",\"count\":10}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"getScheduleByFeeds\":{\"dateFrom\":\"2026-02-20\",\"dateTo\":\"2026-02-20\",\"offset\":\"demo-offset\",\"feeds\":[{\"code\":\"demo-code\",\"link\":\"demo-link\",\"logo\":\"demo-logo\",\"description\":\"A sample description\",\"shows\":[{\"id\":\"id-12345\",\"titleId\":\"Demo Title\",\"title\":\"Demo Title\",\"originalTitle\":\"Demo Title\",\"genreList\":\"demo-genreList\",\"highlightList\":\"demo-highlightList\",\"airDateTime\":\"2026-02-20\",\"lang\":\"demo-lang\",\"begin\":\"demo-begin\",\"end\":\"demo-end\",\"rate\":\"demo-rate\",\"serie\":\"demo-serie\",\"season\":\"2026\",\"episode\":\"demo-episode\",\"storyline\":\"demo-storyline\",\"offset\":\"demo-offset\",\"franchiseName\":\"Demo Name\",\"franchiseId\":\"id-12345\",\"ratingArgentina\":\"demo-ratingArgentina\",\"ratingBrasil\":\"demo-ratingBrasil\",\"ratingMexico\":\"demo-ratingMexico\",\"length\":\"demo-length\",\"summary\":\"demo-summary\",\"hash\":\"demo-hash\",\"status\":\"Active\"}]}]}}}"
+        }
+      ]
+    }
+  ]
+}

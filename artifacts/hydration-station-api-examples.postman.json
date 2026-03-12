@@ -1,0 +1,86 @@
+{
+  "info": {
+    "_postman_id": "hydrationstationapi-mocks",
+    "name": "HydrationStationAPI",
+    "description": "version=1.0 - Mock examples for HydrationStationAPI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "getTweetsByIds",
+      "request": {
+        "method": "POST",
+        "url": "http://getTweetsByIds",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query getTweetsByIds($ids: [ID!]!) { getTweetsByIds(ids: $ids) { id type author { id name username verified profileImageUrl } data { authorId attachments { mediaKeys pollIds } createdAt publicMetrics { bookmarkCount impressionCount likeCount quoteCount replyCount retweetCount } text entities { hashTags { start end tag } urls { start end url displayUrl expandedUrl } mentions { start end username } } referencedTweets { id referenceType } } media { type height width mediaKey url previewImageUrl variants { bitRate contentType url } } referencedTweet { id type author { id name username verified profileImageUrl } data { authorId attachments { mediaKeys pollIds } createdAt publicMetrics { bookmarkCount impressionCount likeCount quoteCount replyCount retweetCount } text entities { hashTags urls mentions } referencedTweets { id referenceType } } media { type height width mediaKey url previewImageUrl variants { bitRate contentType url } } referencedTweet { id type author { id name username verified profileImageUrl } data { authorId attachments createdAt publicMetrics text entities referencedTweets } media { type height width mediaKey url previewImageUrl variants } referencedTweet { id type author data media referencedTweet } } } } }\",\"variables\":{\"ids\":\"id-ids-001\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-ids-001",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://getTweetsByIds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query getTweetsByIds($ids: [ID!]!) { getTweetsByIds(ids: $ids) { id type author { id name username verified profileImageUrl } data { authorId attachments { mediaKeys pollIds } createdAt publicMetrics { bookmarkCount impressionCount likeCount quoteCount replyCount retweetCount } text entities { hashTags { start end tag } urls { start end url displayUrl expandedUrl } mentions { start end username } } referencedTweets { id referenceType } } media { type height width mediaKey url previewImageUrl variants { bitRate contentType url } } referencedTweet { id type author { id name username verified profileImageUrl } data { authorId attachments { mediaKeys pollIds } createdAt publicMetrics { bookmarkCount impressionCount likeCount quoteCount replyCount retweetCount } text entities { hashTags urls mentions } referencedTweets { id referenceType } } media { type height width mediaKey url previewImageUrl variants { bitRate contentType url } } referencedTweet { id type author { id name username verified profileImageUrl } data { authorId attachments createdAt publicMetrics text entities referencedTweets } media { type height width mediaKey url previewImageUrl variants } referencedTweet { id type author data media referencedTweet } } } } }\",\"variables\":{\"ids\":\"id-ids-001\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"getTweetsByIds\":[{\"id\":\"id-id-001\",\"type\":\"ORIGINAL\",\"author\":{\"id\":\"id-id-001\",\"name\":\"Demo Name\",\"username\":\"Demo Name\",\"verified\":true,\"profileImageUrl\":\"https://example.com/demo\"},\"data\":{\"authorId\":\"id-12345\",\"attachments\":{\"mediaKeys\":[\"demo-mediaKeys\"],\"pollIds\":[\"id-12345\"]},\"createdAt\":\"2026-02-20T10:00:00Z\",\"publicMetrics\":{\"bookmarkCount\":10,\"impressionCount\":10,\"likeCount\":10,\"quoteCount\":10,\"replyCount\":10,\"retweetCount\":10},\"text\":\"Sample text\",\"entities\":{\"hashTags\":[{\"start\":1,\"end\":1,\"tag\":\"demo-tag\"}],\"urls\":[{\"start\":1,\"end\":1,\"url\":\"https://example.com/demo\",\"displayUrl\":\"https://example.com/demo\",\"expandedUrl\":\"https://example.com/demo\"}],\"mentions\":[{\"start\":1,\"end\":1,\"username\":\"Demo Name\"}]},\"referencedTweets\":[{\"id\":\"id-id-001\",\"referenceType\":\"DEFAULT\"}]},\"media\":[{\"type\":\"ANIMATED_GIF\",\"height\":1,\"width\":1,\"mediaKey\":\"demo-mediaKey\",\"url\":\"https://example.com/demo\",\"previewImageUrl\":\"https://example.com/demo\",\"variants\":[{\"bitRate\":1,\"contentType\":\"DEFAULT\",\"url\":\"https://example.com/demo\"}]}],\"referencedTweet\":{\"id\":\"id-id-001\",\"type\":\"ORIGINAL\",\"author\":{\"id\":\"id-id-001\",\"name\":\"Demo Name\",\"username\":\"Demo Name\",\"verified\":true,\"profileImageUrl\":\"https://example.com/demo\"},\"data\":{\"authorId\":\"id-12345\",\"attachments\":{\"mediaKeys\":[\"demo-mediaKeys\"],\"pollIds\":[\"id-12345\"]},\"createdAt\":\"2026-02-20T10:00:00Z\",\"publicMetrics\":{\"bookmarkCount\":10,\"impressionCount\":10,\"likeCount\":10,\"quoteCount\":10,\"replyCount\":10,\"retweetCount\":10},\"text\":\"Sample text\",\"entities\":{\"hashTags\":[{\"start\":1,\"end\":1,\"tag\":\"demo-tag\"}],\"urls\":[{\"start\":1,\"end\":1,\"url\":\"https://example.com/demo\",\"displayUrl\":\"https://example.com/demo\",\"expandedUrl\":\"https://example.com/demo\"}],\"mentions\":[{\"start\":1,\"end\":1,\"username\":\"Demo Name\"}]},\"referencedTweets\":[{\"id\":\"id-id-001\",\"referenceType\":\"DEFAULT\"}]},\"media\":[{\"type\":\"ANIMATED_GIF\",\"height\":1,\"width\":1,\"mediaKey\":\"demo-mediaKey\",\"url\":\"https://example.com/demo\",\"previewImageUrl\":\"https://example.com/demo\",\"variants\":[{\"bitRate\":1,\"contentType\":\"DEFAULT\",\"url\":\"https://example.com/demo\"}]}],\"referencedTweet\":{\"id\":\"id-id-001\",\"type\":\"ORIGINAL\",\"author\":{\"id\":\"id-id-001\",\"name\":\"Demo Name\",\"username\":\"Demo Name\",\"verified\":true,\"profileImageUrl\":\"https://example.com/demo\"},\"data\":{\"authorId\":\"id-12345\",\"attachments\":{\"mediaKeys\":[\"demo-mediaKeys\"],\"pollIds\":[\"id-12345\"]},\"createdAt\":\"2026-02-20T10:00:00Z\",\"publicMetrics\":{\"bookmarkCount\":10,\"impressionCount\":10,\"likeCount\":10,\"quoteCount\":10,\"replyCount\":10,\"retweetCount\":10},\"text\":\"Sample text\",\"entities\":{\"hashTags\":[],\"urls\":[],\"mentions\":[]},\"referencedTweets\":[{\"id\":\"id-id-001\",\"referenceType\":\"DEFAULT\"}]},\"media\":[{\"type\":\"ANIMATED_GIF\",\"height\":1,\"width\":1,\"mediaKey\":\"demo-mediaKey\",\"url\":\"https://example.com/demo\",\"previewImageUrl\":\"https://example.com/demo\",\"variants\":[{\"bitRate\":1,\"contentType\":\"DEFAULT\",\"url\":\"https://example.com/demo\"}]}],\"referencedTweet\":{\"id\":\"id-id-001\",\"type\":\"ORIGINAL\",\"author\":{\"id\":\"id-id-001\",\"name\":\"Demo Name\",\"username\":\"Demo Name\",\"verified\":true,\"profileImageUrl\":\"https://example.com/demo\"},\"data\":{\"authorId\":\"id-12345\",\"attachments\":null,\"createdAt\":\"2026-02-20T10:00:00Z\",\"publicMetrics\":null,\"text\":\"Sample text\",\"entities\":null,\"referencedTweets\":[]},\"media\":[{\"type\":\"ANIMATED_GIF\",\"height\":1,\"width\":1,\"mediaKey\":\"demo-mediaKey\",\"url\":\"https://example.com/demo\",\"previewImageUrl\":\"https://example.com/demo\",\"variants\":[]}],\"referencedTweet\":{\"id\":\"id-id-001\",\"type\":\"ORIGINAL\",\"author\":null,\"data\":null,\"media\":[],\"referencedTweet\":null}}}}}]}}"
+        }
+      ]
+    },
+    {
+      "name": "createTweetById",
+      "request": {
+        "method": "POST",
+        "url": "http://createTweetById",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation createTweetById($id: ID!) { createTweetById(id: $id) { id type author { id name username verified profileImageUrl } data { authorId attachments { mediaKeys pollIds } createdAt publicMetrics { bookmarkCount impressionCount likeCount quoteCount replyCount retweetCount } text entities { hashTags { start end tag } urls { start end url displayUrl expandedUrl } mentions { start end username } } referencedTweets { id referenceType } } media { type height width mediaKey url previewImageUrl variants { bitRate contentType url } } referencedTweet { id type author { id name username verified profileImageUrl } data { authorId attachments { mediaKeys pollIds } createdAt publicMetrics { bookmarkCount impressionCount likeCount quoteCount replyCount retweetCount } text entities { hashTags urls mentions } referencedTweets { id referenceType } } media { type height width mediaKey url previewImageUrl variants { bitRate contentType url } } referencedTweet { id type author { id name username verified profileImageUrl } data { authorId attachments createdAt publicMetrics text entities referencedTweets } media { type height width mediaKey url previewImageUrl variants } referencedTweet { id type author data media referencedTweet } } } } }\",\"variables\":{\"id\":\"id-id-001\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-id-001",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://createTweetById",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation createTweetById($id: ID!) { createTweetById(id: $id) { id type author { id name username verified profileImageUrl } data { authorId attachments { mediaKeys pollIds } createdAt publicMetrics { bookmarkCount impressionCount likeCount quoteCount replyCount retweetCount } text entities { hashTags { start end tag } urls { start end url displayUrl expandedUrl } mentions { start end username } } referencedTweets { id referenceType } } media { type height width mediaKey url previewImageUrl variants { bitRate contentType url } } referencedTweet { id type author { id name username verified profileImageUrl } data { authorId attachments { mediaKeys pollIds } createdAt publicMetrics { bookmarkCount impressionCount likeCount quoteCount replyCount retweetCount } text entities { hashTags urls mentions } referencedTweets { id referenceType } } media { type height width mediaKey url previewImageUrl variants { bitRate contentType url } } referencedTweet { id type author { id name username verified profileImageUrl } data { authorId attachments createdAt publicMetrics text entities referencedTweets } media { type height width mediaKey url previewImageUrl variants } referencedTweet { id type author data media referencedTweet } } } } }\",\"variables\":{\"id\":\"id-id-001\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"createTweetById\":{\"id\":\"id-id-001\",\"type\":\"ORIGINAL\",\"author\":{\"id\":\"id-id-001\",\"name\":\"Demo Name\",\"username\":\"Demo Name\",\"verified\":true,\"profileImageUrl\":\"https://example.com/demo\"},\"data\":{\"authorId\":\"id-12345\",\"attachments\":{\"mediaKeys\":[\"demo-mediaKeys\"],\"pollIds\":[\"id-12345\"]},\"createdAt\":\"2026-02-20T10:00:00Z\",\"publicMetrics\":{\"bookmarkCount\":10,\"impressionCount\":10,\"likeCount\":10,\"quoteCount\":10,\"replyCount\":10,\"retweetCount\":10},\"text\":\"Sample text\",\"entities\":{\"hashTags\":[{\"start\":1,\"end\":1,\"tag\":\"demo-tag\"}],\"urls\":[{\"start\":1,\"end\":1,\"url\":\"https://example.com/demo\",\"displayUrl\":\"https://example.com/demo\",\"expandedUrl\":\"https://example.com/demo\"}],\"mentions\":[{\"start\":1,\"end\":1,\"username\":\"Demo Name\"}]},\"referencedTweets\":[{\"id\":\"id-id-001\",\"referenceType\":\"DEFAULT\"}]},\"media\":[{\"type\":\"ANIMATED_GIF\",\"height\":1,\"width\":1,\"mediaKey\":\"demo-mediaKey\",\"url\":\"https://example.com/demo\",\"previewImageUrl\":\"https://example.com/demo\",\"variants\":[{\"bitRate\":1,\"contentType\":\"DEFAULT\",\"url\":\"https://example.com/demo\"}]}],\"referencedTweet\":{\"id\":\"id-id-001\",\"type\":\"ORIGINAL\",\"author\":{\"id\":\"id-id-001\",\"name\":\"Demo Name\",\"username\":\"Demo Name\",\"verified\":true,\"profileImageUrl\":\"https://example.com/demo\"},\"data\":{\"authorId\":\"id-12345\",\"attachments\":{\"mediaKeys\":[\"demo-mediaKeys\"],\"pollIds\":[\"id-12345\"]},\"createdAt\":\"2026-02-20T10:00:00Z\",\"publicMetrics\":{\"bookmarkCount\":10,\"impressionCount\":10,\"likeCount\":10,\"quoteCount\":10,\"replyCount\":10,\"retweetCount\":10},\"text\":\"Sample text\",\"entities\":{\"hashTags\":[{\"start\":1,\"end\":1,\"tag\":\"demo-tag\"}],\"urls\":[{\"start\":1,\"end\":1,\"url\":\"https://example.com/demo\",\"displayUrl\":\"https://example.com/demo\",\"expandedUrl\":\"https://example.com/demo\"}],\"mentions\":[{\"start\":1,\"end\":1,\"username\":\"Demo Name\"}]},\"referencedTweets\":[{\"id\":\"id-id-001\",\"referenceType\":\"DEFAULT\"}]},\"media\":[{\"type\":\"ANIMATED_GIF\",\"height\":1,\"width\":1,\"mediaKey\":\"demo-mediaKey\",\"url\":\"https://example.com/demo\",\"previewImageUrl\":\"https://example.com/demo\",\"variants\":[{\"bitRate\":1,\"contentType\":\"DEFAULT\",\"url\":\"https://example.com/demo\"}]}],\"referencedTweet\":{\"id\":\"id-id-001\",\"type\":\"ORIGINAL\",\"author\":{\"id\":\"id-id-001\",\"name\":\"Demo Name\",\"username\":\"Demo Name\",\"verified\":true,\"profileImageUrl\":\"https://example.com/demo\"},\"data\":{\"authorId\":\"id-12345\",\"attachments\":{\"mediaKeys\":[\"demo-mediaKeys\"],\"pollIds\":[\"id-12345\"]},\"createdAt\":\"2026-02-20T10:00:00Z\",\"publicMetrics\":{\"bookmarkCount\":10,\"impressionCount\":10,\"likeCount\":10,\"quoteCount\":10,\"replyCount\":10,\"retweetCount\":10},\"text\":\"Sample text\",\"entities\":{\"hashTags\":[],\"urls\":[],\"mentions\":[]},\"referencedTweets\":[{\"id\":\"id-id-001\",\"referenceType\":\"DEFAULT\"}]},\"media\":[{\"type\":\"ANIMATED_GIF\",\"height\":1,\"width\":1,\"mediaKey\":\"demo-mediaKey\",\"url\":\"https://example.com/demo\",\"previewImageUrl\":\"https://example.com/demo\",\"variants\":[{\"bitRate\":1,\"contentType\":\"DEFAULT\",\"url\":\"https://example.com/demo\"}]}],\"referencedTweet\":{\"id\":\"id-id-001\",\"type\":\"ORIGINAL\",\"author\":{\"id\":\"id-id-001\",\"name\":\"Demo Name\",\"username\":\"Demo Name\",\"verified\":true,\"profileImageUrl\":\"https://example.com/demo\"},\"data\":{\"authorId\":\"id-12345\",\"attachments\":null,\"createdAt\":\"2026-02-20T10:00:00Z\",\"publicMetrics\":null,\"text\":\"Sample text\",\"entities\":null,\"referencedTweets\":[]},\"media\":[{\"type\":\"ANIMATED_GIF\",\"height\":1,\"width\":1,\"mediaKey\":\"demo-mediaKey\",\"url\":\"https://example.com/demo\",\"previewImageUrl\":\"https://example.com/demo\",\"variants\":[]}],\"referencedTweet\":{\"id\":\"id-id-001\",\"type\":\"ORIGINAL\",\"author\":null,\"data\":null,\"media\":[],\"referencedTweet\":null}}}}}}}"
+        }
+      ]
+    }
+  ]
+}

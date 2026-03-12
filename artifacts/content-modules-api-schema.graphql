@@ -1,0 +1,566 @@
+# microcksId: ContentModulesAPI : 1.0
+
+scalar UUID
+scalar Time
+
+type Channel  {
+  uuid: String!
+  tag: TagV2! pinnedContentModule: ContentModule  
+}
+
+enum TagTypeV2 {
+  Conference
+  Creator
+  Division
+  Editor
+  Editorial
+  Event
+  GameCast
+  Interest
+  League
+  Page
+  Player
+  Person
+  Sport
+  Team
+}
+
+type TagV2  {
+  hash: String tagUUID: String
+  uuid: String! type: TagTypeV2 followersCount(tenant: Tenant!): Int! startTime: Date endTime: Date children: [TagV2] parent: TagV2 slug: String! }
+
+type ComponentModule   {
+  hash: String
+  semanticID: SemanticID
+  tag(tenant: Tenant!): TagV2
+  position: Int!
+  isPositionLocked: Boolean
+  positionLockExpiresAt: Date
+  insertedAt: Date
+  isPinned: Boolean
+}
+
+interface ContentModule   {
+  id: ID!
+  title: String!
+  description: String!
+  expiresAt: Date
+  scheduledDate: Date
+  state: ModuleState
+  components: [ComponentModule]
+  isAlerted: Boolean
+  allowedCountries: [String]
+  commentsEnabled: Boolean
+  alertedChannelTagUUID: String
+  updatedAt: Date
+  insertedAt: Date
+  metaData: ModuleMetaData
+}
+
+enum ContentModuleType {
+  Article
+  ExternalArticle
+  StatsBetting
+  StatsGamecast
+  Tweet
+  UGCImagePoll
+  UGCTextPoll
+  UGCPost
+  VideoV2
+  Mixed
+}
+
+enum ModuleOrientation {
+  Landscape
+  Portrait
+}
+
+type StandaloneContentModule implements ContentModule  {
+  id: ID!
+  type: ContentModuleType!
+  contentID: String
+  title: String!
+  description: String!
+  thumbnail: String!
+  lastModifiedBy: String
+  content: ProgrammedContent!
+  orientation: ModuleOrientation!
+  expiresAt: Date
+  scheduledDate: Date
+  state: ModuleState
+  components: [ComponentModule]
+  isAlerted: Boolean
+  allowedCountries: [String]
+  composites: [PackageContentModule]
+  commentsEnabled: Boolean
+  alertedChannelTagUUID: String
+  updatedAt: Date
+  thumbnailAccreditation: String
+  thumbnailCopyright: String
+  position: Int
+  isPositionLocked: Boolean
+  positionLockExpiresAt: Date
+  contentMetadata: ContentMetadata
+  insertedAt: Date
+  programmingUpdatedAt: Date
+  wrapperContentModuleId: ID
+  metaData: ModuleMetaData
+}
+
+enum PackageType {
+  TopHeadlines
+  TrendingVideos
+  WhatsBuzzing
+  CreatorShows
+  FromTheFans
+  AdHoc
+  TrendingBets
+  Highlights
+  HomeLandscape
+  HomePortrait
+}
+
+type PackageContentModule implements ContentModule   {
+  id: ID!
+  title: String!
+  description: String!
+  packageTag: String
+  packageType: PackageType
+  contentType: ContentModuleType
+  contents: [StandaloneContentModule] 
+  orientation: ModuleOrientation!
+  expiresAt: Date
+  scheduledDate: Date
+  state: ModuleState
+  components: [ComponentModule]
+  isAlerted: Boolean
+  allowedCountries: [String]
+  commentsEnabled: Boolean
+  alertedChannelTagUUID: String
+  updatedAt: Date
+  insertedAt: Date
+  metaData: ModuleMetaData
+}
+
+type Content  {
+  _id: MongoID contentModules: [ContentModule]
+}
+
+type ChannelComponent  {
+  uuid: String!
+  tagUUID: String semanticID: SemanticID semanticType: SemanticType tagSlug: String tagData: [TagV2] userTags(tenant: Tenant!): [TagV2] interlacingInterval: Int contents(
+    state: [ModuleState] = [PROGRAMMED]
+    limit: Int = 150
+    contentType: [ContentModuleType]
+  ): [ContentModule]  
+  contentsConnection(
+    state: [ModuleState] = [PROGRAMMED]
+    first: Int
+    last: Int
+    before: ContentCursor
+    after: ContentCursor
+    paginationControl: [PaginationControl]
+  ): ContentsConnection  
+}
+
+type ChannelStreamMetaData  {
+  id: String
+  tagUUID: String semanticID: SemanticID contents(
+    state: [ModuleState] = [PROGRAMMED]
+    limit: Int
+    contentType: [ContentModuleType]
+  ): [ContentModule]  
+}
+
+enum ModuleState {
+  SCHEDULED
+  UNPROGRAMMED
+  PROGRAMMED
+}
+
+type ContentsConnection  {
+  edges: [ContentEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type ContentEdge  {
+  cursor: ContentCursor!
+  node: ContentModule!
+}
+
+type PageInfo  {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type A2VResult  {
+  video: StandaloneContentModule 
+  type: ContentModuleType!
+  contentID: String!
+}
+
+type A2AResult  {
+  article: StandaloneContentModule 
+  type: ContentModuleType!
+  contentID: String!
+}
+
+type V2VResult  {
+  video: StandaloneContentModule 
+  type: ContentModuleType!
+  contentID: String!
+}
+
+type TrendingResult  {
+  contentModule: StandaloneContentModule 
+  type: ContentModuleType!
+  contentID: String!
+}
+
+type ModuleMetaData   {
+  hash: String!
+  communityTag: TagV2
+  author: TagV2
+  videoContentId: String
+  tenant: Tenant
+}
+
+type ContentBrand  {
+  source: String!
+}
+
+union ProgrammedContent = Article | ExternalArticle | StatsBetting | StatsGamecast | Tweet | VideoV2 | UGCImagePoll | UGCPost | UGCTextPoll
+
+type Article  {
+  hash: String!
+}
+
+type StatsBetting  {
+  id: ID!
+}
+
+type StatsGamecast  {
+  slug: String!
+}
+
+type Tweet  {
+  id: ID!
+}
+
+type UGCTextPoll  {
+  id: ID!
+}
+
+type UGCPost  {
+  id: ID!
+}
+
+type UGCImagePoll  {
+  id: ID!
+}
+
+type VideoV2  {
+  hash: String }
+
+input PaginationControl {
+  semanticId: String!
+  first: Int
+  last: Int
+  before: ContentCursor
+  after: ContentCursor
+}
+
+type ContentMetadata {
+  video: VideoV2Metadata
+}
+
+type VideoV2Metadata {
+  state: VideoState
+}
+
+enum VideoState {
+  UPCOMING
+  LIVE
+  ENDED
+  VOD
+}
+
+type DeleteVideoContentModulesResult {
+  deletedCount: Int!
+  deletedModuleIds: [String!]!
+  contentId: String!
+}
+
+type ExternalArticle  {
+  id: ID!
+  url: String!
+  source: String!
+  providerName: String!
+  created: Date!
+}
+
+input TagComponent {
+  tagUUID: String!
+  semanticID: SemanticID!
+  position: Int
+  isPositionLocked: Boolean
+  positionLockExpiresAt: Date
+  isPinned: Boolean
+}
+
+input ContentModuleInput {
+  id: ID
+  contentId: ID!
+  lastModifiedBy: String!
+  channels: [TagComponent!]!
+  title: String!
+  description: String!
+  thumbnail: String!
+  contentType: ContentModuleType!
+  orientation: ModuleOrientation
+  expiresAt: Date
+  scheduledDate: Date
+  allowedCountries: [String]
+  commentsEnabled: Boolean
+  thumbnailAccreditation: String
+  thumbnailCopyright: String
+  updateProgrammingTimestamp: Boolean
+}
+
+input PackageInput {
+  contentModuleId: ID
+  lastModifiedBy: String!
+  channels: [TagComponent!]!
+  title: String!
+  contentType: ContentModuleType!
+  expiresAt: Date
+  description: String
+  packageType: PackageType
+  allowedCountries: [String]
+  commentsEnabled: Boolean
+  packageTag: String
+  scheduledDate: Date
+}
+
+input PackageContent {
+  contentId: ID
+  contentType: ContentModuleType
+  thumbnailAccreditation: String
+  thumbnailCopyright: String
+  title: String!
+  description: String!
+  thumbnail: String!
+  orientation: ModuleOrientation
+  allowedCountries: [String]
+  positionLockExpiresAt: Date
+  isPositionLocked: Boolean
+  position: Int
+  contentModuleId: ID
+  updateProgrammingTimestamp: Boolean
+  scheduledDate: Date
+}
+
+input VideoMetadataInput {
+  videoId: String!
+  newState: VideoState!
+}
+
+type Mutation {
+  createStandaloneContentModule(contentId: ID!, lastModifiedBy: String!, channels: [TagComponent!]!, title: String!, description: String!, thumbnail: String!, contentType: ContentModuleType!, orientation: ModuleOrientation, expiresAt: Date, scheduledDate: Date, allowedCountries: [String], commentsEnabled: Boolean, thumbnailAccreditation: String, thumbnailCopyright: String): StandaloneContentModule!
+  updateStandaloneContentModule(contentId: ID, lastModifiedBy: String, channels: [TagComponent], title: String, description: String, thumbnail: String, contentType: ContentModuleType, expiresAt: Date, scheduledDate: Date, id: ID!, isAlerted: Boolean, allowedCountries: [String], commentsEnabled: Boolean, thumbnailAccreditation: String, thumbnailCopyright: String, updateProgrammingTimestamp: Boolean): ContentModule!
+  createPackageContentModule(contentId: ID , lastModifiedBy: String!, channels: [TagComponent!]!, packageType: PackageType, orientation: ModuleOrientation, title: String!, description: String, contentType: ContentModuleType!, expiresAt: Date, scheduledDate: Date, allowedCountries: [String], commentsEnabled: Boolean, packageTag: String): ContentModule!
+  updatePackageContentModule(lastModifiedBy: String, channels: [TagComponent], title: String, description: String, expiresAt: Date, scheduledDate: Date, contentModuleId: ID!, isAlerted: Boolean, allowedCountries: [String], commentsEnabled: Boolean, packageTag: String): ContentModule!
+  addContentToPackage(packageModuleId: String!, contentId: ID, contentType: ContentModuleType, position: Int!, title: String!, description: String!, thumbnail: String!, allowedCountries: [String], lastModifiedBy: String!, commentsEnabled: Boolean, contentModuleId: ID, thumbnailAccreditation: String, thumbnailCopyright: String, scheduledDate: Date): ContentModule!
+  deleteContentModule(id: ID!): String!
+  expireContentModules: [Int!]! 
+  upsertStandaloneContentModules(data: [ContentModuleInput!]!, delete: [ID!]): [ContentModule!]!
+  createExternalArticle(url: String!, source: String!, providerName: String!, created: Date): ExternalArticle!
+  createStaticPackages(packageTypes: [PackageType!]!, channels: [TagComponent!], lastModifiedBy: String!, contentType: ContentModuleType!, allowedCountries: [String], commentsEnabled: Boolean): [ContentModule]!
+  deleteContentFromPackage(packageContentModuleId: String!, contentModuleId: String!): Boolean
+  upsertPackageContentModules(contents: [PackageContent], packages: [PackageInput], delete: [ID!]): [PackageContentModule]
+  upsertVideoState(data: VideoMetadataInput!): VideoV2Metadata
+  deleteDuplicateScheduledHighlightsPackages: String
+  deleteContentModuleByContentId(contentId: String!, contentType: ContentModuleType): DeleteVideoContentModulesResult!
+}
+
+type Query {
+  contentModules: [ContentModule]
+  fetchContentModuleById(id: ID!): ContentModule 
+  fetchContentModuleByContentIdAndContentType(contentId: ID!, contentType: String!, state: [ModuleState] = [PROGRAMMED]): [ContentModule]! 
+  fetchPackageByTypeAndTag(packageType: String!, tagUUID: String!, state: [ModuleState] = [PROGRAMMED]): [PackageContentModule] 
+  findPackageByTitle(title: String, state: [ModuleState] = [PROGRAMMED]): [PackageContentModule]
+  findContentModulesBySemanticIdAndTag(tagUUID: String, semanticID: SemanticID, state: [ModuleState] = [PROGRAMMED], limit: Int = 150, tagSlug: String): [ContentModule] 
+  paginatedFindContentModulesBySemanticIdAndTag(
+    tagUUID: String
+    semanticID: SemanticID
+    first: Int
+    after: ContentCursor
+    last: Int
+    before: ContentCursor
+    state: [ModuleState] = [PROGRAMMED]
+  ): ContentsConnection 
+  fetchScheduledModules(startDate: Date, endDate: Date, limit: Int): [ContentModule]
+}
+
+type UserDestination  {
+  contentModuleId: ID!
+  contentModule: StandaloneContentModule 
+}
+
+scalar Date
+
+scalar MongoID
+
+scalar ContentCursor
+
+enum Actions {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+enum ChannelType {
+  League
+  SmallTeam
+  PopularTeam
+  Interest
+  GameCast
+  Home
+  Following
+  FollowingAddTags
+  Alerts
+  Discovery
+  Creator
+  User
+  Onboarding
+  OnboardingAddTags
+  Scores
+}
+
+enum CreatorTier {
+  Platinum
+  Gold
+  Silver
+  Bronze
+}
+
+enum SemanticID {
+  StatsGamecast
+  StatsScoreboard
+  StatsScorecard
+  StatsBetting
+  StatsVenue
+  StatsInjuryReport
+  StatsLiveOdds
+  StatsSeasonPerformance
+  StatsLeagueRankings
+  StatsGameInfo
+  StatsPreviousMeetings
+  StatsLineScore
+  StatsPlayPreview
+  StatsPlaySummary
+  StatsMatchTimeline
+  StatsDriveChart
+  StatsBaseball
+  StatsPlays
+  StatsGameStats
+  StatsTeamComparison
+  StatsOdds
+  StatsSeasonLeaders
+  StatsPlayersOnIce
+  StatsHockeyGameState
+  StatsPitchingInfo
+  StatsLineup
+  StatsSubstitutions
+  StatsStandings
+  StatsScores
+  StatsSchedule
+  StatsMoneyline
+  StatsTotalPoints
+  StatsSpread
+  StatsScoringPlays
+  StatsDrawNoBet
+  Header
+  UserHeader
+  SearchBar
+  Chat
+  ExternalLink
+  TrendingClips
+  Ads
+  TagFollowing
+  TagRecommended
+  TagOnboarding
+  TagSearch
+  ContentPremiumVideo
+  ContentSocialFeed
+  ContentCommunityFeed
+  ContentHighlights
+  ContentFullGameHighlights
+  ContentChannelFeed
+  ContentWhatsBuzzing
+  ContentTopHeadlines
+  ContentTrendingVideos
+  UgcFromTheFans
+  UgcFeed
+  UgcPosts
+  UgcComments
+  Dummy
+  AlertFollowingFeed
+  AlertActivitiesFeed
+  LiveAndUpcoming
+  LiveNow
+  LiveUpcoming
+  ContentHomeLandscape
+  ContentHomePortraitCollection
+  ContentHomeHeadlines
+  ContentHomeCommunityCollections
+  ContentShortGameHighlights
+  ContentTrendingBets
+  RecForYou
+  RecYouMightLike
+  RecCreatorsInYourCommunities
+  RecMostFollowedTeams
+  RecMostFollowedLeagues
+  RecTopInterests
+  RecTopCreators
+  RecRelatedCommunities
+  StatsPlayerStats
+  StatsScoresStrip
+  StatsThreeWayMoneyline
+  StatsHeadToHead
+  StatsPlayerProp
+  StatsPodium
+  StatsPodiumEntry
+  StatsRaceInfo
+  AffiliateWatchBanner
+}
+
+enum SemanticType {
+  AdsData
+  ContentModuleData
+  StatsData
+  SocialData
+  StatsPlaceholder
+  TagData
+  UserData
+  AlertData
+  Default
+  RecommendationData
+}
+
+enum Tenant {
+  aewGame
+  bleacherReport
+  estadioArgentina
+  estadioBrazil
+  estadioChile
+  ncaa
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+}

@@ -1,0 +1,592 @@
+# microcksId: PushNotificationAPI : 1.0
+
+scalar UUID
+scalar Time
+scalar Date
+
+scalar DateTime
+
+enum DeviceType {
+  ANDROID
+  IPHONE
+  IPAD
+}
+
+input DeviceInput {
+  token: String!
+  type: DeviceType!
+  appVersion: String!
+  osVersion: String!
+}
+
+enum AlertCategory {
+  news
+  highlights
+  viral
+  creators
+}
+
+enum AlertGenre {
+  viral
+  news
+  sensitive
+  betting
+  closeGame
+  highlights
+  tuneIn
+  automated
+}
+
+enum AlertGamecastType {
+  pregame
+  postgame
+  halftime
+  overtime
+}
+
+enum AlertMediaType {
+  jpg
+  png
+  video
+}
+
+enum AlertRegion {
+  "Andorra"
+  AD
+  "United Arab Emirates (the)"
+  AE
+  "Albania"
+  AL
+  "Angola"
+  AO
+  "Argentina"
+  AR
+  "American Samoa"
+  AS
+  "Austria"
+  AT
+  "Australia"
+  AU
+  "Bosnia and Herzegovina"
+  BA
+  "Barbados"
+  BB
+  "Belgium"
+  BE
+  "Bulgaria"
+  BG
+  "Bahrain"
+  BH
+  "Bermuda"
+  BM
+  "Bolivia (Plurinational State of)"
+  BO
+  "Brazil"
+  BR
+  "Bahamas (the)"
+  BS
+  "Belize"
+  BZ
+  "Canada"
+  CA
+  "Chile"
+  CL
+  "Cameroon"
+  CM
+  "Colombia"
+  CO
+  "Costa Rica"
+  CR
+  "Curaçao"
+  CW
+  "Cyprus"
+  CY
+  "Czechia"
+  CZ
+  "Germany"
+  DE
+  "Denmark"
+  DK
+  "Dominican Republic (the)"
+  DO
+  "Algeria"
+  DZ
+  "Ecuador"
+  EC
+  "Estonia"
+  EE
+  "Egypt"
+  EG
+  "Spain"
+  ES
+  "Finland"
+  FI
+  "France"
+  FR
+  "United Kingdom of Great Britain and Northern Ireland (the)"
+  GB
+  "Georgia"
+  GE
+  "Ghana"
+  GH
+  "Greece"
+  GR
+  "Guatemala"
+  GT
+  "Guam"
+  GU
+  "Guyana"
+  GY
+  "Hong Kong"
+  HK
+  "Honduras"
+  HN
+  "Croatia"
+  HR
+  "Hungary"
+  HU
+  "Indonesia"
+  ID
+  "Ireland"
+  IE
+  "Israel"
+  IL
+  "India"
+  IN
+  "Italy"
+  IT
+  "Jordan"
+  JO
+  "Jamaica"
+  JM
+  "Kenya"
+  KE
+  "Kuwait"
+  KW
+  "Lebanon"
+  LB
+  "Lithuania"
+  LT
+  "Luxembourg"
+  LU
+  "Latvia"
+  LV
+  "Morocco"
+  MA
+  "Republic of North Macedonia"
+  MK
+  "Marshall Islands"
+  MH
+  "Mongolia"
+  MN
+  "Northern Mariana Islands (The)"
+  MP
+  "Mexico"
+  MX
+  "Malaysia"
+  MY
+  "Nicaragua"
+  NI
+  "Netherlands (the)"
+  NL
+  "Norway"
+  NO
+  "New Zealand"
+  NZ
+  "Panama"
+  PA
+  "Peru"
+  PE
+  "Philippines (the)"
+  PH
+  "Pakistan"
+  PK
+  "Poland"
+  PL
+  "Puerto Rico"
+  PR
+  "Portugal"
+  PT
+  "Palau"
+  PW
+  "Paraguay"
+  PY
+  "Romania"
+  RO
+  "Serbia"
+  RS
+  "Saudi Arabia"
+  SA
+  "Sweden"
+  SE
+  "Singapore"
+  SG
+  "Slovenia"
+  SI
+  "Slovakia"
+  SK
+  "Senegal"
+  SN
+  "El Salvador"
+  SV
+  "Thailand"
+  TH
+  "Trinidad and Tobago"
+  TT
+  "Taiwan (Province of China)"
+  TW
+  "Tanzania, United Republic of"
+  TZ
+  "Ukraine"
+  UA
+  "Uganda"
+  UG
+  "US Minor Outlying Islands"
+  UM
+  "United States of America"
+  US
+  "Uruguay"
+  UY
+  "Venezuela (Bolivarian Republic of)"
+  VE
+  "Virgin Islands (U.S.)"
+  VI
+  "Zambia"
+  ZM
+  "Zimbabwe"
+  ZW
+}
+
+type AlertAnalytics {
+  genres: [AlertGenre!]!
+  gamecastType: AlertGamecastType
+}
+
+input AlertAnalyticsInput {
+  genres: [AlertGenre!]!
+  gamecastType: AlertGamecastType
+}
+
+type AlertMediaAttachment {
+  "This is the file extension of the media"
+  mediaType: AlertMediaType!
+  "This is the url for the media"
+  mediaUrl: String!
+  height: String
+  width: String
+  "Video reference to support video as media attachment"
+  editId: String
+}
+
+input AlertMediaAttachmentInput {
+  "This is the file extension of the media"
+  mediaType: AlertMediaType!
+  "This is the url for the media"
+  mediaUrl: String!
+  height: String
+  width: String
+  "Video reference to support video as media attachment"
+  editId: String
+}
+
+type AlertDestination {
+  contentModuleId: String
+  tagUUID: String!
+}
+
+input AlertDestinationInput {
+  contentModuleId: String
+  tagUUID: String!
+  tagDisplayName: String
+}
+
+input NewPushNotification {
+  "Add ad parameters"
+  adParameters: String
+  "Provides a list of genres for Analytics, cannot be null, needs at least one"
+  analytics: AlertAnalyticsInput!
+  "These are the list of the attachments related to the alert"
+  attachments: [AlertMediaAttachmentInput!]!
+  "This would be a list of the allowed regions the alert can be sent to"
+  allowInRegions: [AlertRegion!]!
+  "This would keep track of the places the alert will be going to"
+  destinations: [AlertDestinationInput!]!
+  destinationOverride: String
+  "This is the ID of the user that created the alert"
+  createdBy: ID!
+  "Mobile uses to show alert card"
+  showAlertCard: Boolean
+  "This is the alert type to know which category it falls into"
+  alertCategories: [AlertCategory]!
+  "This will let us know if it is a spoiler or not"
+  spoiler: Boolean
+  "Push Notification's text message"
+  text: String = ""
+  "Push Notification's title message"
+  title: String = ""
+  "Url of content, could be null"
+  url: String
+}
+
+input TagInput {
+  id: String
+}
+
+type User  {
+  profileId: String
+  id: String creatorId: String following(tenant: Tenant): Int 
+  followers(tenant: Tenant): Int 
+}
+
+type TagV2  {
+  tagUUID: String!
+  hash: String followers(limit: Int!, tenant: Tenant!, last_user_id: String): [User]
+  followersCount(tenant: Tenant!): Int! 
+  following(limit: Int!, tenant: Tenant!, creatorBoltId: String): [TagV2]
+}
+
+type Device {
+  id: Int!
+  token: String!
+  type: String!
+  appVersion: String!
+  osVersion: String!
+}
+
+type ChannelComponent  {
+  uuid: String!
+  semanticID: SemanticID semanticType: SemanticType userAlerts(limit: Int = 50, tenant: Tenant!): [PushNotification!]  
+}
+
+type UserDestination   {
+  "The Content Module ID. It can be null when the alert is sent to the Channel"
+  contentModuleId: ID
+  tag: TagV2!
+}
+
+type PushNotification   {
+  "Push Notification ID"
+  id: ID! "When Push Notification was created at"
+  createdAt: DateTime!
+  "Add ad parameters"
+  adParameters: String
+  "Provides a list of genres for Analytics, cannot be null, needs at least one"
+  analytics: AlertAnalytics
+  "These are the list of the attachments related to the alert"
+  attachments: [AlertMediaAttachment!]!
+  "This would be a list of the allowed regions the alert can be sent to"
+  allowInRegions: [AlertRegion!]!
+  "This would keep track of the places the alert will be going to"
+  destinations: [AlertDestination!]!
+  "The resolved destination for an individual alert instance sent to a specific user"
+  userDestination: UserDestination
+  destinationOverride: String
+  "This is the ID of the user that created the alert"
+  createdBy: ID!
+  "Mobile uses to show alert card"
+  showAlertCard: Boolean
+  "This is the alert type to know which category it falls into"
+  alertCategories: [AlertCategory!]!
+  "This will let us know if it is a spoiler or not"
+  spoiler: Boolean
+  "The tag ids that will receive the Push Notification"
+  tags: [TagV2!]!
+  "Push Notification's text message"
+  text: String!
+  "Push Notification's title"
+  title: String!
+  url: String!
+}
+
+type Query {
+  "Get the User's Push Notifications"
+  getUserPushNotifications(limit: Int = 50, tenant: Tenant!): [PushNotification!]! 
+  "Returns contentModuleIds that have been push notifications associated with them."
+  getContentModuleIdsWithPushNotificationIds(contentModuleIds: [String!]!, tenant: Tenant!): [Int!] 
+  "Get all push notifications."
+  getAllNotifications(limit: Int = 50, tenant: Tenant!, lastPushNotificationId: Int, latestUnixTimestamp: Int): [PushNotification!]! 
+  "Get one push notification by id."
+  getPushNotificationById(id: ID!, tenant: Tenant!): PushNotification
+}
+
+input AlertRankInput {
+  pushNotificationId: ID!
+  "The values for the alert rank. E. g. [5, 10, 25, 50, 100]"
+  rank: Int
+}
+
+input PushNotificationAlertRankInput {
+  alertRanks: [AlertRankInput!]
+}
+
+input AddAlertRankInput {
+  alertRanks: [AlertRankInput!]
+}
+
+type PushNotificationAlertRankResponse {
+  status: String!
+  message: String
+}
+
+type AddAlertRankResponse {
+  status: String!
+  message: String
+}
+
+type Mutation {
+  "Send Push Notification for specific tenant to provided tag ids"
+  sendPushNotification(tenant: Tenant!, notification: NewPushNotification!): PushNotification
+  "Add new Device for specific tenant"
+  addDevice(tenant: Tenant!, device: DeviceInput!): Device
+  addPushNotificationsAlertRank(tenant: Tenant!, alertRankInput: PushNotificationAlertRankInput): PushNotificationAlertRankResponse
+  addAlertRank(tenant: Tenant!, alertRankInput: AddAlertRankInput): AddAlertRankResponse
+}
+
+enum Actions {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+enum ChannelType {
+  League
+  SmallTeam
+  PopularTeam
+  Interest
+  GameCast
+  Home
+  Following
+  FollowingAddTags
+  Alerts
+  Discovery
+  Creator
+  User
+  Onboarding
+  OnboardingAddTags
+  Scores
+}
+
+enum CreatorTier {
+  Platinum
+  Gold
+  Silver
+  Bronze
+}
+
+enum SemanticID {
+  StatsGamecast
+  StatsScoreboard
+  StatsScorecard
+  StatsBetting
+  StatsVenue
+  StatsInjuryReport
+  StatsLiveOdds
+  StatsSeasonPerformance
+  StatsLeagueRankings
+  StatsGameInfo
+  StatsPreviousMeetings
+  StatsLineScore
+  StatsPlayPreview
+  StatsPlaySummary
+  StatsMatchTimeline
+  StatsDriveChart
+  StatsBaseball
+  StatsPlays
+  StatsGameStats
+  StatsTeamComparison
+  StatsOdds
+  StatsSeasonLeaders
+  StatsPlayersOnIce
+  StatsHockeyGameState
+  StatsPitchingInfo
+  StatsLineup
+  StatsSubstitutions
+  StatsStandings
+  StatsScores
+  StatsSchedule
+  StatsMoneyline
+  StatsTotalPoints
+  StatsSpread
+  StatsScoringPlays
+  StatsDrawNoBet
+  Header
+  UserHeader
+  SearchBar
+  Chat
+  ExternalLink
+  TrendingClips
+  Ads
+  TagFollowing
+  TagRecommended
+  TagOnboarding
+  TagSearch
+  ContentPremiumVideo
+  ContentSocialFeed
+  ContentCommunityFeed
+  ContentHighlights
+  ContentFullGameHighlights
+  ContentChannelFeed
+  ContentWhatsBuzzing
+  ContentTopHeadlines
+  ContentTrendingVideos
+  UgcFromTheFans
+  UgcFeed
+  UgcPosts
+  UgcComments
+  Dummy
+  AlertFollowingFeed
+  AlertActivitiesFeed
+  LiveAndUpcoming
+  LiveNow
+  LiveUpcoming
+  ContentHomeLandscape
+  ContentHomePortraitCollection
+  ContentHomeHeadlines
+  ContentHomeCommunityCollections
+  ContentShortGameHighlights
+  ContentTrendingBets
+  RecForYou
+  RecYouMightLike
+  RecCreatorsInYourCommunities
+  RecMostFollowedTeams
+  RecMostFollowedLeagues
+  RecTopInterests
+  RecTopCreators
+  RecRelatedCommunities
+  StatsPlayerStats
+  StatsScoresStrip
+  StatsThreeWayMoneyline
+  StatsHeadToHead
+  StatsPlayerProp
+  StatsPodium
+  StatsPodiumEntry
+  StatsRaceInfo
+  AffiliateWatchBanner
+}
+
+enum SemanticType {
+  AdsData
+  ContentModuleData
+  StatsData
+  SocialData
+  StatsPlaceholder
+  TagData
+  UserData
+  AlertData
+  Default
+  RecommendationData
+}
+
+enum Tenant {
+  aewGame
+  bleacherReport
+  estadioArgentina
+  estadioBrazil
+  estadioChile
+  ncaa
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+}

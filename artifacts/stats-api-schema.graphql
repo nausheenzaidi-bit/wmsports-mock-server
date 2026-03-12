@@ -1,0 +1,969 @@
+# microcksId: StatsAPI : 1.0
+
+scalar UUID
+scalar Time
+
+type Article
+  
+{
+  uuid: String!
+  betTags: [TagV2] statsBetOffers(timezone: Int): StatsBetOffer 
+}
+
+type ChannelComponent
+  
+{
+  uuid: String!
+  tagUUID: String tagSlug: String tagType: String semanticID: SemanticID semanticType: SemanticType statsGamecast: StatsGamecast 
+  statsStandings(season: Int, filter: String): StatsStanding 
+  statsSchedule(season: Int, timezone: Int): StatsSchedule 
+  statsScores(league: String, context: String, date: String, timezone: Int, locale: String): Scores 
+  userTags(tenant: Tenant!): [TagV2] }
+
+type Clock
+  
+{
+  hours: String
+  milliseconds: String
+  minutes: String
+  seconds: String
+  stoppage: String
+}
+
+scalar Date
+
+enum StatsLeagues {
+  MLB
+  Soccer
+  NHL
+  NCAAF
+  NCAABB
+  NFL
+  NBA
+  WNBA
+  OlympicBasketball
+  GLeague
+  Other
+  Olympics
+  Unknown
+  Golf
+  Tennis
+  Formula1
+  NCAABBW
+  NASCAR
+  Unrivaled
+}
+
+enum SortDirections {
+  asc
+  desc
+}
+
+enum Territories {
+  USA
+}
+
+enum SortOrder {
+  Ascending
+  Descending
+}
+
+enum StatsSport {
+  Football
+  Basketball
+  Baseball
+  Hockey
+  Soccer
+  Other
+  Golf
+  Tennis
+  Motorsports
+}
+
+enum StateStatus {
+  Scheduled
+  InProgress
+  Complete
+}
+
+enum Status {
+  Scheduled
+  Postponed
+  Unnecessary
+  Suspended
+  WDelay
+  FDelay
+  ODelay
+  Created
+  Cancelled
+  InProgress
+  Reopened
+  Complete
+  Closed
+  TimeTBD
+  Maintenance
+  IfNecessary
+  FlexSchedule
+  Halftime
+  Delayed
+  Interrupted
+  Abandoned
+}
+
+enum ScoresOddsSportsbook {
+  Caesars
+  Consensus
+  SportRadar
+  DraftKings
+  FanDuel
+  None
+  Unknown
+}
+
+enum VisibilityReason {
+  HAS_DATA
+  NO_DATA
+  INSIDE_TIME_WINDOW
+  OUTSIDE_TIME_WINDOW
+}
+
+type Game
+  
+  
+{
+  away: Team
+  gameDate: GameDate
+  gameProgress: GameProgress
+  home: Team
+  id: String
+  name: String
+  score: Score
+  sourceGameId: String
+  sport: SportMetaData
+  sportradar_id: String
+  stateStatus: StateStatus
+  status: String
+  weekId: String
+}
+
+type GameDate
+  
+{
+  epoch: Int
+  iso8501: String
+}
+
+type GameProgress
+  
+{
+  clock: Clock
+  currentPeriod: String
+  displayPrimary: String
+  displaySecondary: String
+  totalPeriods: String
+}
+
+type GroupingHeader
+  
+{
+  id: String slug: String gameStartTime: Date gameEndTime: Date visible: Boolean!
+  visibleReason: VisibilityReason
+}
+
+scalar MongoID
+
+type Page
+  
+  
+{
+  _id: MongoID!
+}
+
+type Query
+  
+{
+  getGamesByGameDate(startDate: String!, endDate: String!, timezone: Int!, sortOrder: SortOrder, status: [Status], stateStatus: [StateStatus], leagues: [StatsLeagues]): [Game]
+
+  getGamesByGameIds(gameIds: [String]!): [Game]
+
+  getGamesBySportRadarIds(gameIds: [String]!): [Game]
+
+  getScores(timezone: Int!, date: String, league: StatsLeagues, context: String, locale: String, tags: [Int], slugs: [String]): Scores
+
+  getStandings(permalink: String!, season: Int): StatsStanding
+
+  getGamecastBySlug(slug: String!): StatsGamecast
+
+  getSchedule(slug: String!, timezone: Int, season: Int): StatsSchedule
+
+  getGameCastByTagUUID(uuid: String!): StatsGamecast
+}
+
+type Score
+  
+{
+  away: Int
+  home: Int
+}
+
+type Scores
+  
+  
+{
+  calendarNavigation: ScoresCalendarNavigation
+  leagues: [ScoresLeague]
+  gameGroups: [GameGroup]
+  bettingLink: ScoresBettingLink
+  hash: String }
+
+type Season
+  
+{
+  id: String
+  current: Int
+  end: String
+  name: String
+  start: String
+  type: String
+}
+
+type SportMetaData
+  
+{
+  league: StatsLeagues
+  sport: StatsSport
+}
+
+type StatsLinescore {
+  gameState: StatsLinescoreGameState
+  headers: [StatsLinescoreValue]
+  summaryHeaders: [StatsLinescoreValue]
+  teamOne: StatsLinescoreTeam
+  teamTwo: StatsLinescoreTeam
+  title: String
+}
+
+type StatsLinescoreBatter {
+  atBats: Int
+  average: Float
+  player: String
+  totalHits: Int
+}
+
+type StatsLinescoreDiamond {
+  first: Boolean
+  second: Boolean
+  third: Boolean
+}
+
+type StatsLinescoreGameState {
+  balls: Int
+  batter: StatsLinescoreBatter
+  outs: Int
+  pitcher: StatsLinescorePitcher
+  runners: StatsLinescoreDiamond
+  strikes: Int
+}
+
+type StatsLinescorePitcher {
+  player: String
+  totalPitches: Int
+  totalStrikeouts: Int
+}
+
+type StatsLinescoreTeam {
+  colors: [String]
+  logo: String
+  name: String
+  record: String
+  summaryValues: [StatsLinescoreValue]
+  values: [StatsLinescoreValue]
+}
+
+type StatsLinescoreValue {
+  value: String
+}
+
+type StatsPodium {
+  entries: [StatsPodiumEntry]
+  title: String
+}
+
+type StatsPodiumEntry {
+  logo: String
+  name: String
+  place: String
+  result: String
+  subResult: String
+}
+
+type StatsRaceInfo {
+  distance: String
+  distanceUnit: String
+  laps: String
+  name: String
+  status: StatsGameStatus
+  type: String
+}
+
+type StatsSchedule
+  
+{
+  adPlacement: [StatsScheduleAdPlacement]
+  league: String
+  name: String
+  slug: String!
+  scheduleGroupings: [StatsScheduleGrouping]
+}
+
+type StatsScheduleAdPlacement {
+  adId: String
+  gameRowIndex: Int
+  groupIndex: Int
+  repeatOffset: Int
+}
+
+type StatsScheduleGrouping {
+  current: Boolean
+  title: String
+  entries: [StatsScheduleEntry]
+  key: [StatsScheduleKey]
+  link: StatsScheduleLink
+}
+
+type StatsScheduleEntry {
+  group: String
+  current: Boolean
+  date: String
+  slug: String
+  homeAway: String
+  isoUtcDatetime: String
+  opponent: String
+  opponentLogo: String
+  resultDescription: String
+  startTimeTbd: Boolean
+  status: StatsGameStatus
+  location: ScoresMetadataLocation
+  resultCode: StatsScheduleResultCode
+  ticketInfo: StatsScheduleTickets
+}
+
+enum StatsGameStatus {
+  Scheduled
+  InProgress
+  Complete
+  Unknow
+  Closed
+}
+
+type StatsScheduleResultCode {
+  color: String
+  colorNight: String
+  value: String
+}
+
+type StatsScheduleTickets {
+  url: String
+  minPrice: String
+}
+
+type StatsScheduleKey {
+  value: String
+  color: String
+  returnColor: Boolean
+}
+
+type StatsScheduleLink {
+  title: String
+  type: String
+  value: String
+}
+
+type StatsScoreboard {
+  gameDate: String
+  progress: ScoresProgress
+  teamOne: ScoresGameTeam
+  teamTwo: ScoresGameTeam
+}
+
+type StatsScoreboardTeam {
+  abbrev: String
+  bonus: Boolean
+  colors: [String]
+  competitors: [ScoresTeamCompetitor]
+  doubleBonus: Boolean
+  hasPossession: Boolean
+  hasPowerPlay: Boolean
+  isRedZone: Boolean
+  isWinner: Boolean
+  logo: String
+  name: String
+  odds: String
+  periodScores: [PeriodScore]
+  permalink: String
+  rank: Int
+  record: String
+  score: String
+  shortName: String
+  timeoutsRemaining: Int
+  totalTimeouts: Int
+
+  virtual: Boolean
+}
+
+type StatsVenue {
+  location: String
+  stadium: String
+  weatherEmoji: String
+  weatherPrimary: String
+  weatherSecondary: String
+}
+
+type Tag
+  
+{
+  permalink: String!
+}
+
+type Team
+  
+{
+  abbreviation: String
+  draws: String
+  logo: String
+  losses: String
+  market: String
+  mascot: String
+  name: String
+  wins: String
+}
+
+type Venue
+  
+  
+{
+  id: ID
+}
+
+type StatsBetting
+  
+{
+  id: ID!
+  jsonResponse: String
+}
+
+type StatsBetOffer {
+  jsonResponse: String
+}
+
+type StatsGamecast
+  
+  
+{
+  tag(tenant: Tenant): TagV2
+  slug: String!
+  scoreLeaderboard: ScoresEvent
+  gameDate: String
+  linescore: StatsLinescore
+  podium: StatsPodium
+  raceInfo: StatsRaceInfo
+  scoreboard: StatsScoreboard
+  sport: StatsSport
+  status: StatsGameStatus
+  venue: StatsVenue
+
+  jsonResponse: String
+}
+
+type ScoresBettingLink
+  
+{
+  id: String
+  success: Boolean
+  ctaText: String
+  logo: String
+  logoNight: String
+  clickUrl: String
+  disclaimerText: String
+  disclaimerUrl: String
+  showLinkout: String
+  partner: ScoresOddsSportsbook
+  betting: Boolean
+  attributionText: String
+}
+
+type ScoresDescription
+  
+{
+  text: String
+}
+
+type ScoresEvent
+  
+  
+{
+  name: String
+  subName: String
+  nameLabels: [ScoresEventNameLabel]
+  id: String
+  descriptions: [ScoresDescription]
+  gameDate: String
+  sport: String
+  site: String
+  league: String
+  status: String
+  type: String
+  boxScore: String
+  gamecast: String
+  stream: String
+  participants: ScoresEventParticipant
+  progress: ScoresProgress
+  gameState: ScoresState
+  current: Boolean
+  gameEndDate: String
+  metadata: ScoresMetadata
+  odds: String
+  gamecastInformation: String
+}
+
+type ScoresEventNameLabel
+  
+{
+  text: String
+}
+
+type ScoresEventParticipant
+  
+{
+  headers: ScoresEventParticipantHeader
+  entries: [ScoresEventParticipantEntry]
+}
+
+type ScoresEventParticipantHeader
+  
+{
+  value: String
+}
+
+type ScoresEventParticipantEntry
+  
+{
+  number: String
+  logo: String
+  name: String
+  abbrev: String
+  isWinner: Boolean
+  values: [ScoresEventParticipantEntryValue]
+}
+
+type ScoresEventParticipantEntryValue
+  
+{
+  value: String
+  fontFormatting: ScoresEventParticipantEntryFontFormatting
+}
+
+type ScoresEventParticipantEntryFontFormatting
+  
+{
+  fontIsBold: Boolean
+  fontColor: String
+  fontColorNight: String
+}
+
+type ScoresGame
+  
+  
+{
+  name: String
+  id: String
+  descriptions: [ScoresDescription]
+  gameDate: String
+  sport: String
+  site: String
+  league: String
+  status: String
+  boxScore: String
+  gamecast: String
+  teamOne: ScoresGameTeam
+  teamTwo: ScoresGameTeam
+  progress: ScoresProgress
+  gameState: ScoresState
+  current: Boolean
+  gameEndDate: String
+  squadRide: SquadRide
+  metadata: ScoresMetadata
+  odds: String
+  gamecastInformation: String
+
+  maxPeriodScores: Int
+}
+
+type SquadRide
+  
+{
+  id: String
+  outcome: String
+}
+
+type GameGroup
+  
+{
+  name: String
+  current: Boolean
+  games: [ScoresGame]
+  events: [ScoresEvent]
+}
+
+type ScoresGameTeam
+  
+{
+  name: String
+  shortName: String
+  abbrev: String
+  hasPossession: Boolean
+  rank: Int
+  isWinner: Boolean
+  logo: String
+  score: String 
+  mainScore: String
+  secondaryScore: String
+  record: String
+  odds: String
+  colors: [String]
+  permalink: String
+  competitors: [ScoresTeamCompetitor]
+  periodScores: [PeriodScore]
+
+  virtual: Boolean
+}
+
+type ScoresLeague
+  
+  
+{
+  id: String
+  league: Int
+  name: String
+  current: Boolean
+  slug: String
+  tag: Tag 
+  queryParameters: ScoresLeagueQueryParameters
+  children: [ScoresLeague]
+  href: String }
+
+type ScoresLeagueQueryParameters {
+  context: String
+  league: StatsLeagues
+  date: String
+}
+
+type ScoresMetadata
+  
+{
+  name: String
+  about: String
+  startDate: String
+  endDate: String
+  status: String
+  location: ScoresMetadataLocation
+}
+
+type ScoresMetadataLocation
+  
+{
+  name: String
+  city: String
+  state: String
+  zip: String
+  country: String
+}
+
+type ScoresCalendarNavigation
+  
+{
+  previous: [NavigationElement]
+  next: [NavigationElement]
+  current: [NavigationElement]
+}
+
+type NavigationElement
+  
+{
+  name: String
+  href: String 
+  queryParameters: NavigationQueryParameters
+}
+
+type NavigationQueryParameters {
+  date: String
+  league: StatsLeagues
+}
+
+type PeriodScore {
+  number: Int
+
+  score: String
+
+  subscore: String
+
+  type: PeriodScoreType
+}
+
+enum PeriodScoreType {
+  TennisSet
+}
+
+type ScoresProgress
+  
+{
+  network: String
+  playPeriod: String
+  playPeriodCondensed: String
+  clock: String
+  inningPhase: String
+  round: String
+  venue: String
+}
+
+type ScoresTeamCompetitor {
+  abbrev: String
+  logo: String
+  name: String
+  rank: Int
+  slug: String
+
+  team: Int
+}
+
+type ScoresState
+  
+{
+  isRedZone: Boolean
+  balls: Int
+  strikes: Int
+  outs: Int
+  runners: ScoresStateRunners
+}
+
+type ScoresStateRunners
+  
+{
+  first: Boolean
+  second: Boolean
+  third: Boolean
+}
+
+type StatsStanding {
+  slug: String
+  tag: Tag 
+  season: Int
+  name: String
+  standingGroupings: [StatsStandingGrouping]
+}
+
+type StatsStandingGrouping {
+  title: String
+  entries: [StatsStandingEntry]
+  adPlacement: [StatsStandingAdPlacement]
+}
+
+type StatsStandingAdPlacement {
+  adId: String
+  index: Int
+}
+
+type StatsStandingEntry {
+  title: String
+  current: Boolean
+  separator: StatsStandingSeparator
+  headers: [StatsStandingHeader]
+  teams: [StatsStandingTeam]
+  keys: [StatsStandingKey]
+}
+
+type StatsStandingSeparator {
+  color: String
+  index: Int
+}
+
+type StatsStandingHeader {
+  title: String
+}
+
+type StatsStandingTeam {
+  color: String
+  number: String
+  logo: String
+  name: String
+  superscript: String
+  current: Boolean
+  values: [StatsStandingValue]
+  returnColor: Boolean
+  prefixSuperscript: String
+  slug: String
+  tag: Tag 
+}
+
+type StatsStandingValue {
+  value: String
+}
+
+type StatsStandingKey {
+  value: String
+  color: String
+  returnColor: Boolean
+}
+
+enum Actions {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+enum ChannelType {
+  League
+  SmallTeam
+  PopularTeam
+  Interest
+  GameCast
+  Home
+  Following
+  FollowingAddTags
+  Alerts
+  Discovery
+  Creator
+  User
+  Onboarding
+  OnboardingAddTags
+  Scores
+}
+
+enum CreatorTier {
+  Platinum
+  Gold
+  Silver
+  Bronze
+}
+
+enum SemanticID {
+  StatsGamecast
+  StatsScoreboard
+  StatsScorecard
+  StatsBetting
+  StatsVenue
+  StatsInjuryReport
+  StatsLiveOdds
+  StatsSeasonPerformance
+  StatsLeagueRankings
+  StatsGameInfo
+  StatsPreviousMeetings
+  StatsLineScore
+  StatsPlayPreview
+  StatsPlaySummary
+  StatsMatchTimeline
+  StatsDriveChart
+  StatsBaseball
+  StatsPlays
+  StatsGameStats
+  StatsTeamComparison
+  StatsOdds
+  StatsSeasonLeaders
+  StatsPlayersOnIce
+  StatsHockeyGameState
+  StatsPitchingInfo
+  StatsLineup
+  StatsSubstitutions
+  StatsStandings
+  StatsScores
+  StatsSchedule
+  StatsMoneyline
+  StatsTotalPoints
+  StatsSpread
+  StatsScoringPlays
+  StatsDrawNoBet
+  Header
+  UserHeader
+  SearchBar
+  Chat
+  ExternalLink
+  TrendingClips
+  Ads
+  TagFollowing
+  TagRecommended
+  TagOnboarding
+  TagSearch
+  ContentPremiumVideo
+  ContentSocialFeed
+  ContentCommunityFeed
+  ContentHighlights
+  ContentFullGameHighlights
+  ContentChannelFeed
+  ContentWhatsBuzzing
+  ContentTopHeadlines
+  ContentTrendingVideos
+  UgcFromTheFans
+  UgcFeed
+  UgcPosts
+  UgcComments
+  Dummy
+  AlertFollowingFeed
+  AlertActivitiesFeed
+  LiveAndUpcoming
+  LiveNow
+  LiveUpcoming
+  ContentHomeLandscape
+  ContentHomePortraitCollection
+  ContentHomeHeadlines
+  ContentHomeCommunityCollections
+  ContentShortGameHighlights
+  ContentTrendingBets
+  RecForYou
+  RecYouMightLike
+  RecCreatorsInYourCommunities
+  RecMostFollowedTeams
+  RecMostFollowedLeagues
+  RecTopInterests
+  RecTopCreators
+  RecRelatedCommunities
+  StatsPlayerStats
+  StatsScoresStrip
+  StatsThreeWayMoneyline
+  StatsHeadToHead
+  StatsPlayerProp
+  StatsPodium
+  StatsPodiumEntry
+  StatsRaceInfo
+  AffiliateWatchBanner
+}
+
+enum SemanticType {
+  AdsData
+  ContentModuleData
+  StatsData
+  SocialData
+  StatsPlaceholder
+  TagData
+  UserData
+  AlertData
+  Default
+  RecommendationData
+}
+
+enum Tenant {
+  aewGame
+  bleacherReport
+  estadioArgentina
+  estadioBrazil
+  estadioChile
+  ncaa
+}
+
+type TagV2
+  
+{
+  hash: String slug: String! }
+
+schema {
+  query: Query
+}

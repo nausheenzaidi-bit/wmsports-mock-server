@@ -1,0 +1,723 @@
+openapi: 3.0.3
+info:
+  title: Census Push Notifications API
+  description: |
+    REST API for Census - the backend service that stores and manages
+    push notifications, devices, subscriptions, and alert ranks.
+    Validated against actual Go structs in sports-census-go/internal/handlers/.
+    Response field names use camelCase (matching Go json tags).
+  version: "1.0"
+
+servers:
+  - url: http://localhost:8585/rest/Census+Push+Notifications+API/1.0
+    description: Microcks mock
+  - url: https://census.4bleacherreport.com
+    description: Production Census
+
+paths:
+  /v3/push_notifications:
+    post:
+      operationId: sendPushNotification
+      summary: Create a push notification (returns object directly, no wrapper)
+      parameters:
+        - name: x-api-key
+          in: header
+          required: true
+          schema:
+            type: string
+          examples:
+            sendAlert:
+              value: census-api-key-123
+            sendVideoHighlightsNcaa:
+              value: census-api-key-123
+      requestBody:
+        required: true
+        content:
+          application/json:
+            examples:
+              sendAlert:
+                summary: Standard news alert (bleacherReport, jpg)
+                value:
+                  tenant: bleacherReport
+                  title: "Breaking: Trade Alert"
+                  text: "Major trade announced between Lakers and Celtics"
+                  url: "https://bleacherreport.com/articles/trade-alert"
+                  spoiler: false
+                  showAlertCard: true
+                  createdBy: "editor-001"
+                  alertCategories: ["news"]
+                  allowInRegions: ["US"]
+                  analytics:
+                    genres: ["news"]
+                    gamecastType: null
+                  attachments:
+                    - mediaType: "jpg"
+                      mediaUrl: "https://media.bleacherreport.com/trade.jpg"
+                  destinations:
+                    - tagUUID: "tag-nba-001"
+                      contentModuleId: "cm-trade-001"
+              sendVideoHighlightsNcaa:
+                summary: NCAA highlights with video, spoiler, destinationOverride
+                value:
+                  tenant: ncaa
+                  title: "March Madness Highlights: Duke vs Arizona"
+                  text: "Watch the best plays from the Elite Eight matchup"
+                  url: "https://bleacherreport.com/articles/ncaa-elite-eight"
+                  spoiler: true
+                  showAlertCard: true
+                  createdBy: "editor-ncaa-001"
+                  alertCategories: ["highlights", "creators"]
+                  allowInRegions: ["US", "BR"]
+                  destinationOverride: "cm-override-ncaa-001"
+                  analytics:
+                    genres: ["highlights", "closeGame"]
+                    gamecastType: "postgame"
+                  attachments:
+                    - mediaType: "video"
+                      mediaUrl: "https://media.bleacherreport.com/ncaa-duke-highlights.mp4"
+                      height: "720"
+                      width: "1280"
+                  destinations:
+                    - tagUUID: "tag-ncaa-duke"
+                      contentModuleId: "cm-ncaa-001"
+      responses:
+        '201':
+          description: Push notification created (direct PushNotificationResponse)
+          content:
+            application/json:
+              examples:
+                sendAlert:
+                  value:
+                    id: 99999
+                    createdAt: "2025-01-15T12:00:00.000000Z"
+                    createdBy: "editor-001"
+                    tenant: bleacherReport
+                    title: "Breaking: Trade Alert"
+                    text: "Major trade announced between Lakers and Celtics"
+                    url: "https://bleacherreport.com/articles/trade-alert"
+                    spoiler: false
+                    showAlertCard: true
+                    adParameters: null
+                    destinationOverride: null
+                    alertCategories: ["news"]
+                    allowInRegions: ["US"]
+                    analytics:
+                      genres: ["news"]
+                      gamecastType: null
+                    attachments:
+                      - id: 1
+                        mediaType: "jpg"
+                        mediaUrl: "https://media.bleacherreport.com/trade.jpg"
+                        height: null
+                        width: null
+                        editId: null
+                    destinations:
+                      - id: 1
+                        contentModuleId: "cm-trade-001"
+                        tagUUID: "78b9e2a8-0c54-475e-9c70-15e15cca6db7"
+                    tags:
+                      - uuid: "78b9e2a8-0c54-475e-9c70-15e15cca6db7"
+                sendVideoHighlightsNcaa:
+                  value:
+                    id: 77777
+                    createdAt: "2025-03-01T18:00:00.000000Z"
+                    createdBy: "editor-ncaa-001"
+                    tenant: ncaa
+                    title: "March Madness Highlights: Duke vs Arizona"
+                    text: "Watch the best plays from the Elite Eight matchup"
+                    url: "https://bleacherreport.com/articles/ncaa-elite-eight"
+                    spoiler: true
+                    showAlertCard: true
+                    adParameters: null
+                    destinationOverride: "cm-override-ncaa-001"
+                    alertCategories: ["highlights", "creators"]
+                    allowInRegions: ["US", "BR"]
+                    analytics:
+                      genres: ["highlights", "closeGame"]
+                      gamecastType: "postgame"
+                    attachments:
+                      - id: 10
+                        mediaType: "video"
+                        mediaUrl: "https://media.bleacherreport.com/ncaa-duke-highlights.mp4"
+                        height: 720
+                        width: 1280
+                        editId: null
+                    destinations:
+                      - id: 5
+                        contentModuleId: "cm-ncaa-001"
+                        tagUUID: "tag-ncaa-duke"
+                    tags:
+                      - uuid: "tag-ncaa-duke"
+
+  /v3/{tenant}/push_notifications:
+    get:
+      operationId: getAllNotifications
+      summary: Get all push notifications (wrapped in push_notifications array)
+      parameters:
+        - name: tenant
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            notificationsList:
+              value: bleacherReport
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          examples:
+            notificationsList:
+              value: 10
+        - name: x-api-key
+          in: header
+          required: true
+          schema:
+            type: string
+          examples:
+            notificationsList:
+              value: census-api-key-123
+      responses:
+        '200':
+          description: List of push notifications
+          content:
+            application/json:
+              examples:
+                notificationsList:
+                  value:
+                    push_notifications:
+                      - id: 12345
+                        createdAt: "2025-01-15T10:30:00.000000Z"
+                        createdBy: "user-789"
+                        tenant: bleacherReport
+                        title: "Breaking: Lakers win"
+                        text: "LeBron leads Lakers to victory"
+                        url: "https://bleacherreport.com/articles/12345"
+                        spoiler: false
+                        showAlertCard: true
+                        adParameters: null
+                        destinationOverride: null
+                        alertCategories: ["news"]
+                        allowInRegions: ["US"]
+                        analytics:
+                          genres: ["news"]
+                          gamecastType: null
+                        attachments:
+                          - id: 1
+                            mediaType: "jpg"
+                            mediaUrl: "https://media.bleacherreport.com/image.jpg"
+                            height: 400
+                            width: 600
+                            editId: null
+                        destinations:
+                          - id: 1
+                            contentModuleId: "cm-123"
+                            tagUUID: "78b9e2a8-0c54-475e-9c70-15e15cca6db7"
+                        tags:
+                          - uuid: "78b9e2a8-0c54-475e-9c70-15e15cca6db7"
+
+  /v3/{tenant}/push_notifications/{id}:
+    get:
+      operationId: getPushNotificationById
+      summary: Get a push notification by ID (returns object directly)
+      parameters:
+        - name: tenant
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            singleNotification:
+              value: bleacherReport
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            singleNotification:
+              value: "12345"
+        - name: x-api-key
+          in: header
+          required: true
+          schema:
+            type: string
+          examples:
+            singleNotification:
+              value: census-api-key-123
+      responses:
+        '200':
+          description: Single push notification (direct PushNotificationResponse)
+          content:
+            application/json:
+              examples:
+                singleNotification:
+                  value:
+                    id: 12345
+                    createdAt: "2025-01-15T10:30:00.000000Z"
+                    createdBy: "user-789"
+                    tenant: bleacherReport
+                    title: "Breaking: Lakers win the championship"
+                    text: "LeBron James leads Lakers to victory with 35 points"
+                    url: "https://bleacherreport.com/articles/12345"
+                    spoiler: false
+                    showAlertCard: true
+                    adParameters: null
+                    destinationOverride: null
+                    alertCategories: ["news"]
+                    allowInRegions: ["US"]
+                    analytics:
+                      genres: ["news"]
+                      gamecastType: null
+                    attachments:
+                      - id: 1
+                        mediaType: "jpg"
+                        mediaUrl: "https://media.bleacherreport.com/image.jpg"
+                        height: 400
+                        width: 600
+                        editId: null
+                    destinations:
+                      - id: 1
+                        contentModuleId: "cm-123"
+                        tagUUID: "78b9e2a8-0c54-475e-9c70-15e15cca6db7"
+                    tags:
+                      - uuid: "78b9e2a8-0c54-475e-9c70-15e15cca6db7"
+
+  /v3/{tenant}/users/{boltId}/push_notifications:
+    get:
+      operationId: getUserPushNotifications
+      summary: Get push notifications for a user (UserPushNotificationResponse)
+      parameters:
+        - name: tenant
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            userNotifications:
+              value: bleacherReport
+        - name: boltId
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            userNotifications:
+              value: "user-bolt-123"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          examples:
+            userNotifications:
+              value: 50
+      responses:
+        '200':
+          description: User's push notifications (UserPushNotificationResponse format)
+          content:
+            application/json:
+              examples:
+                userNotifications:
+                  value:
+                    push_notifications:
+                      - id: 67890
+                        createdAt: "2025-01-15T10:30:00"
+                        createdBy: "editor-001"
+                        tenant: bleacherReport
+                        title: "Game Alert: Warriors vs Lakers"
+                        text: "Tip-off in 30 minutes"
+                        url: "https://bleacherreport.com/articles/67890"
+                        spoiler: false
+                        showAlertCard: true
+                        adParameters: null
+                        destinationOverrideId: null
+                        news: true
+                        creators: null
+                        viral: null
+                        highlights: null
+                        analytics:
+                          genres: ["news"]
+                          gamecast_type: null
+                        alertCategories: ["news"]
+                        allowInRegions: ["US"]
+                        attachments:
+                          - id: 1
+                            mediaType: "jpg"
+                            mediaUrl: "https://media.bleacherreport.com/image.jpg"
+                            height: 400
+                            width: 600
+                            editId: null
+                        destinations:
+                          - id: 1
+                            contentModuleId: "cm-456"
+                            tagUUID: "tag-uuid-789"
+                        tags:
+                          - uuid: "78b9e2a8-0c54-475e-9c70-15e15cca6db7"
+
+  /v3/{tenant}/users/{boltId}/device:
+    post:
+      operationId: addDevice
+      summary: Register a device (201, wrapped in device object)
+      parameters:
+        - name: tenant
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            registerIphone:
+              value: bleacherReport
+            registerAndroid:
+              value: bleacherReport
+        - name: boltId
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            registerIphone:
+              value: "user-bolt-123"
+            registerAndroid:
+              value: "user-bolt-456"
+        - name: x-api-key
+          in: header
+          required: true
+          schema:
+            type: string
+          examples:
+            registerIphone:
+              value: census-api-key-123
+            registerAndroid:
+              value: census-api-key-123
+      requestBody:
+        required: true
+        content:
+          application/json:
+            examples:
+              registerIphone:
+                summary: iPhone device registration
+                value:
+                  device:
+                    device_token: "fcm-token-xyz789"
+                    platform: "iOS iPhone"
+                    app_version: "5.2.0"
+                    os_version: "17.4"
+                  user:
+                    profile_id: "profile-001"
+              registerAndroid:
+                summary: Android device registration
+                value:
+                  device:
+                    device_token: "fcm-android-token-abc"
+                    platform: "Android GCM"
+                    app_version: "9.1.0"
+                    os_version: "14"
+                  user:
+                    profile_id: "profile-android-001"
+      responses:
+        '201':
+          description: Device registered (wrapped in device object)
+          content:
+            application/json:
+              examples:
+                registerIphone:
+                  value:
+                    device:
+                      id: 42
+                      device_id: "fcm-token-xyz789"
+                      device_type: "iOS iPhone"
+                      app_version: "5.2.0"
+                      os_version: "17.4"
+                registerAndroid:
+                  value:
+                    device:
+                      id: 99
+                      device_id: "fcm-android-token-abc"
+                      device_type: "Android GCM"
+                      app_version: "9.1.0"
+                      os_version: "14"
+
+  /v3/{tenant}/tags/{tagUUID}/subscriptions:
+    get:
+      operationId: getUsersForTag
+      summary: Get users subscribed to a tag
+      parameters:
+        - name: tenant
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            tagFollowers:
+              value: bleacherReport
+        - name: tagUUID
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            tagFollowers:
+              value: "78b9e2a8-0c54-475e-9c70-15e15cca6db7"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          examples:
+            tagFollowers:
+              value: 50
+        - name: x-api-key
+          in: header
+          required: true
+          schema:
+            type: string
+          examples:
+            tagFollowers:
+              value: census-api-key-123
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              examples:
+                tagFollowers:
+                  value:
+                    users:
+                      - user_id: "user-001"
+                        profile_id: "profile-001"
+                      - user_id: "user-002"
+                        profile_id: "profile-002"
+
+  /v3/{tenant}/tags/{tagUUID}/subscriptions/count:
+    get:
+      operationId: getFollowersCountForTag
+      summary: Get count of users subscribed to a tag
+      parameters:
+        - name: tenant
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            count:
+              value: bleacherReport
+        - name: tagUUID
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            count:
+              value: "78b9e2a8-0c54-475e-9c70-15e15cca6db7"
+        - name: x-api-key
+          in: header
+          required: true
+          schema:
+            type: string
+          examples:
+            count:
+              value: census-api-key-123
+      responses:
+        '200':
+          description: Follower count
+          content:
+            application/json:
+              examples:
+                count:
+                  value:
+                    count: 15420
+
+  /v3/{tenant}/user/{boltId}/tags:
+    get:
+      operationId: getUserFollowedTags
+      summary: Get tags a user follows
+      parameters:
+        - name: tenant
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            followedTags:
+              value: bleacherReport
+        - name: boltId
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            followedTags:
+              value: "user-bolt-123"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          examples:
+            followedTags:
+              value: 50
+        - name: x-api-key
+          in: header
+          required: true
+          schema:
+            type: string
+          examples:
+            followedTags:
+              value: census-api-key-123
+      responses:
+        '200':
+          description: List of subscriptions
+          content:
+            application/json:
+              examples:
+                followedTags:
+                  value:
+                    subscriptions:
+                      - tag_uuid: "78b9e2a8-0c54-475e-9c70-15e15cca6db7"
+                      - tag_uuid: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+  /v3/{tenant}/user/{boltId}/tags/count:
+    get:
+      operationId: getUserFollowedTagsCount
+      summary: Get count of tags a user follows
+      parameters:
+        - name: tenant
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            count:
+              value: bleacherReport
+        - name: boltId
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            count:
+              value: "user-bolt-123"
+        - name: x-api-key
+          in: header
+          required: true
+          schema:
+            type: string
+          examples:
+            count:
+              value: census-api-key-123
+      responses:
+        '200':
+          description: Count of followed tags
+          content:
+            application/json:
+              examples:
+                count:
+                  value:
+                    count: 12
+
+  /v3/alert_buzz/ranks:
+    post:
+      operationId: addAlertRank
+      summary: Submit alert rank scores (returns 202 Accepted)
+      parameters:
+        - name: x-api-key
+          in: header
+          required: true
+          schema:
+            type: string
+          examples:
+            submitRanks:
+              value: census-api-key-123
+      requestBody:
+        required: true
+        content:
+          application/json:
+            examples:
+              submitRanks:
+                value:
+                  tenant: bleacherReport
+                  alert_ranks:
+                    - push_notification_id: "12345"
+                      rank: 5
+                    - push_notification_id: "67890"
+                      rank: 10
+      responses:
+        '202':
+          description: Alert ranks accepted
+          content:
+            application/json:
+              examples:
+                submitRanks:
+                  value:
+                    status: "accepted"
+
+  /v3/{tenant}/alert_buzz/ranks/{id}:
+    get:
+      operationId: getAlertRank
+      summary: Get alert rank for a notification
+      parameters:
+        - name: tenant
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            rank:
+              value: bleacherReport
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            rank:
+              value: "12345"
+        - name: x-api-key
+          in: header
+          required: true
+          schema:
+            type: string
+          examples:
+            rank:
+              value: census-api-key-123
+      responses:
+        '200':
+          description: Alert rank
+          content:
+            application/json:
+              examples:
+                rank:
+                  value:
+                    rank: 5
+
+  /v3/{tenant}/content_modules/push_notifications:
+    post:
+      operationId: getContentModuleIdsWithPushNotificationIds
+      summary: Get content module IDs that have push notifications
+      parameters:
+        - name: tenant
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            checkModules:
+              value: bleacherReport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            examples:
+              checkModules:
+                value:
+                  content_module_ids:
+                    - "2c8ab50e-1e8f-4079-aafd-f236c4c3f9ec"
+                    - "3d9bc61f-2g0h-5891-bcde-fg2345678901"
+      responses:
+        '200':
+          description: Content module IDs with push notifications
+          content:
+            application/json:
+              examples:
+                checkModules:
+                  value:
+                    content_module_ids:
+                      - "2c8ab50e-1e8f-4079-aafd-f236c4c3f9ec"

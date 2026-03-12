@@ -1,0 +1,190 @@
+asyncapi: '2.6.0'
+info:
+  title: Push Notifications RabbitMQ Messages
+  version: '1.0'
+  description: >
+    RabbitMQ queues where the Push Notifications service publishes messages.
+    Contract D: PushNotificationsWorker → RabbitMQ/Census
+
+channels:
+  entity.preferences.v1:
+    description: Subscription messages forwarded from Kafka to Census via RabbitMQ
+    publish:
+      operationId: publishSubscription
+      message:
+        name: SubscriptionMessage
+        contentType: application/json
+        payload:
+          type: object
+          required: [userId, selections]
+          properties:
+            userId: { type: string, description: "Format: USERID:bolt:{uuid}" }
+            profileId: { type: string }
+            selections:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string }
+                  settings: { type: object }
+                  notifications:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        notificationMethods:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              type: { type: string }
+                              enabled: { type: boolean }
+        examples:
+          - name: user-subscription-update
+            payload:
+              userId: "USERID:bolt:f28dc9e8-26a6-4511-8f7f-1ac84f36ae67"
+              profileId: ""
+              selections:
+                - id: "0b9ab45c-acc8-4830-8302-8cbb652dda25"
+                  settings: {}
+                  notifications: []
+
+  entity.pushNotification.v4:
+    description: Automated alert messages forwarded from Kafka to Census via RabbitMQ
+    publish:
+      operationId: publishNotification
+      message:
+        name: NotificationMessage
+        contentType: application/json
+        payload:
+          type: object
+          required: [id, text, title, destinations, alertCategories]
+          properties:
+            id: { type: string }
+            createdAt: { type: string, format: date-time }
+            adParameters: { type: string }
+            analytics:
+              type: object
+              properties:
+                genres: { type: array, items: { type: string } }
+                gamecastType: { type: array, items: { type: string } }
+            attachments:
+              type: array
+              items:
+                type: object
+                properties:
+                  mediaType: { type: string }
+                  mediaUrl: { type: string }
+                  height: { type: string }
+                  width: { type: string }
+            allowInRegions: { type: array, items: { type: string } }
+            destinations:
+              type: array
+              items:
+                type: object
+                properties:
+                  contentModuleId: { type: string }
+                  tagUUID: { type: string }
+            destinationOverride: { type: string }
+            createdBy: { type: string }
+            showAlertCard: { type: boolean }
+            alertCategories: { type: array, items: { type: string } }
+            spoiler: { type: boolean }
+            text: { type: string }
+            title: { type: string }
+            url: { type: string }
+        examples:
+          - name: automated-alert-forwarded
+            payload:
+              id: "ebfe664b-2c8a-44cd-b639-e5628a624db6"
+              createdAt: "2026-02-20T10:00:00.000Z"
+              adParameters: "urgent"
+              analytics:
+                genres: ["automated"]
+                gamecastType: ["pregame"]
+              attachments: []
+              allowInRegions: ["US"]
+              destinations:
+                - contentModuleId: "cm-001"
+                  tagUUID: "tag-001"
+              showAlertCard: true
+              alertCategories: ["news", "highlights"]
+              spoiler: false
+              text: "7:30pm ET on TNT"
+              title: "NBA Alert"
+              url: "https://bleacherreport.com/nba"
+
+  census.add_device:
+    description: Device registration messages sent from GraphQL mutations
+    publish:
+      operationId: publishDeviceRegistration
+      message:
+        name: DeviceMessage
+        contentType: application/json
+        payload:
+          type: object
+          required: [tenant, bolt_id, device]
+          properties:
+            tenant: { type: string }
+            bolt_id: { type: string }
+            device:
+              type: object
+              required: [device_token, type]
+              properties:
+                device_token: { type: string }
+                type: { type: string }
+                app_version: { type: string }
+                os_version: { type: string }
+            user:
+              type: object
+              properties:
+                geo_region_code: { type: string }
+                geo_country_code: { type: string }
+            timestamp: { type: string, format: date-time }
+        examples:
+          - name: iphone-device-registration
+            payload:
+              tenant: "bleacherReport"
+              bolt_id: "bolt-user-001"
+              device:
+                device_token: "fcm-token-abc"
+                type: "iOS iPhone"
+                app_version: "9.0.1"
+                os_version: "17.2"
+              user:
+                geo_region_code: "NY"
+                geo_country_code: "US"
+              timestamp: "2026-02-20T10:00:00.000Z"
+
+  census.alert_ranks:
+    description: Alert rank messages from GraphQL mutations
+    publish:
+      operationId: publishAlertRank
+      message:
+        name: AlertRankMessage
+        contentType: application/json
+        payload:
+          type: object
+          required: [tenant, alert_ranks]
+          properties:
+            tenant: { type: string }
+            alert_ranks:
+              type: array
+              items:
+                type: object
+                required: [push_notification_id, rank]
+                properties:
+                  push_notification_id: { type: string }
+                  rank: { type: integer }
+            timestamp: { type: string, format: date-time }
+        examples:
+          - name: alert-rank-submission
+            payload:
+              tenant: "bleacherReport"
+              alert_ranks:
+                - push_notification_id: "42"
+                  rank: 5
+                - push_notification_id: "55"
+                  rank: 10
+              timestamp: "2026-02-20T10:00:00.000Z"

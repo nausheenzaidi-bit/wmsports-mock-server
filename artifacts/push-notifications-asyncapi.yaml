@@ -1,0 +1,362 @@
+asyncapi: 2.6.0
+info:
+  title: Push Notifications Async Events
+  version: "1.0"
+  description: |
+    AsyncAPI spec for Kafka and RabbitMQ message contracts
+    used by the Sports Push Notifications service.
+    Importable into Microcks for async message mocking.
+
+channels:
+  entity.pushNotification.v4:
+    description: Automated push notification alerts (Protobuf-decoded JSON)
+    subscribe:
+      operationId: receivePushNotificationEvent
+      message:
+        name: PushNotificationMessage
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            header:
+              type: object
+              properties:
+                eventId:
+                  type: string
+                eventType:
+                  type: string
+                timestamp:
+                  type: string
+            pushNotification:
+              type: object
+              properties:
+                id:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    namespace:
+                      type: string
+                title:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    localizations:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          language:
+                            type: string
+                          value:
+                            type: string
+                synopsis:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    localizations:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          language:
+                            type: string
+                          value:
+                            type: string
+                url:
+                  type: string
+                spoiler:
+                  type: boolean
+                showAlertCard:
+                  type: boolean
+                territories:
+                  type: array
+                  items:
+                    type: string
+                destinations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      contentId:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                      taxonomyId:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+        examples:
+          - name: automatedLakersAlert
+            summary: Automated alert for Lakers game (news, jpg)
+            payload:
+              header:
+                eventId: "evt-001"
+                eventType: "PUSH_NOTIFICATION_CREATED"
+                timestamp: "2025-01-15T12:00:00.000Z"
+              pushNotification:
+                id:
+                  id: "12345"
+                  namespace: "urn:wbd:identifier:statmilk:pushnotification-id"
+                title:
+                  type: "main-title"
+                  localizations:
+                    - language: "en-US"
+                      value: "Breaking: Lakers win the championship"
+                synopsis:
+                  type: "main-description"
+                  localizations:
+                    - language: "en-US"
+                      value: "LeBron James leads Lakers to victory with 35 points"
+                url: "https://bleacherreport.com/articles/12345"
+                spoiler: false
+                showAlertCard: true
+                territories: ["US"]
+                alertCategories: [1]
+                destinations:
+                  - contentId:
+                      id: "cm-123"
+                    taxonomyId:
+                      id: "tag-uuid-456"
+                destinationOverride: null
+          - name: ncaaHighlightsVideoAlert
+            summary: NCAA highlights with video, spoiler, destinationOverride
+            payload:
+              header:
+                eventId: "evt-highlights-001"
+                eventType: "PUSH_NOTIFICATION_CREATED"
+                timestamp: "2025-03-01T22:00:00.000Z"
+              pushNotification:
+                id:
+                  id: "ncaa-duke-001"
+                  namespace: "urn:wbd:identifier:statmilk:pushnotification-id"
+                title:
+                  type: "main-title"
+                  localizations:
+                    - language: "en-US"
+                      value: "March Madness: Duke advances to Final Four"
+                synopsis:
+                  type: "main-description"
+                  localizations:
+                    - language: "en-US"
+                      value: "Duke defeats Arizona 78-73 in the Elite Eight"
+                url: "https://bleacherreport.com/articles/ncaa-duke-elite-eight"
+                spoiler: true
+                showAlertCard: true
+                adParameters: ["sport=ncaa"]
+                territories: ["US", "BR"]
+                alertCategories: [2, 3]
+                attributes:
+                  - type: "genres"
+                    value: ["highlights", "closeGame"]
+                pushNotificationAttachments:
+                  - mediaType: "video"
+                    mediaUrl: "https://media.bleacherreport.com/ncaa-duke-highlights.mp4"
+                    height: 720
+                    width: 1280
+                destinations:
+                  - contentId:
+                      id: "cm-ncaa-duke"
+                    taxonomyId:
+                      id: "tag-ncaa-duke"
+                destinationOverride: "cm-override-ncaa"
+
+  entity.preferences.v1:
+    description: User preference changes (Protobuf-decoded JSON)
+    subscribe:
+      operationId: receivePreferencesEvent
+      message:
+        name: PreferencesEntityEvent
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            preferences:
+              type: object
+              properties:
+                userId:
+                  type: string
+                profileId:
+                  type: string
+                selections:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      settings:
+                        type: object
+                        properties:
+                          spoilersEnabled:
+                            type: string
+                      notifications:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            notificationMethods:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  type:
+                                    type: string
+                                  enabled:
+                                    type: boolean
+        examples:
+          - name: userEnablesPushForLakers
+            summary: User enables push for Lakers (single selection)
+            payload:
+              preferences:
+                userId: "USERID:bolt:f28dc9e8-26a6-4511-8f7f-1ac84f36ae67"
+                profileId: "profile-456"
+                selections:
+                  - id: "nba-lakers"
+                    settings:
+                      spoilersEnabled: "true"
+                    notifications:
+                      - id: "push-notification"
+                        notificationMethods:
+                          - type: "push"
+                            enabled: true
+                settings:
+                  globalPushEnabled: "true"
+          - name: userMultipleSelectionsDisabled
+            summary: User with multiple selections (mixed enabled/disabled)
+            payload:
+              metadata:
+                eventId: "evt-pref-multi-001"
+                timestamp: "2025-03-01T22:00:00.000Z"
+              preferences:
+                userId: "USERID:bolt:a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                profileId: "profile-multi-001"
+                selections:
+                  - id: "nba-lakers"
+                    settings:
+                      spoilersEnabled: "true"
+                    notifications:
+                      - id: "push-notification"
+                        notificationMethods:
+                          - type: "push"
+                            enabled: true
+                  - id: "ncaa-duke"
+                    settings:
+                      spoilersEnabled: "false"
+                    notifications:
+                      - id: "push-notification"
+                        notificationMethods:
+                          - type: "push"
+                            enabled: false
+                settings:
+                  globalPushEnabled: "true"
+
+  census.automated_alerts:
+    description: PN Worker → Census automated alerts via RabbitMQ
+    publish:
+      operationId: publishAutomatedAlert
+      message:
+        name: AutomatedAlertMessage
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            id:
+              type: string
+            title:
+              type: string
+            text:
+              type: string
+            url:
+              type: string
+            spoiler:
+              type: boolean
+            showAlertCard:
+              type: boolean
+            alertCategories:
+              type: array
+              items:
+                type: string
+            destinations:
+              type: array
+              items:
+                type: object
+                properties:
+                  contentModuleId:
+                    type: string
+                  tagUUID:
+                    type: string
+        examples:
+          - name: automatedAlertToCensus
+            summary: Standard news alert (jpg, no spoiler)
+            payload:
+              id: "12345"
+              title: "Breaking: Lakers win"
+              text: "LeBron leads Lakers to victory"
+              url: "https://bleacherreport.com/articles/12345"
+              spoiler: false
+              showAlertCard: true
+              alertCategories: ["news"]
+              allowInRegions: ["US"]
+              destinations:
+                - contentModuleId: "cm-123"
+                  tagUUID: "tag-uuid-456"
+          - name: videoHighlightsSpoilerOverride
+            summary: Video highlights with spoiler, destinationOverride, multi-category
+            payload:
+              id: "ncaa-duke-001"
+              createdAt: "2025-03-01T22:00:00.000Z"
+              adParameters: "sport=ncaa&league=mens-basketball"
+              analytics:
+                genres: ["highlights", "closeGame"]
+                gamecastType: ["postgame"]
+              attachments:
+                - mediaType: "video"
+                  mediaUrl: "https://media.bleacherreport.com/ncaa-duke.mp4"
+                  height: "720"
+                  width: "1280"
+              allowInRegions: ["US", "BR"]
+              destinations:
+                - contentModuleId: "cm-ncaa-001"
+                  tagUUID: "tag-ncaa-duke"
+              destinationOverride: "cm-override-ncaa"
+              showAlertCard: true
+              alertCategories: ["highlights", "creators"]
+              spoiler: true
+              text: "Duke defeats Arizona 78-73"
+              title: "March Madness: Duke advances"
+              url: "https://bleacherreport.com/articles/ncaa-duke"
+
+  census.subscriptions:
+    description: PN Worker → Census subscriptions via RabbitMQ
+    publish:
+      operationId: publishSubscription
+      message:
+        name: SubscriptionMessage
+        contentType: application/json
+        payload:
+          type: object
+          properties:
+            userId:
+              type: string
+            profileId:
+              type: string
+            selections:
+              type: array
+              items:
+                type: object
+        examples:
+          - name: subscriptionUpdate
+            payload:
+              userId: "USERID:bolt:f28dc9e8-26a6-4511-8f7f-1ac84f36ae67"
+              profileId: "profile-456"
+              selections:
+                - id: "nba-lakers"
+                  notifications: []
+                  settings: {}

@@ -1,0 +1,2725 @@
+# microcksId: LivelikeAPI : 1.0
+
+scalar LiveLikeNode
+scalar Locale
+scalar Duration
+scalar JWT
+scalar NonEmptyString
+scalar NonNegativeFloat
+scalar NonNegativeInt
+scalar PositiveInt
+scalar URL
+scalar UUID
+scalar Time
+scalar JSONObject
+scalar JSON
+scalar DateTimeISO
+scalar DateTime
+scalar Date
+
+interface LiveLikeEdge {
+  node: LiveLikeNode
+  cursor: String
+}
+
+interface LiveLikeConnection {
+  edges: [LiveLikeEdge]
+  page: LiveLikePage
+}
+
+enum LiveLikeOrderEnum {
+  ASC
+  DESC
+}
+
+type LiveLikePage {
+  startCursor: String
+  endCursor: String
+  next: PositiveInt
+  previous: PositiveInt
+  count: NonNegativeInt
+}
+
+type LiveLikePaginationOffset {
+  offset: NonNegativeInt
+  limit: NonNegativeInt
+}
+
+type LiveLikePageOffset {
+  count: NonNegativeInt
+  next: LiveLikePaginationOffset
+  previous: LiveLikePaginationOffset
+}
+
+type LiveLikeKeyValuePair {
+  key: String!
+  value: String!
+}
+
+input LiveLikePaginationOffsetInput {
+  offset: NonNegativeInt
+  limit: NonNegativeInt
+}
+
+input LiveLikeKeyValuePairInput {
+  key: String!
+  value: String!
+}
+
+type LiveLikeProfileAuth implements LiveLikeNode   {
+  id: UUID!
+  clientId: NonEmptyString!
+  customId: NonEmptyString
+  accessToken: JWT!
+  nickname: NonEmptyString!
+  createdAt: NonEmptyString!
+}
+
+type LiveLikeProfile implements LiveLikeNode   {
+  id: UUID!
+  clientId: NonEmptyString
+  customId: NonEmptyString
+  nickname: NonEmptyString!
+  customData: String
+  createdAt: NonEmptyString!
+  incomingProfileRelationships(input: LiveLikeIncomingProfileRelationshipInput, order: LiveLikeProfileRelationshipOrderInput): LiveLikeProfileRelationshipCollection
+  outgoingProfileRelationships(input: LiveLikeOutgoingProfileRelationshipInput, order: LiveLikeProfileRelationshipOrderInput): LiveLikeProfileRelationshipCollection
+  widgetsInteractions(input: [LiveLikeWidgetInteractionsInput!]!): [LiveLikeWidgetInteractions!]
+  rewardBalance(input: LiveLikeRewardBalanceGetInput!): LiveLikeRewardItemBalance
+  rewardBalances(input: LiveLikeRewardBalancesGetInput): LiveLikeRewardItemBalanceCollection
+  badges: LiveLikeEarnedBadgeCollection
+  badgeProgress(badgeId: UUID!): [LiveLikeBadgeRewardProgressCollection!]
+  quests(input: LiveLikeUserQuestsInput): LiveLikeUserQuestCollection
+}
+
+type LiveLikeBlockProfile implements LiveLikeNode  {
+  id: UUID!
+  blockedProfileId: UUID!
+  blockedByProfileId: UUID!
+  blockedProfile: LiveLikeProfile!
+  blockedByProfile: LiveLikeProfile!
+}
+
+input LiveLikeProfileGetByCustomIdInput {
+  clientId: NonEmptyString!
+  customId: NonEmptyString!
+}
+
+input LiveLikeProfileCreateInput {
+  clientId: NonEmptyString!
+  nickname: NonEmptyString
+}
+
+input LiveLikeProfileByCustomIdCreateInput {
+  clientId: NonEmptyString!
+  customId: NonEmptyString!
+  nickname: NonEmptyString
+}
+
+input LiveLikeProfileUpdateInput {
+  id: UUID!
+  nickname: NonEmptyString
+  customData: NonEmptyString
+}
+
+type Query {
+  liveLikeMe: LiveLikeProfile
+  liveLikeProfile(id: UUID!): LiveLikeProfile
+  liveLikeProfileByCustomId(input: LiveLikeProfileGetByCustomIdInput!): LiveLikeProfile
+  liveLikeBlockedProfileIds: [UUID!]
+  liveLikeProfileRelationshipType(id: UUID!): LiveLikeProfileRelationshipType
+  liveLikeProfileRelationshipTypes(input: LiveLikeProfileRelationshipTypesInput!): LiveLikeProfileRelationshipTypeCollection
+  liveLikeProfileRelationships(input: LiveLikeProfileRelationshipInput!, order: LiveLikeProfileRelationshipOrderInput): LiveLikeProfileRelationshipCollection
+  liveLikePermissions(page: PositiveInt): LiveLikePermissions
+  liveLikeRoles(input: LiveLikeRolesGetInput!): LiveLikeRoleConnection
+  liveLikeRolesAssignment(input: LiveLikeRoleAssignmentsGetInput!): LiveLikeRoleAssignmentConnection
+  liveLikeApplication(clientId: NonEmptyString!): LiveLikeApplication
+  liveLikeProgram(id: UUID!): LiveLikeProgram
+  liveLikeProgramByCustomId(input: LiveLikeProgramGetByCustomIdInput!): LiveLikeProgram
+  liveLikePrograms(input: LiveLikeProgramsGetInput!): LiveLikeProgramConnection
+  liveLikeWidgets(programId: UUID!, input: LiveLikeWidgetGetInput, order: LiveLikeWidgetOrderInput): LiveLikeWidgetCollection
+  liveLikeWidgetsInteractions(profileId: UUID!, input: [LiveLikeWidgetInteractionsInput!]!): [LiveLikeWidgetInteractions!]
+  liveLikeWidgetReports(input: LiveLikeWidgetReportsInput): LiveLikeWidgetReportCollection
+  liveLikeTextPoll(id: UUID!): LiveLikeTextPoll
+  liveLikeImagePoll(id: UUID!): LiveLikeImagePoll
+  liveLikeRichPost(id: UUID!): LiveLikeRichPost
+  liveLikeTextQuiz(id: UUID!): LiveLikeTextQuiz
+  liveLikeImageQuiz(id: UUID!): LiveLikeImageQuiz
+  liveLikeTextPrediction(id: UUID!): LiveLikeTextPrediction
+  liveLikeTextPredictionFollowUp(id: UUID!): LiveLikeTextPredictionFollowUp
+  liveLikeImagePrediction(id: UUID!): LiveLikeImagePrediction
+  liveLikeImagePredictionFollowUp(id: UUID!): LiveLikeImagePredictionFollowUp
+  liveLikeAlert(id: UUID!): LiveLikeAlert
+  liveLikeVideoAlert(id: UUID!): LiveLikeVideoAlert
+  liveLikeSocialEmbed(id: UUID!): LiveLikeSocialEmbed
+  liveLikeReactionPack(id: UUID!): LiveLikeReactionPack
+  liveLikeReactionPacks(input: LiveLikeReactionPacksGetInput!): LiveLikeReactionPackCollection
+  liveLikeReactionSpace(id: UUID!): LiveLikeReactionSpace
+  liveLikeReactionSpaces(input: LiveLikeReactionSpaceGetInput!): LiveLikeReactionSpaceCollection
+  liveLikeReactionSpacesCount(input: LiveLikeReactionSpacesCountInput!): [LiveLikeReactionSpaceCount!]
+  liveLikeUserReactions(input: LiveLikeUserReactionsGetInput!): LiveLikeUserReactionCollection
+  liveLikeUserReactionCounts(input: LiveLikeUserReactionCountsGetInput!): LiveLikeUserReactionCountCollection
+  liveLikeCommentBoard(id: UUID!): LiveLikeCommentBoard
+  liveLikeCommentBoards(input: LiveLikeCommentBoardsGetInput!): LiveLikeCommentBoardCollection
+  liveLikeCommentBoardsCount(input: LiveLikeCommentBoardsCountGetInput!): [LiveLikeCommentBoardCount!]
+  liveLikeComment(id: UUID!): LiveLikeComment
+  liveLikeComments(input: LiveLikeCommentsGetInput!): LiveLikeCommentCollection
+  liveLikeCommentReplies(input: LiveLikeCommentRepliesGetInput!): LiveLikeCommentCollection
+  liveLikeCommentReport(id: UUID!): LiveLikeCommentReport
+  liveLikeCommentsReports(input: LiveLikeCommentsReportsGetInput!): LiveLikeCommentReportCollection
+  liveLikeChatRoom(id: UUID!): LiveLikeChatRoom
+  liveLikeChatRooms(input: LiveLikeChatRoomsGetInput!): LiveLikeChatRoomCollection
+  liveLikeRewardItem(id: UUID!): LiveLikeRewardItem
+  liveLikeRewardItems(clientId: NonEmptyString!): LiveLikeRewardItemCollection
+  liveLikeRewardTable(id: UUID!): LiveLikeRewardTable
+  liveLikeRewardTables(input: LiveLikeRewardTablesGetInput!): LiveLikeRewardTableCollection
+  liveLikeRewardTableEntry(input: LiveLikeRewardTableEntryGetInput!): LiveLikeRewardTableEntry
+  liveLikeRewardBalance(profileId: UUID!, input: LiveLikeRewardBalanceGetInput!): LiveLikeRewardItemBalance
+  liveLikeRewardBalances(profileId: UUID!, input: LiveLikeRewardBalancesGetInput): LiveLikeRewardItemBalanceCollection
+  liveLikeLeaderboard(id: UUID!): LiveLikeLeaderboard
+  liveLikeLeaderboards(input: LiveLikeLeaderboardsGetInput!): LiveLikeLeaderboardCollection
+  liveLikeLeaderboardEntry(input: LiveLikeLeaderboardEntryGetInput!): LiveLikeLeaderboardEntry
+  liveLikeLeaderboardEntries(input: LiveLikeLeaderboardEntriesGetInput!): LiveLikeLeaderboardEntryCollection
+  liveLikeBadge(id: UUID!): LiveLikeBadge
+  liveLikeBadges(clientId: NonEmptyString!): LiveLikeBadgeCollection
+  liveLikeBadgeProfiles(badgeId: UUID!): LiveLikeBadgeProfileCollection
+  liveLikeBadgeProgress(profileId: UUID!, badgeId: UUID!): [LiveLikeBadgeRewardProgressCollection!]
+  liveLikeEarnedBadges(profileId: UUID!): LiveLikeEarnedBadgeCollection
+  liveLikeUserBadges(page: PositiveInt): LiveLikeUserBadgeCollection
+  liveLikeProgramBans(input: LiveLikeProgramBansInput): LiveLikeProgramBanCollection
+  liveLikeCommentBoardBan(id: UUID!): LiveLikeCommentBoardBan
+  liveLikeCommentBoardBans(input: LiveLikeCommentBoardBansInput): LiveLikeCommentBoardBanCollection
+  liveLikeQuests(clientId: NonEmptyString!): LiveLikeQuestCollection
+  liveLikeUserQuests(profileId: UUID!, input: LiveLikeUserQuestsInput): LiveLikeUserQuestCollection
+  liveLikeUserQuestRewards(input: LiveLikeUserQuestRewardsInput!): LiveLikeUserQuestRewardsConnection
+}
+
+type Mutation {
+  createLiveLikeProfile(input: LiveLikeProfileCreateInput!): LiveLikeProfileAuth
+  createLiveLikeProfileByCustomId(input: LiveLikeProfileByCustomIdCreateInput!): LiveLikeProfileAuth
+  updateLiveLikeProfile(input: LiveLikeProfileUpdateInput!): LiveLikeProfile
+  deleteLiveLikeProfile(id: UUID!): Boolean
+  blockLiveLikeProfile(profileId: UUID!): LiveLikeBlockProfile
+  deleteLiveLikeProfileBlock(id: UUID!): Boolean
+  createLiveLikeProfileRelationshipType(input: LiveLikeProfileRelationshipTypeCreateInput!): LiveLikeProfileRelationshipType
+  createLiveLikeProfileRelationship(input: LiveLikeProfileRelationshipCreateInput!): LiveLikeProfileRelationship
+  deleteLiveLikeProfileRelationshipType(id: UUID!): Boolean
+  deleteLiveLikeProfileRelationship(id: UUID!): Boolean
+  createLiveLikeRole(input: LiveLikeRoleCreateInput!): LiveLikeRole
+  createLiveLikeRoleAssignment(input: LiveLikeRoleAssignmentCreateInput!): LiveLikeRoleAssignment
+  createLiveLikeProgram(input: LiveLikeProgramCreateInput!): LiveLikeProgram
+  updateLiveLikeProgram(input: LiveLikeProgramUpdateInput!): LiveLikeProgram
+  startLiveLikeProgram(id: UUID!): LiveLikeProgramSchedule
+  stopLiveLikeProgram(id: UUID!): LiveLikeProgramSchedule
+  updateLiveLikeProgramByCustomId(input: LiveLikeProgramUpdateByCustomIdInput!): LiveLikeProgram
+  deleteLiveLikeProgram(id: UUID!): Boolean
+  deleteLiveLikeProgramByCustomId(input: LiveLikeProgramDeleteByCustomIdInput!): Boolean
+  publishLiveLikeWidget(kind: LiveLikeWidgetKindEnum!, input: LiveLikeWidgetPublishInput!): LiveLikeWidgetPublish
+  reportLiveLikeWidget(input: LiveLikeWidgetReportInput!): LiveLikeWidgetReport
+  deleteLiveLikeWidget(input: LiveLikeWidgetDeleteInput!): Boolean
+  createLiveLikeTextPoll(input: LiveLikeTextPollCreateInput!): LiveLikeTextPoll
+  createLiveLikeImagePoll(input: LiveLikeImagePollCreateInput!): LiveLikeImagePoll
+  createLiveLikePollVote(input: LiveLikePollVoteCreateInput!): LiveLikeWidgetInteraction 
+  updateLiveLikePollVote(input: LiveLikePollVoteUpdateInput!): LiveLikeWidgetInteraction 
+  createLiveLikeTextPollVote(input: LiveLikeTextPollVoteCreateInput!): LiveLikeTextPollVote
+  updateLiveLikeTextPollVote(input: LiveLikeTextPollVoteUpdateInput!): LiveLikeTextPollVote
+  createLiveLikeImagePollVote(input: LiveLikeImagePollVoteCreateInput!): LiveLikeImagePollVote
+  updateLiveLikeImagePollVote(input: LiveLikeImagePollVoteUpdateInput!): LiveLikeImagePollVote
+  publishLiveLikeTextPoll(input: LiveLikeWidgetPublishInput!): LiveLikeWidgetPublish
+  publishLiveLikeImagePoll(input: LiveLikeWidgetPublishInput!): LiveLikeWidgetPublish
+  deleteLiveLikeTextPoll(id: UUID!): Boolean
+  deleteLiveLikeImagePoll(id: UUID!): Boolean
+  createLiveLikeRichPost(input: LiveLikeRichPostCreateInput!): LiveLikeRichPost
+  publishLiveLikeRichPost(input: LiveLikeWidgetPublishInput!): LiveLikeWidgetPublish
+  deleteLiveLikeRichPost(id: UUID!): Boolean
+  createLiveLikeTextQuiz(input: LiveLikeTextQuizCreateInput!): LiveLikeTextQuiz
+  createLiveLikeImageQuiz(input: LiveLikeImageQuizCreateInput!): LiveLikeImageQuiz
+  createLiveLikeTextQuizAnswer(input: LiveLikeTextQuizAnswerCreateInput!): LiveLikeTextQuizAnswer
+  updateLiveLikeTextQuizAnswer(input: LiveLikeTextQuizAnswerUpdateInput!): LiveLikeTextQuizAnswer
+  createLiveLikeImageQuizAnswer(input: LiveLikeImageQuizAnswerCreateInput!): LiveLikeImageQuizAnswer
+  updateLiveLikeImageQuizAnswer(input: LiveLikeImageQuizAnswerUpdateInput!): LiveLikeImageQuizAnswer
+  publishLiveLikeTextQuiz(input: LiveLikeWidgetPublishInput!): LiveLikeWidgetPublish
+  publishLiveLikeImageQuiz(input: LiveLikeWidgetPublishInput!): LiveLikeWidgetPublish
+  deleteLiveLikeTextQuiz(id: UUID!): Boolean
+  deleteLiveLikeImageQuiz(id: UUID!): Boolean
+  createLiveLikeTextPrediction(input: LiveLikeTextPredictionCreateInput!): LiveLikeTextPrediction
+  createLiveLikeTextPredictionFollowUp(input: LiveLikeTextPredictionFollowUpCreateInput!): LiveLikeTextPredictionFollowUp
+  createLiveLikeImagePrediction(input: LiveLikeImagePredictionCreateInput!): LiveLikeImagePrediction
+  createLiveLikeImagePredictionFollowUp(input: LiveLikeImagePredictionFollowUpCreateInput!): LiveLikeImagePredictionFollowUp
+  createLiveLikeTextPredictionVote(input: LiveLikeTextPredictionVoteCreateInput!): LiveLikeTextPredictionVote
+  updateLiveLikeTextPredictionVote(input: LiveLikeTextPredictionVoteUpdateInput!): LiveLikeTextPredictionVote
+  createLiveLikeImagePredictionVote(input: LiveLikeImagePredictionVoteCreateInput!): LiveLikeImagePredictionVote
+  updateLiveLikeImagePredictionVote(input: LiveLikeImagePredictionVoteUpdateInput!): LiveLikeImagePredictionVote
+  publishLiveLikeTextPrediction(input: LiveLikeWidgetPublishInput!): LiveLikeWidgetPublish
+  publishLiveLikeTextPredictionFollowUp(input: LiveLikeWidgetPublishInput!): LiveLikeWidgetPublish
+  publishLiveLikeImagePrediction(input: LiveLikeWidgetPublishInput!): LiveLikeWidgetPublish
+  publishLiveLikeImagePredictionFollowUp(input: LiveLikeWidgetPublishInput!): LiveLikeWidgetPublish
+  deleteLiveLikeTextPrediction(id: UUID!): Boolean
+  deleteLiveLikeTextPredictionFollowUp(id: UUID!): Boolean
+  deleteLiveLikeImagePrediction(id: UUID!): Boolean
+  deleteLiveLikeImagePredictionFollowUp(id: UUID!): Boolean
+  createLiveLikeAlert(input: LiveLikeAlertCreateInput!): LiveLikeAlert
+  createLiveLikeVideoAlert(input: LiveLikeVideoAlertCreateInput!): LiveLikeVideoAlert
+  publishLiveLikeAlert(input: LiveLikeWidgetPublishInput!): LiveLikeWidgetPublish
+  publishLiveLikeVideoAlert(input: LiveLikeWidgetPublishInput!): LiveLikeWidgetPublish
+  deleteLiveLikeAlert(id: UUID!): Boolean
+  deleteLiveLikeVideoAlert(id: UUID!): Boolean
+  createLiveLikeSocialEmbed(input: LiveLikeSocialEmbedCreateInput!): LiveLikeSocialEmbed
+  publishLiveLikeSocialEmbed(input: LiveLikeWidgetPublishInput!): LiveLikeWidgetPublish
+  deleteLiveLikeSocialEmbed(id: UUID!): Boolean
+  createLiveLikeReactionSpace(input: LiveLikeReactionSpaceCreateInput!): LiveLikeReactionSpace
+  updateLiveLikeReactionSpace(input: LiveLikeReactionSpaceUpdateInput!): LiveLikeReactionSpacePatch
+  deleteLiveLikeReactionSpace(input: LiveLikeReactionSpaceDeleteInput!): Boolean
+  createLiveLikeUserReaction(input: LiveLikeUserReactionCreateInput!): LiveLikeUserReaction
+  deleteLiveLikeUserReaction(id: UUID!): Boolean
+  createLiveLikeCommentBoard(input: LiveLikeCommentBoardCreateInput!): LiveLikeCommentBoard
+  updateLiveLikeCommentBoard(input: LiveLikeCommentBoardUpdateInput!): LiveLikeCommentBoard
+  deleteLiveLikeCommentBoard(id: UUID!): Boolean
+  createLiveLikeComment(input: LiveLikeCommentCreateInput!): LiveLikeComment
+  createLiveLikeCommentReply(input: LiveLikeCommentReplyCreateInput!): LiveLikeComment
+  deleteLiveLikeComment(id: UUID!): Boolean
+  createLiveLikeCommentReport(input: LiveLikeCommentReportCreateInput!): LiveLikeCommentReport
+  dismissLiveLikeCommentReport(id: UUID!): LiveLikeCommentReport
+  createLiveLikeChatRoom(input: LiveLikeChatRoomCreateInput!): LiveLikeChatRoom
+  updateLiveLikeChatRoom(input: LiveLikeChatRoomUpdateInput!): LiveLikeChatRoom
+  deleteLiveLikeChatRoom(id: UUID!): Boolean
+  createLiveLikeRewardItem(input: LiveLikeRewardItemCreateInput!): LiveLikeRewardItem
+  creditLiveLikeRewardItem(input: LiveLikeRewardItemTransactionInput!): LiveLikeRewardItemTransaction
+  debitLiveLikeRewardItem(input: LiveLikeRewardItemTransactionInput!): LiveLikeRewardItemTransaction
+  deleteLiveLikeRewardItem(id: UUID!): Boolean
+  createLiveLikeRewardTable(input: LiveLikeRewardTableCreateInput!): LiveLikeRewardTable
+  updateLiveLikeRewardTable(input: LiveLikeRewardTableUpdateInput!): LiveLikeRewardTable
+  deleteLiveLikeRewardTable(id: UUID!): Boolean
+  createLiveLikeRewardTableEntry(input: LiveLikeRewardTableEntryCreateInput!): LiveLikeRewardTableEntry
+  deleteLiveLikeRewardTableEntry(input: LiveLikeRewardTableEntryDeleteInput!): Boolean
+  linkLiveLikeRewardTableWithProgram(input: LiveLikeLinkRewardTableWithProgramInput!): Boolean
+  unlinkLiveLikeRewardTableWithProgram(input: LiveLikeUnlinkRewardTableWithProgramInput!): Boolean
+  invokeLiveLikeRewardAction(input: LiveLikeRewardActionCreateInput!): LiveLikeRewardAction
+  createLiveLikeLeaderboard(input: LiveLikeLeaderboardCreateInput!): LiveLikeLeaderboard
+  updateLiveLikeLeaderboard(input: LiveLikeLeaderboardUpdateInput!): LiveLikeLeaderboard
+  deleteLiveLikeLeaderboard(id: UUID!): Boolean
+  linkLiveLikeLeaderboardWithProgram(input: LiveLikeLeaderboardProgramLinkInput!): Boolean
+  unlinkLiveLikeLeaderboardFromProgram(input: LiveLikeLeaderboardProgramLinkInput!): Boolean
+  awardLiveLikeBadge(input: LiveLikeAwardBadgeInput!): LiveLikeEarnedBadge
+  revokeLiveLikeEarnedBadge(earnedBadgeId: UUID!): Boolean
+  createLiveLikeProgramBan(input: LiveLikeProgramBanInput!): LiveLikeProgramBan
+  deleteLiveLikeProgramBan(id: UUID!): Boolean
+  createLiveLikeCommentBoardBan(input: LiveLikeCommentBoardBanInput!): LiveLikeCommentBoardBan
+  deleteLiveLikeCommentBoardBan(id: UUID!): Boolean
+  createLiveLikeQuest(input: LiveLikeQuestInput!): LiveLikeQuest
+  createLiveLikeUserQuest(input: LiveLikeUserQuestInput!): LiveLikeUserQuest
+  updateLiveLikeUserQuestTaskProgress(input: LiveLikeUserQuestsTaskProgressInput!): LiveLikeUserQuestTaskProgress
+  claimLiveLikeUserQuestReward(input: LiveLikeclaimUserQuestRewardInput!): LiveLikeUserQuest
+}
+
+enum LiveLikeProfileRelationshipOrderField {
+  CREATED_AT
+}
+
+type LiveLikeProfileRelationshipType implements LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  name: NonEmptyString!
+  key: NonEmptyString!
+  createdAt: DateTimeISO!
+}
+
+type LiveLikeProfileRelationship implements LiveLikeNode  {
+  id: UUID!
+  relationshipType: LiveLikeProfileRelationshipType!
+  fromProfile: LiveLikeProfile!
+  toProfile: LiveLikeProfile!
+  createdAt: DateTimeISO!
+}
+
+type LiveLikeProfileRelationshipTypeEdge implements LiveLikeEdge {
+  node: LiveLikeProfileRelationshipType!
+  cursor: String
+}
+
+type LiveLikeProfileRelationshipEdge implements LiveLikeEdge {
+  node: LiveLikeProfileRelationship!
+  cursor: String
+}
+
+type LiveLikeProfileRelationshipTypeCollection implements LiveLikeConnection {
+  edges: [LiveLikeProfileRelationshipTypeEdge!]
+  page: LiveLikePage!
+}
+
+type LiveLikeProfileRelationshipCollection implements LiveLikeConnection {
+  edges: [LiveLikeProfileRelationshipEdge!]
+  page: LiveLikePage!
+}
+
+input LiveLikeProfileRelationshipTypesInput {
+  clientId: NonEmptyString!
+  key: NonEmptyString
+}
+
+input LiveLikeProfileRelationshipTypeCreateInput {
+  clientId: NonEmptyString!
+  name: NonEmptyString!
+  key: NonEmptyString!
+}
+
+input LiveLikeProfileRelationshipCreateInput {
+  relationshipTypeKey: NonEmptyString!
+  fromProfileId: UUID!
+  toProfileId: UUID!
+}
+
+input LiveLikeProfileRelationshipInput {
+  clientId: NonEmptyString!
+  relationshipTypeKey: NonEmptyString
+  fromProfileId: UUID
+  toProfileId: UUID
+  since: DateTimeISO
+  until: DateTimeISO
+}
+
+input LiveLikeIncomingProfileRelationshipInput {
+  relationshipTypeKey: NonEmptyString
+  fromProfileId: UUID
+  since: DateTimeISO
+  until: DateTimeISO
+}
+
+input LiveLikeOutgoingProfileRelationshipInput {
+  relationshipTypeKey: NonEmptyString
+  toProfileId: UUID
+  since: DateTimeISO
+  until: DateTimeISO
+}
+
+input LiveLikeProfileRelationshipOrderInput {
+  field: LiveLikeProfileRelationshipOrderField!
+  order: LiveLikeOrderEnum
+}
+
+enum LiveLikeResourceKindEnum {
+  ALERT
+  APPLICATION
+  CHAT_ROOM
+  CHEER_METER
+  COMMENT_BOARD
+  EMOJI_POLL
+  EMOJI_SLIDER
+  IMAGE_NUMBER_PREDICTION
+  IMAGE_NUMBER_PREDICTION_FOLLOW_UP
+  IMAGE_POLL
+  IMAGE_PREDICTION
+  IMAGE_PREDICTION_FOLLOW_UP
+  IMAGE_QUIZ
+  PROFILE
+  PROGRAM
+  RICH_POST
+  SOCIAL_EMBED
+  TEXT_ASK
+  TEXT_POLL
+  TEXT_PREDICTION
+  TEXT_PREDICTION_FOLLOW_UP
+  TEXT_QUIZ
+  TWITTER_SPOTLIGHT
+  VIDEO_ALERT
+}
+
+type LiveLikePermission implements LiveLikeNode  {
+  id: UUID!
+  key: NonEmptyString!
+  name: NonEmptyString!
+  description: String!
+  createdAt: DateTimeISO!
+}
+
+type LiveLikePermissionEdge implements LiveLikeEdge {
+  node: LiveLikePermission!
+  cursor: String
+}
+
+type LiveLikePermissions implements LiveLikeConnection {
+  edges: [LiveLikePermissionEdge]
+  page: LiveLikePage!
+}
+
+type LiveLikeRole implements LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  key: NonEmptyString!
+  name: NonEmptyString!
+  description: String!
+  isActive: Boolean!
+  createdAt: DateTimeISO!
+  permissions: [LiveLikePermission!]!
+}
+
+type LiveLikeRoleEdge implements LiveLikeEdge {
+  node: LiveLikeRole!
+  cursor: String
+}
+
+type LiveLikeRoleConnection implements LiveLikeConnection {
+  edges: [LiveLikeRoleEdge!]
+  page: LiveLikePage!
+}
+
+type LiveLikeResource implements LiveLikeNode  {
+  id: UUID!
+  kind: LiveLikeResourceKindEnum!
+  name: NonEmptyString!
+  description: NonEmptyString!
+  createdAt: DateTimeISO!
+}
+
+type LiveLikeScope implements LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  resourceKey: NonEmptyString!
+  resource: LiveLikeResource!
+  createdAt: DateTimeISO!
+}
+
+type LiveLikeRoleAssignment implements LiveLikeNode  {
+  id: UUID!
+  profile: LiveLikeProfile
+  role: LiveLikeRole
+  scope: LiveLikeScope
+  createdAt: DateTimeISO!
+}
+
+type LiveLikeRoleAssignmentEdge implements LiveLikeEdge {
+  node: LiveLikeRoleAssignment!
+  cursor: String
+}
+
+type LiveLikeRoleAssignmentConnection implements LiveLikeConnection {
+  edges: [LiveLikeRoleAssignmentEdge!]
+  page: LiveLikePage!
+}
+
+input LiveLikeRolesGetInput {
+  clientId: NonEmptyString!
+  page: PositiveInt
+}
+
+input LiveLikeRoleCreateInput {
+  key: NonEmptyString!
+  name: NonEmptyString!
+  roleTemplateKey: NonEmptyString
+  permissionIds: [UUID!]
+  permissionKeys: [NonEmptyString!]
+}
+
+input LiveLikeRoleAssignmentsGetInput {
+  profileId: NonEmptyString
+  profileCustomId: NonEmptyString
+  page: PositiveInt
+}
+
+input LiveLikeRoleAssignmentCreateInput {
+  profileId: UUID!
+  roleKey: NonEmptyString!
+  resourceKey: NonEmptyString!
+  resourceKind: LiveLikeResourceKindEnum!
+}
+
+type LiveLikeApplication  {
+  clientId: NonEmptyString!
+  name: String!
+  organizationId: UUID!
+  organizationName: NonEmptyString!
+  imageUrl: URL!
+  mediaUrl: URL!
+  apiPollingInterval: PositiveInt!
+  pubnubOrigin: NonEmptyString
+  pubnubSubscribeKey: NonEmptyString
+  pubnubPublishKey: NonEmptyString
+  pubnubHeartbeatInterval: NonNegativeInt
+  pubnubPresenceTimeout: NonNegativeInt
+}
+
+enum LiveLikeProgramStatusEnum {
+  FUTURE
+  LIVE
+  PAST
+}
+
+type LiveLikeProgram implements LiveLikeNode   {
+  id: UUID!
+  clientId: NonEmptyString!
+  title: NonEmptyString!
+  widgetsEnabled: Boolean!
+  status: LiveLikeProgramStatusEnum!
+  customId: NonEmptyString
+  sponsorIds: [UUID!]
+  scheduledAt: DateTimeISO!
+  startedAt: DateTimeISO
+  stoppedAt: DateTimeISO
+  createdAt: NonEmptyString!
+  widgets(input: LiveLikeWidgetGetInput, order: LiveLikeWidgetOrderInput): LiveLikeWidgetCollection
+}
+
+type LiveLikeProgramSchedule implements LiveLikeNode {
+  id: UUID!
+  status: LiveLikeProgramStatusEnum!
+  startedAt: DateTimeISO
+  stoppedAt: DateTimeISO
+}
+
+type LiveLikeProgramEdge implements LiveLikeEdge {
+  node: LiveLikeProgram!
+  cursor: String
+}
+
+type LiveLikeProgramConnection implements LiveLikeConnection {
+  edges: [LiveLikeProgramEdge]
+  page: LiveLikePage!
+}
+
+input LiveLikeProgramLocalizedInput {
+  language: Locale!
+  title: NonEmptyString!
+}
+
+input LiveLikeProgramGetByCustomIdInput {
+  clientId: NonEmptyString!
+  customId: NonEmptyString!
+}
+
+input LiveLikeProgramsGetInput {
+  clientId: NonEmptyString!
+  page: PositiveInt
+}
+
+input LiveLikeProgramCreateInput {
+  clientId: NonEmptyString!
+  customId: NonEmptyString
+  title: NonEmptyString!
+  scheduledAt: DateTimeISO!
+  sponsorIds: [UUID!]
+  localizedData: [LiveLikeProgramLocalizedInput!]
+}
+
+input LiveLikeProgramUpdateInput {
+  id: UUID!
+  customId: NonEmptyString
+  title: NonEmptyString
+  scheduledAt: DateTimeISO
+  sponsorIds: [UUID!]
+  localizedData: [LiveLikeProgramLocalizedInput!]
+}
+
+input LiveLikeProgramUpdateByCustomIdInput {
+  clientId: NonEmptyString!
+  customId: NonEmptyString!
+  title: NonEmptyString
+  scheduledAt: DateTimeISO
+  sponsorIds: [UUID!]
+  localizedData: [LiveLikeProgramLocalizedInput!]
+}
+
+input LiveLikeProgramDeleteByCustomIdInput {
+  clientId: NonEmptyString!
+  customId: NonEmptyString!
+}
+
+enum LiveLikeWidgetStatusEnum {
+  PENDING
+  SCHEDULED
+  PUBLISHED
+  INFLIGHT
+}
+
+enum LiveLikeWidgetKindEnum {
+  SOCIAL_EMBED
+  ALERT
+  VIDEO_ALERT
+  TEXT_PREDICTION
+  IMAGE_PREDICTION
+  TEXT_PREDICTION_FOLLOW_UP
+  IMAGE_PREDICTION_FOLLOW_UP
+  TEXT_QUIZ
+  IMAGE_QUIZ
+  TEXT_POLL
+  IMAGE_POLL
+  RICH_POST
+}
+
+enum LiveLikeWidgetOrderField {
+  RECENT
+  CREATED_AT
+  SCHEDULED_AT
+  PUBLISHED_AT
+}
+
+enum LiveLikeWidgetReportStatusEnum {
+  PENDING
+  ACCEPTED
+  DISMISSED
+}
+
+enum LiveLikeWidgetInteractionEnum {
+  TEXT_PREDICTION
+  IMAGE_PREDICTION
+  TEXT_QUIZ
+  IMAGE_QUIZ
+  TEXT_POLL
+  IMAGE_POLL
+}
+
+union LiveLikeWidget = LiveLikeTextPoll | LiveLikeImagePoll | LiveLikeRichPost | LiveLikeTextQuiz | LiveLikeImageQuiz | LiveLikeTextPrediction | LiveLikeImagePrediction | LiveLikeTextPredictionFollowUp | LiveLikeImagePredictionFollowUp | LiveLikeAlert | LiveLikeVideoAlert | LiveLikeSocialEmbed
+
+union LiveLikeWidgetInteractionUnion = LiveLikeTextPollVote | LiveLikeImagePollVote | LiveLikeTextQuizAnswer | LiveLikeImageQuizAnswer | LiveLikeTextPredictionVote | LiveLikeImagePredictionVote
+
+interface LiveLikeWidgetBase implements LiveLikeNode {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  kind: LiveLikeWidgetKindEnum!
+  status: LiveLikeWidgetStatusEnum!
+  customData: String
+  createdBy: LiveLikeWidgetCreator!
+  uniqueImpressionCount: NonNegativeInt
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  widgetAttributes: [LiveLikeKeyValuePair!]
+  sponsorIds: [UUID!]
+  reportCount: LiveLikeWidgetReportCount
+  createdAt: DateTimeISO!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+  timeout: Duration!
+  pubnubEnabled: Boolean!
+  publishDelay: Duration!
+  programDateTime: DateTimeISO
+}
+
+type LiveLikeWidgetCreator  {
+  id: UUID!
+  name: NonEmptyString!
+  customId: NonEmptyString
+}
+
+type LiveLikeWidgetOrder {
+  field: LiveLikeWidgetOrderField
+  order: LiveLikeOrderEnum
+}
+
+type LiveLikeWidgetEdge {
+  node: LiveLikeWidget!
+  cursor: String
+}
+
+type LiveLikeWidgetCollection {
+  edges: [LiveLikeWidgetEdge]
+  page: LiveLikePage!
+  order: LiveLikeWidgetOrder
+}
+
+type LiveLikeWidgetPublish {
+  status: LiveLikeWidgetStatusEnum!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+  publishDelay: String
+  programDateTime: DateTimeISO
+}
+
+type LiveLikeWidgetReport implements LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  widgetKind: LiveLikeWidgetKindEnum!
+  widgetId: UUID!
+  createdAt: DateTimeISO!
+  comment: String
+  moderatedAt: DateTimeISO
+  moderatedBy: UUID
+  moderatorComment: String
+  status: LiveLikeWidgetReportStatusEnum!
+}
+
+type LiveLikeWidgetReportCount {
+  total: NonNegativeInt!
+  pending: NonNegativeInt!
+  accepted: NonNegativeInt!
+  dismissed: NonNegativeInt!
+}
+
+type LiveLikeWidgetReportEdge implements LiveLikeEdge {
+  node: LiveLikeWidgetReport!
+  cursor: String
+}
+
+type LiveLikeWidgetReportCollection implements LiveLikeConnection {
+  edges: [LiveLikeWidgetReportEdge]
+  page: LiveLikePage!
+}
+
+interface LiveLikeWidgetInteractionBase {
+  id: UUID!
+  profileId: UUID!
+  widgetId: UUID!
+  widgetKind: LiveLikeWidgetInteractionEnum!
+  createdAt: String!
+  rewards: [LiveLikeReward!]
+  leaderboardRewards: [LiveLikeLeaderboardReward!]
+}
+
+type LiveLikeWidgetInteraction  {
+  id: UUID!
+  widgetId: UUID!
+  optionId: UUID!
+  profileId: UUID!
+  createdAt: String!
+  widgetKind: LiveLikeWidgetInteractionEnum!
+  widget: LiveLikeWidget
+  rewards: [LiveLikeReward!]
+  leaderboardRewards: [LiveLikeLeaderboardReward!]
+}
+
+type LiveLikeWidgetInteractions {
+  kind: LiveLikeWidgetInteractionEnum!
+  interactions: [LiveLikeWidgetInteractionUnion!]
+}
+
+input LiveLikeWidgetOrderInput {
+  field: LiveLikeWidgetOrderField!
+  order: LiveLikeOrderEnum
+}
+
+interface LiveLikeWidgetInteractionBaseCreateInput {
+  widgetId: UUID!
+}
+
+input LiveLikeWidgetInteractionCreateInput {
+  kind: LiveLikeWidgetInteractionEnum!
+  widgetId: UUID!
+  optionId: UUID!
+}
+
+input LiveLikeWidgetInteractionUpdateInput {
+  id: UUID!
+  kind: LiveLikeWidgetInteractionEnum!
+  widgetId: UUID!
+  optionId: UUID!
+}
+
+input LiveLikeWidgetGetInput {
+  page: PositiveInt
+  status: LiveLikeWidgetStatusEnum
+  kinds: [LiveLikeWidgetKindEnum!]
+  since: NonEmptyString
+  until: NonEmptyString
+}
+
+input LiveLikeWidgetPublishInput {
+  widgetId: UUID!
+  publishDelay: String
+  programDateTime: DateTimeISO
+}
+
+input LiveLikeWidgetReportInput {
+  widgetKind: LiveLikeWidgetKindEnum!
+  widgetId: UUID!
+  comment: NonEmptyString
+}
+
+input LiveLikeWidgetInteractionsInput {
+  kind: LiveLikeWidgetInteractionEnum!
+  ids: [UUID!]!
+}
+
+input LiveLikeWidgetReportsInput {
+  clientId: NonEmptyString
+  programId: UUID
+  widgetKind: LiveLikeWidgetKindEnum
+  widgetId: UUID
+  createdById: UUID
+  createdSince: DateTimeISO
+  createdUntil: DateTimeISO
+  moderatedById: UUID
+  moderatedSince: DateTimeISO
+  moderatedUntil: DateTimeISO
+  status: LiveLikeWidgetReportStatusEnum
+  page: PositiveInt
+}
+
+input LiveLikeWidgetDeleteInput {
+  id: UUID!
+  kind: LiveLikeWidgetKindEnum!
+}
+
+enum LiveLikePollInteractionEnum {
+  TEXT_POLL
+  IMAGE_POLL
+}
+
+type LiveLikeTextPoll implements LiveLikeWidgetBase & LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  kind: LiveLikeWidgetKindEnum!
+  createdBy: LiveLikeWidgetCreator!
+  userVote: LiveLikeWidgetInteraction 
+  createdAt: DateTimeISO!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+  customData: String
+  filteredQuestion: String
+  contentFilter: [String!]
+  status: LiveLikeWidgetStatusEnum!
+  pubnubEnabled: Boolean!
+  uniqueImpressionCount: NonNegativeInt
+  timeout: Duration!
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  widgetAttributes: [LiveLikeKeyValuePair!]
+  question: NonEmptyString!
+  options: [LiveLikeTextPollOption!]!
+  sponsorIds: [UUID!]
+  publishDelay: Duration!
+  programDateTime: DateTimeISO
+  reportCount: LiveLikeWidgetReportCount
+}
+
+type LiveLikeTextPollOption implements LiveLikeNode  {
+  id: UUID!
+  translatableFields: [String!]
+  voteCount: Int
+  description: String!
+  filteredDescription: String
+  contentFilter: [String!]
+}
+
+type LiveLikeTextPollVote implements LiveLikeWidgetInteractionBase {
+  id: UUID!
+  profileId: UUID!
+  widgetId: UUID!
+  widgetKind: LiveLikeWidgetInteractionEnum!
+  widget: LiveLikeTextPoll!
+  createdAt: String!
+  rewards: [LiveLikeReward!]
+  leaderboardRewards: [LiveLikeLeaderboardReward!]
+  optionId: UUID!
+}
+
+input LiveLikeTextPollOptionLocalizedInput {
+  language: Locale!
+  description: NonEmptyString!
+}
+
+input LiveLikeTextPollLocalizedInput {
+  language: Locale!
+  question: NonEmptyString!
+}
+
+input LiveLikeTextPollCreateOptionInput {
+  description: NonEmptyString!
+  localizedData: [LiveLikeTextPollOptionLocalizedInput!]
+}
+
+input LiveLikeTextPollCreateInput {
+  programId: UUID!
+  customData: String
+  question: NonEmptyString!
+  options: [LiveLikeTextPollCreateOptionInput!]!
+  timeout: Duration
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  widgetAttributes: [LiveLikeKeyValuePairInput!]
+  sponsorIds: [UUID!]
+  localizedData: [LiveLikeTextPollLocalizedInput!]
+}
+
+input LiveLikeTextPollVoteCreateInput {
+  widgetId: UUID!
+  optionId: UUID!
+}
+
+input LiveLikeTextPollVoteUpdateInput {
+  id: UUID!
+  widgetId: UUID!
+  optionId: UUID!
+}
+
+type LiveLikeImagePoll implements LiveLikeWidgetBase & LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  kind: LiveLikeWidgetKindEnum!
+  customData: String
+  filteredQuestion: String
+  contentFilter: [String!]
+  createdBy: LiveLikeWidgetCreator!
+  userVote: LiveLikeWidgetInteraction 
+  createdAt: DateTimeISO!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+  status: LiveLikeWidgetStatusEnum!
+  pubnubEnabled: Boolean!
+  uniqueImpressionCount: NonNegativeInt
+  timeout: Duration!
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  widgetAttributes: [LiveLikeKeyValuePair!]
+  question: NonEmptyString!
+  options: [LiveLikeImagePollOption!]!
+  sponsorIds: [UUID!]
+  publishDelay: Duration!
+  programDateTime: DateTimeISO
+  reportCount: LiveLikeWidgetReportCount
+}
+
+type LiveLikeImagePollOption implements LiveLikeNode  {
+  id: UUID!
+  translatableFields: [String!]
+  voteCount: Int
+  imageUrl: URL!
+  description: String!
+  filteredDescription: String
+  contentFilter: [String!]
+}
+
+type LiveLikeImagePollVote implements LiveLikeWidgetInteractionBase {
+  id: UUID!
+  profileId: UUID!
+  widgetId: UUID!
+  widgetKind: LiveLikeWidgetInteractionEnum!
+  widget: LiveLikeImagePoll!
+  createdAt: String!
+  rewards: [LiveLikeReward!]
+  leaderboardRewards: [LiveLikeLeaderboardReward!]
+  optionId: UUID!
+}
+
+input LiveLikeImagePollOptionLocalizedInput {
+  language: Locale!
+  description: NonEmptyString!
+}
+
+input LiveLikeImagePollLocalizedInput {
+  language: Locale!
+  question: NonEmptyString!
+}
+
+input LiveLikeImagePollCreateOptionInput {
+  description: NonEmptyString!
+  imageURL: URL!
+  localizedData: [LiveLikeImagePollOptionLocalizedInput!]
+}
+
+input LiveLikeImagePollCreateInput {
+  programId: UUID!
+  customData: String
+  question: NonEmptyString!
+  options: [LiveLikeImagePollCreateOptionInput!]!
+  timeout: Duration
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  widgetAttributes: [LiveLikeKeyValuePairInput!]
+  sponsorIds: [UUID!]
+  localizedData: [LiveLikeImagePollLocalizedInput!]
+}
+
+input LiveLikeImagePollVoteCreateInput {
+  widgetId: UUID!
+  optionId: UUID!
+}
+
+input LiveLikeImagePollVoteUpdateInput {
+  id: UUID!
+  widgetId: UUID!
+  optionId: UUID!
+}
+
+input LiveLikePollVoteCreateInput {
+  kind: LiveLikePollInteractionEnum!
+  widgetId: UUID!
+  optionId: UUID!
+}
+
+input LiveLikePollVoteUpdateInput {
+  id: UUID!
+  kind: LiveLikePollInteractionEnum!
+  widgetId: UUID!
+  optionId: UUID!
+}
+
+type LiveLikeRichPost implements LiveLikeWidgetBase & LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  kind: LiveLikeWidgetKindEnum!
+  title: String
+  content: String
+  customData: String
+  createdBy: LiveLikeWidgetCreator!
+  status: LiveLikeWidgetStatusEnum!
+  timeout: Duration!
+  pubnubEnabled: Boolean!
+  uniqueImpressionCount: NonNegativeInt
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  widgetAttributes: [LiveLikeKeyValuePair!]
+  filteredTitle: String
+  filteredContent: String
+  contentFilter: [String!]
+  sponsorIds: [UUID!]
+  publishDelay: Duration!
+  programDateTime: DateTimeISO
+  reportCount: LiveLikeWidgetReportCount
+  createdAt: DateTimeISO!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+}
+
+input LiveLikeRichPostLocalizedInput {
+  language: Locale!
+  title: NonEmptyString
+  content: NonEmptyString!
+}
+
+input LiveLikeRichPostCreateInput {
+  programId: UUID!
+  title: NonEmptyString
+  content: NonEmptyString!
+  customData: String
+  timeout: Duration
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  widgetAttributes: [LiveLikeKeyValuePairInput!]
+  sponsorIds: [UUID!]
+  localizedData: [LiveLikeRichPostLocalizedInput!]
+}
+
+type LiveLikeTextQuizChoice implements LiveLikeNode  {
+  id: UUID!
+  description: String!
+  isCorrect: Boolean!
+  answerCount: NonNegativeInt!
+  translatableFields: [String!]
+}
+
+type LiveLikeImageQuizChoice implements LiveLikeNode  {
+  id: UUID!
+  description: String!
+  isCorrect: Boolean!
+  imageUrl: URL!
+  answerCount: NonNegativeInt!
+  translatableFields: [String!]
+}
+
+type LiveLikeTextQuiz implements LiveLikeWidgetBase & LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  question: NonEmptyString!
+  choices: [LiveLikeTextQuizChoice!]!
+  customData: String
+  kind: LiveLikeWidgetKindEnum!
+  status: LiveLikeWidgetStatusEnum!
+  pubnubEnabled: Boolean!
+  uniqueImpressionCount: NonNegativeInt
+  sponsorIds: [UUID!]
+  reportCount: LiveLikeWidgetReportCount
+  widgetAttributes: [LiveLikeKeyValuePair!]
+  createdBy: LiveLikeWidgetCreator!
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  timeout: Duration!
+  publishDelay: Duration!
+  programDateTime: DateTimeISO
+  createdAt: DateTimeISO!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+}
+
+type LiveLikeTextQuizAnswer implements LiveLikeWidgetInteractionBase  {
+  id: UUID!
+  profileId: UUID!
+  widgetId: UUID!
+  widgetKind: LiveLikeWidgetInteractionEnum!
+  widget: LiveLikeTextQuiz!
+  createdAt: String!
+  rewards: [LiveLikeReward!]
+  leaderboardRewards: [LiveLikeLeaderboardReward!]
+  choiceId: UUID!
+}
+
+type LiveLikeImageQuiz implements LiveLikeWidgetBase & LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  question: NonEmptyString!
+  choices: [LiveLikeImageQuizChoice!]!
+  customData: String
+  kind: LiveLikeWidgetKindEnum!
+  status: LiveLikeWidgetStatusEnum!
+  pubnubEnabled: Boolean!
+  uniqueImpressionCount: NonNegativeInt
+  sponsorIds: [UUID!]
+  reportCount: LiveLikeWidgetReportCount
+  widgetAttributes: [LiveLikeKeyValuePair!]
+  createdBy: LiveLikeWidgetCreator!
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  timeout: Duration!
+  publishDelay: Duration!
+  programDateTime: DateTimeISO
+  createdAt: DateTimeISO!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+}
+
+type LiveLikeImageQuizAnswer implements LiveLikeWidgetInteractionBase  {
+  id: UUID!
+  profileId: UUID!
+  widgetId: UUID!
+  widgetKind: LiveLikeWidgetInteractionEnum!
+  widget: LiveLikeImageQuiz!
+  createdAt: String!
+  rewards: [LiveLikeReward!]
+  leaderboardRewards: [LiveLikeLeaderboardReward!]
+  choiceId: UUID!
+}
+
+input LiveLikeTextQuizChoiceLocalizedInput {
+  language: Locale!
+  description: NonEmptyString!
+}
+
+input LiveLikeTextQuizCreateChoiceInput {
+  description: NonEmptyString!
+  isCorrect: Boolean!
+  localizedData: [LiveLikeTextQuizChoiceLocalizedInput!]
+}
+
+input LiveLikeTextQuizAnswerCreateInput {
+  widgetId: UUID!
+  choiceId: UUID!
+}
+
+input LiveLikeTextQuizAnswerUpdateInput {
+  id: UUID!
+  widgetId: UUID!
+  choiceId: UUID!
+}
+
+input LiveLikeImageQuizChoiceLocalizedInput {
+  language: Locale!
+  description: NonEmptyString!
+}
+
+input LiveLikeImageQuizCreateChoiceInput {
+  description: NonEmptyString!
+  isCorrect: Boolean!
+  imageUrl: URL!
+  localizedData: [LiveLikeImageQuizChoiceLocalizedInput!]
+}
+
+input LiveLikeTextQuizLocalizedInput {
+  language: Locale!
+  question: NonEmptyString!
+}
+
+input LiveLikeTextQuizCreateInput {
+  programId: UUID!
+  customData: NonEmptyString
+  question: NonEmptyString!
+  choices: [LiveLikeTextQuizCreateChoiceInput!]!
+  timeout: Duration
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  widgetAttributes: [LiveLikeKeyValuePairInput!]
+  sponsorIds: [UUID!]
+  localizedData: [LiveLikeTextQuizLocalizedInput!]
+}
+
+input LiveLikeImageQuizLocalizedInput {
+  language: Locale!
+  question: NonEmptyString!
+}
+
+input LiveLikeImageQuizCreateInput {
+  programId: UUID!
+  customData: NonEmptyString
+  question: NonEmptyString!
+  choices: [LiveLikeImageQuizCreateChoiceInput!]!
+  timeout: Duration
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  widgetAttributes: [LiveLikeKeyValuePairInput!]
+  sponsorIds: [UUID!]
+  localizedData: [LiveLikeImageQuizLocalizedInput!]
+}
+
+input LiveLikeImageQuizAnswerCreateInput {
+  widgetId: UUID!
+  choiceId: UUID!
+}
+
+input LiveLikeImageQuizAnswerUpdateInput {
+  id: UUID!
+  widgetId: UUID!
+  choiceId: UUID!
+}
+
+type LiveLikeTextPredictionOption implements LiveLikeNode  {
+  id: UUID!
+  description: String!
+  isCorrect: Boolean!
+  rewardItemId: UUID
+  voteCount: NonNegativeInt!
+  rewardItemAmount: NonNegativeInt
+  earnableRewards: [LiveLikeReward!]
+  translatableFields: [String!]
+}
+
+type LiveLikeImagePredictionOption implements LiveLikeNode  {
+  id: UUID!
+  description: String!
+  isCorrect: Boolean!
+  imageUrl: URL!
+  rewardItemId: UUID
+  voteCount: NonNegativeInt!
+  rewardItemAmount: NonNegativeInt
+  earnableRewards: [LiveLikeReward!]
+  translatableFields: [String!]
+}
+
+type LiveLikeTextPredictionFollowUp implements LiveLikeWidgetBase & LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  textPredictionId: UUID!
+  correctOptionId: UUID
+  question: NonEmptyString!
+  options: [LiveLikeTextPredictionOption!]!
+  customData: String
+  kind: LiveLikeWidgetKindEnum!
+  status: LiveLikeWidgetStatusEnum!
+  pubnubEnabled: Boolean!
+  uniqueImpressionCount: NonNegativeInt
+  sponsorIds: [UUID!]
+  reportCount: LiveLikeWidgetReportCount
+  widgetAttributes: [LiveLikeKeyValuePair!]
+  createdBy: LiveLikeWidgetCreator!
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  timeout: Duration!
+  publishDelay: Duration!
+  programDateTime: DateTimeISO
+  createdAt: DateTimeISO!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+}
+
+type LiveLikeTextPrediction implements LiveLikeWidgetBase & LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  question: NonEmptyString!
+  options: [LiveLikeTextPredictionOption!]!
+  followUps: [LiveLikeTextPredictionFollowUp!]!
+  customData: String
+  confirmationMessage: String
+  kind: LiveLikeWidgetKindEnum!
+  status: LiveLikeWidgetStatusEnum!
+  pubnubEnabled: Boolean!
+  uniqueImpressionCount: NonNegativeInt
+  sponsorIds: [UUID!]
+  reportCount: LiveLikeWidgetReportCount
+  widgetAttributes: [LiveLikeKeyValuePair!]
+  createdBy: LiveLikeWidgetCreator!
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  timeout: Duration!
+  publishDelay: Duration!
+  programDateTime: DateTimeISO
+  createdAt: DateTimeISO!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+}
+
+type LiveLikeImagePredictionFollowUp implements LiveLikeWidgetBase & LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  imagePredictionId: UUID!
+  correctOptionId: UUID
+  question: NonEmptyString!
+  options: [LiveLikeImagePredictionOption!]!
+  customData: String
+  kind: LiveLikeWidgetKindEnum!
+  status: LiveLikeWidgetStatusEnum!
+  pubnubEnabled: Boolean!
+  uniqueImpressionCount: NonNegativeInt
+  sponsorIds: [UUID!]
+  reportCount: LiveLikeWidgetReportCount
+  widgetAttributes: [LiveLikeKeyValuePair!]
+  createdBy: LiveLikeWidgetCreator!
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  timeout: Duration!
+  publishDelay: Duration!
+  programDateTime: DateTimeISO
+  createdAt: DateTimeISO!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+}
+
+type LiveLikeImagePrediction implements LiveLikeWidgetBase & LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  question: NonEmptyString!
+  options: [LiveLikeImagePredictionOption!]!
+  followUps: [LiveLikeImagePredictionFollowUp!]!
+  customData: String
+  confirmationMessage: String
+  kind: LiveLikeWidgetKindEnum!
+  status: LiveLikeWidgetStatusEnum!
+  pubnubEnabled: Boolean!
+  uniqueImpressionCount: NonNegativeInt
+  sponsorIds: [UUID!]
+  reportCount: LiveLikeWidgetReportCount
+  widgetAttributes: [LiveLikeKeyValuePair!]
+  createdBy: LiveLikeWidgetCreator!
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  timeout: Duration!
+  publishDelay: Duration!
+  programDateTime: DateTimeISO
+  createdAt: DateTimeISO!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+}
+
+type LiveLikeTextPredictionVote implements LiveLikeWidgetInteractionBase  {
+  id: UUID!
+  profileId: UUID!
+  widgetId: UUID!
+  widgetKind: LiveLikeWidgetInteractionEnum!
+  widget: LiveLikeTextPrediction!
+  createdAt: String!
+  optionId: UUID!
+  claimToken: JWT!
+  rewards: [LiveLikeReward!]
+  leaderboardRewards: [LiveLikeLeaderboardReward!]
+}
+
+type LiveLikeImagePredictionVote implements LiveLikeWidgetInteractionBase  {
+  id: UUID!
+  profileId: UUID!
+  widgetId: UUID!
+  widgetKind: LiveLikeWidgetInteractionEnum!
+  widget: LiveLikeImagePrediction!
+  createdAt: String!
+  rewards: [LiveLikeReward!]
+  optionId: UUID!
+  claimToken: JWT!
+  leaderboardRewards: [LiveLikeLeaderboardReward!]
+}
+
+input LiveLikeTextPredictionOptionLocalizedInput {
+  language: Locale!
+  description: NonEmptyString!
+}
+
+input LiveLikeTextPredictionCreateOptionInput {
+  description: NonEmptyString!
+  isCorrect: Boolean
+  rewardItemId: UUID
+  rewardItemAmount: NonNegativeInt
+  localizedData: [LiveLikeTextPredictionOptionLocalizedInput!]
+}
+
+input LiveLikeImagePredictionOptionLocalizedInput {
+  language: Locale!
+  description: NonEmptyString!
+}
+
+input LiveLikeImagePredictionCreateOptionInput {
+  description: NonEmptyString!
+  isCorrect: Boolean
+  imageUrl: URL!
+  rewardItemId: UUID
+  rewardItemAmount: NonNegativeInt
+  localizedData: [LiveLikeImagePredictionOptionLocalizedInput!]
+}
+
+input LiveLikeTextPredictionLocalizedInput {
+  language: Locale!
+  question: NonEmptyString!
+}
+
+input LiveLikeTextPredictionCreateInput {
+  programId: UUID!
+  customData: NonEmptyString
+  question: NonEmptyString!
+  options: [LiveLikeTextPredictionCreateOptionInput!]!
+  confirmationMessage: String
+  timeout: Duration
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  widgetAttributes: [LiveLikeKeyValuePairInput!]
+  sponsorIds: [UUID!]
+  localizedData: [LiveLikeTextPredictionLocalizedInput!]
+}
+
+input LiveLikeTextPredictionFollowUpCreateInput {
+  textPredictionId: UUID!
+  correctOptionId: NonEmptyString
+  sponsorIds: [UUID!]
+}
+
+input LiveLikeImagePredictionLocalizedInput {
+  language: Locale!
+  question: NonEmptyString!
+}
+
+input LiveLikeImagePredictionCreateInput {
+  programId: UUID!
+  customData: NonEmptyString
+  question: NonEmptyString!
+  options: [LiveLikeImagePredictionCreateOptionInput!]!
+  confirmationMessage: String
+  timeout: Duration
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  widgetAttributes: [LiveLikeKeyValuePairInput!]
+  sponsorIds: [UUID!]
+  localizedData: [LiveLikeImagePredictionLocalizedInput!]
+}
+
+input LiveLikeImagePredictionFollowUpCreateInput {
+  imagePredictionId: UUID!
+  correctOptionId: NonEmptyString
+  sponsorIds: [UUID!]
+}
+
+input LiveLikeTextPredictionVoteCreateInput {
+  widgetId: UUID!
+  optionId: UUID!
+}
+
+input LiveLikeTextPredictionVoteUpdateInput {
+  id: UUID!
+  widgetId: UUID!
+  optionId: UUID!
+}
+
+input LiveLikeImagePredictionVoteCreateInput {
+  widgetId: UUID!
+  optionId: UUID!
+}
+
+input LiveLikeImagePredictionVoteUpdateInput {
+  id: UUID!
+  widgetId: UUID!
+  optionId: UUID!
+}
+
+type LiveLikeAlert implements LiveLikeWidgetBase & LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  createdBy: LiveLikeWidgetCreator!
+  kind: LiveLikeWidgetKindEnum!
+  status: LiveLikeWidgetStatusEnum!
+  pubnubEnabled: Boolean!
+  customData: String
+  widgetAttributes: [LiveLikeKeyValuePair!]
+  sponsorIds: [UUID!]
+  uniqueImpressionCount: NonNegativeInt
+  reportCount: LiveLikeWidgetReportCount
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  timeout: Duration!
+  publishDelay: Duration!
+  programDateTime: DateTimeISO
+  createdAt: DateTimeISO!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+  title: NonEmptyString
+  text: NonEmptyString
+  imageUrl: URL
+  linkUrl: URL
+  linkLabel: NonEmptyString
+}
+
+type LiveLikeVideoAlert implements LiveLikeWidgetBase & LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  createdBy: LiveLikeWidgetCreator!
+  kind: LiveLikeWidgetKindEnum!
+  status: LiveLikeWidgetStatusEnum!
+  pubnubEnabled: Boolean!
+  customData: String
+  widgetAttributes: [LiveLikeKeyValuePair!]
+  sponsorIds: [UUID!]
+  uniqueImpressionCount: NonNegativeInt
+  reportCount: LiveLikeWidgetReportCount
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  timeout: Duration!
+  publishDelay: Duration!
+  programDateTime: DateTimeISO
+  createdAt: DateTimeISO!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+  title: NonEmptyString
+  text: NonEmptyString
+  videoUrl: URL!
+  linkUrl: URL
+  linkLabel: NonEmptyString
+}
+
+input LiveLikeAlertLocalizedInput {
+  language: Locale!
+  title: NonEmptyString
+  text: NonEmptyString
+  linkLabel: NonEmptyString
+}
+
+input LiveLikeVideoAlertLocalizedInput {
+  language: Locale!
+  title: NonEmptyString
+  text: NonEmptyString
+  linkLabel: NonEmptyString
+}
+
+input LiveLikeAlertCreateInput {
+  programId: UUID!
+  customData: String
+  widgetAttributes: [LiveLikeKeyValuePairInput!]
+  sponsorIds: [UUID!]
+  timeout: Duration
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  title: NonEmptyString
+  text: NonEmptyString
+  imageUrl: URL
+  linkUrl: URL
+  linkLabel: NonEmptyString
+  localizedData: [LiveLikeAlertLocalizedInput!]
+}
+
+input LiveLikeVideoAlertCreateInput {
+  programId: UUID!
+  customData: String
+  widgetAttributes: [LiveLikeKeyValuePairInput!]
+  sponsorIds: [UUID!]
+  timeout: Duration
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  title: NonEmptyString
+  text: NonEmptyString
+  videoUrl: URL!
+  linkUrl: URL
+  linkLabel: NonEmptyString
+  localizedData: [LiveLikeVideoAlertLocalizedInput!]
+}
+
+type LiveLikeSocialEmbedItem implements LiveLikeNode  {
+  id: UUID!
+  oEmbedUrl: URL
+  oEmbedMeta: JSONObject
+}
+
+type LiveLikeSocialEmbed implements LiveLikeWidgetBase & LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  createdBy: LiveLikeWidgetCreator!
+  kind: LiveLikeWidgetKindEnum!
+  status: LiveLikeWidgetStatusEnum!
+  pubnubEnabled: Boolean!
+  customData: String
+  widgetAttributes: [LiveLikeKeyValuePair!]
+  sponsorIds: [UUID!]
+  uniqueImpressionCount: NonNegativeInt
+  reportCount: LiveLikeWidgetReportCount
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  timeout: Duration!
+  publishDelay: Duration!
+  programDateTime: DateTimeISO
+  createdAt: DateTimeISO!
+  scheduledAt: DateTimeISO
+  publishedAt: DateTimeISO
+  comment: NonEmptyString
+  oEmbedItem: LiveLikeSocialEmbedItem
+}
+
+input LiveLikeSocialEmbedLocalizedInput {
+  language: Locale!
+  comment: NonEmptyString!
+}
+
+input LiveLikeSocialEmbedCreateInput {
+  programId: UUID!
+  customData: String
+  widgetAttributes: [LiveLikeKeyValuePairInput!]
+  sponsorIds: [UUID!]
+  timeout: Duration
+  interactiveUntil: DateTimeISO
+  playbackTimeMs: NonNegativeInt
+  comment: NonEmptyString
+  oEmbedUrl: URL!
+  localizedData: [LiveLikeSocialEmbedLocalizedInput!]
+}
+
+type LiveLikeEmoji implements LiveLikeNode  {
+  id: UUID!
+  name: NonEmptyString!
+  file: URL!
+  mimeType: NonEmptyString!
+}
+
+type LiveLikeEmojiCount implements LiveLikeNode {
+  id: UUID!
+  reactionsCount: NonNegativeInt!
+}
+
+type LiveLikeReaction implements LiveLikeNode  {
+  id: UUID!
+  count: NonNegativeInt!
+  userReactionId: UUID!
+}
+
+type LiveLikeReactions {
+  reactions: [LiveLikeReaction!]
+  targetId: NonEmptyString!
+}
+
+type LiveLikeReactionPack implements LiveLikeNode  {
+  id: UUID!
+  name: NonEmptyString!
+  emojis: [LiveLikeEmoji]
+}
+
+type LiveLikeReactionPackEdge implements LiveLikeEdge {
+  node: LiveLikeReactionPack!
+  cursor: String
+}
+
+type LiveLikeReactionPackCollection implements LiveLikeConnection {
+  edges: [LiveLikeReactionPackEdge]
+  page: LiveLikePage!
+}
+
+input LiveLikeReactionPacksGetInput {
+  clientId: NonEmptyString!
+  page: PositiveInt
+}
+
+type LiveLikeReactionSpace implements LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  targetGroupId: NonEmptyString!
+  name: NonEmptyString
+  reactionPackIds: [UUID!]
+  reactionSpaceChannel: NonEmptyString
+  createdBy: UUID!
+}
+
+type LiveLikeReactionSpacePatch {
+  name: NonEmptyString
+  reactionPackIds: [UUID!]!
+}
+
+type LiveLikeReactionSpaceEdge implements LiveLikeEdge {
+  node: LiveLikeReactionSpace!
+  cursor: String
+}
+
+type LiveLikeReactionSpaceCollection implements LiveLikeConnection {
+  edges: [LiveLikeReactionSpaceEdge]
+  page: LiveLikePage!
+}
+
+type LiveLikeReactionSpaceCount {
+  reactionSpaceId: UUID!
+  targetGroupId: NonEmptyString!
+  reactionsCount: NonNegativeInt!
+  emojiCounts: [LiveLikeEmojiCount!]
+}
+
+input LiveLikeReactionSpaceGetInput {
+  clientId: NonEmptyString!
+  reactionSpaceId: UUID
+  targetGroupId: NonEmptyString
+  page: PositiveInt
+}
+
+input LiveLikeReactionSpaceCreateInput {
+  clientId: NonEmptyString!
+  targetGroupId: NonEmptyString!
+  name: NonEmptyString
+  reactionPackIds: [UUID!]
+}
+
+input LiveLikeReactionSpaceUpdateInput {
+  id: UUID!
+  name: NonEmptyString
+  reactionPackIds: [UUID!]!
+}
+
+input LiveLikeReactionSpaceDeleteInput {
+  id: UUID!
+  clientId: NonEmptyString!
+}
+
+input LiveLikeReactionSpacesCountInput {
+  clientId: NonEmptyString!
+  reactionSpaceIds: [UUID!]!
+}
+
+type LiveLikeUserReaction implements LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  targetId: NonEmptyString!
+  reactionId: UUID!
+  reactionSpaceId: UUID!
+  customData: NonEmptyString
+  reactedById: UUID!
+  createdAt: NonEmptyString!
+}
+
+type LiveLikeUserReactionEdge implements LiveLikeEdge {
+  node: LiveLikeUserReaction!
+  cursor: String
+}
+
+type LiveLikeUserReactionCollection implements LiveLikeConnection {
+  edges: [LiveLikeUserReactionEdge!]
+  page: LiveLikePage!
+}
+
+input LiveLikeUserReactionsGetInput {
+  clientId: NonEmptyString!
+  targetId: [NonEmptyString!]
+  targetGroupId: NonEmptyString
+  reactionId: UUID
+  reactionSpaceIds: [UUID!]
+  reactedById: UUID
+  page: PositiveInt
+  pageSize: PositiveInt
+}
+
+input LiveLikeUserReactionCreateInput {
+  targetId: NonEmptyString!
+  reactionId: UUID!
+  reactionSpaceId: UUID!
+  customData: NonEmptyString
+}
+
+type LiveLikeUserReactionCountEdge {
+  node: LiveLikeReactions!
+  cursor: String
+}
+
+type LiveLikeUserReactionCountCollection {
+  edges: [LiveLikeUserReactionCountEdge!]
+  page: LiveLikePage!
+}
+
+input LiveLikeUserReactionCountsGetInput {
+  page: PositiveInt
+  reactionSpaceId: UUID!
+  targetId: [NonEmptyString!]
+}
+
+enum LiveLikeContentFilterEnum {
+  FILTERED
+  NONE
+}
+
+type LiveLikeCommentBoard implements LiveLikeNode   {
+  id: UUID!
+  clientId: NonEmptyString!
+  customId: String
+  customData: String
+  title: String
+  contentFilter: LiveLikeContentFilterEnum!
+  description: String
+  allowComments: Boolean!
+  repliesDepth: PositiveInt!
+  commentsCount: NonNegativeInt!
+  createdById: UUID!
+  createdAt: DateTimeISO!
+}
+
+type LiveLikeCommentBoardEdge implements LiveLikeEdge {
+  node: LiveLikeCommentBoard!
+  cursor: String
+}
+
+type LiveLikeCommentBoardCollection implements LiveLikeConnection {
+  edges: [LiveLikeCommentBoardEdge]
+  page: LiveLikePage!
+}
+
+type LiveLikeCommentBoardCount implements LiveLikeNode  {
+  id: UUID!
+  commentsCount: NonNegativeInt!
+  topLevelCommentsCount: NonNegativeInt!
+}
+
+type LiveLikeComment implements LiveLikeNode  {
+  id: UUID!
+  parentCommentId: UUID
+  commentBoardId: UUID!
+  authorId: UUID!
+  text: String
+  commentDepth: NonNegativeInt!
+  customData: NonEmptyString
+  repliesCount: NonNegativeInt!
+  createdAt: DateTimeISO!
+  isReported: Boolean!
+  commentReportsCount: NonNegativeInt!
+  isDeleted: Boolean!
+  deletedBy: UUID
+  deletedAt: DateTimeISO
+  author: LiveLikeProfile!
+}
+
+type LiveLikeCommentEdge implements LiveLikeEdge {
+  node: LiveLikeComment!
+  cursor: String
+}
+
+type LiveLikeCommentCollection implements LiveLikeConnection {
+  edges: [LiveLikeCommentEdge]
+  page: LiveLikePage!
+}
+
+enum LiveLikeCommentReportStatusEnum {
+  PENDING
+  DISMISSED
+}
+
+type LiveLikeCommentReport implements LiveLikeNode  {
+  id: UUID!
+  commentBoardId: UUID!
+  commentId: UUID!
+  description: String
+  reportedById: UUID!
+  reportStatus: LiveLikeCommentReportStatusEnum!
+  reportedAt: DateTimeISO!
+  comment: LiveLikeComment!
+}
+
+type LiveLikeCommentReportEdge implements LiveLikeEdge {
+  node: LiveLikeCommentReport!
+  cursor: String
+}
+
+type LiveLikeCommentReportCollection implements LiveLikeConnection {
+  edges: [LiveLikeCommentReportEdge]
+  page: LiveLikePage!
+}
+
+input LiveLikeCommentBoardCreateInput {
+  customId: NonEmptyString
+  title: NonEmptyString
+  description: NonEmptyString
+  contentFilter: LiveLikeContentFilterEnum
+  allowComments: Boolean
+  repliesDepth: PositiveInt
+  customData: NonEmptyString
+}
+
+input LiveLikeCommentBoardUpdateInput {
+  id: UUID!
+  customId: NonEmptyString
+  title: NonEmptyString
+  contentFilter: LiveLikeContentFilterEnum
+  description: NonEmptyString
+  allowComments: Boolean
+  repliesDepth: PositiveInt
+  customData: NonEmptyString
+}
+
+input LiveLikeCommentBoardsGetInput {
+  page: PositiveInt
+  clientId: NonEmptyString!
+  customId: NonEmptyString
+  commentBoardIds: [UUID!]
+}
+
+input LiveLikeCommentBoardsCountGetInput {
+  commentBoardIds: [UUID!]!
+}
+
+input LiveLikeCommentsGetInput {
+  page: PositiveInt
+  commentBoardId: UUID!
+}
+
+input LiveLikeCommentRepliesGetInput {
+  page: PositiveInt
+  commentBoardId: UUID!
+  parentCommentId: UUID!
+  withoutDeletedThread: Boolean
+}
+
+input LiveLikeCommentCreateInput {
+  commentBoardId: UUID!
+  text: NonEmptyString!
+  customData: NonEmptyString
+}
+
+input LiveLikeCommentReplyCreateInput {
+  commentBoardId: UUID!
+  parentCommentId: UUID!
+  text: NonEmptyString!
+  customData: NonEmptyString
+}
+
+input LiveLikeCommentsReportsGetInput {
+  page: PositiveInt
+  clientId: NonEmptyString!
+  commentBoardId: UUID
+  commentId: UUID
+}
+
+input LiveLikeCommentReportCreateInput {
+  commentId: UUID!
+  description: NonEmptyString
+}
+
+enum LiveLikeTokenGateNetworkTypeEnum {
+  ETHEREUM
+  POLYGON
+  CHILIZ
+  HEDERA
+}
+
+enum LiveLikeTokenGateTokenTypeEnum {
+  FUNGIBLE
+  NON_FUNGIBLE
+}
+
+enum LiveLikeChatRoomContentFilterEnum {
+  NONE
+  FILTERED
+  PRODUCER
+}
+
+enum LiveLikeChatRoomVisibilityEnum {
+  EVERYONE
+  MEMBERS
+}
+
+type LiveLikeTokenGateAttribute {
+  trainType: NonEmptyString!
+  value: NonEmptyString!
+}
+
+type LiveLikeTokenGate {
+  contractAddress: NonEmptyString!
+  networkType: LiveLikeTokenGateNetworkTypeEnum!
+  tokenType: LiveLikeTokenGateTokenTypeEnum!
+  attributes: [LiveLikeTokenGateAttribute!]
+}
+
+type LiveLikeChatRoomChannel {
+  chat: NonEmptyString!
+  reactions: NonEmptyString!
+  control: NonEmptyString!
+}
+
+type LiveLikeChatRoom implements LiveLikeNode  {
+  id: UUID!
+  reactionSpaceId: UUID!
+  title: String
+  contentFilter: LiveLikeChatRoomContentFilterEnum!
+  visibility: LiveLikeChatRoomVisibilityEnum!
+  channels: LiveLikeChatRoomChannel!
+  reactionPackIds: [UUID!]
+  sponsorIds: [UUID!]
+  tokenGates: [LiveLikeTokenGate!]
+  createdAt: DateTimeISO!
+}
+
+type LiveLikeChatRoomEdge implements LiveLikeEdge {
+  node: LiveLikeChatRoom!
+  cursor: String
+}
+
+type LiveLikeChatRoomCollection implements LiveLikeConnection {
+  edges: [LiveLikeChatRoomEdge]
+  page: LiveLikePage!
+}
+
+input LiveLikeTokenGateAttributesInput {
+  trainType: NonEmptyString!
+  value: NonEmptyString!
+}
+
+input LiveLikeTokenGateInput {
+  contractAddress: NonEmptyString!
+  networkType: LiveLikeTokenGateNetworkTypeEnum!
+  tokenType: LiveLikeTokenGateTokenTypeEnum!
+  attributes: [LiveLikeTokenGateAttributesInput!]
+}
+
+input LiveLikeChatRoomsGetInput {
+  page: PositiveInt
+  clientId: NonEmptyString!
+}
+
+input LiveLikeChatRoomCreateInput {
+  title: NonEmptyString
+  contentFilter: LiveLikeChatRoomContentFilterEnum
+  visibility: LiveLikeChatRoomVisibilityEnum
+  reactionPackIds: [UUID!]
+  sponsorIds: [UUID!]
+  tokenGates: [LiveLikeTokenGateInput!]
+}
+
+input LiveLikeChatRoomUpdateInput {
+  id: UUID!
+  title: NonEmptyString
+  contentFilter: LiveLikeChatRoomContentFilterEnum
+  visibility: LiveLikeChatRoomVisibilityEnum
+  reactionPackIds: [UUID!]
+  sponsorIds: [UUID!]
+  tokenGates: [LiveLikeTokenGateInput!]
+}
+
+enum LiveLikeRewardActionEnum {
+  ASK_REPLIED
+  POLL_VOTED
+  PREDICTION_CORRECT
+  PREDICTION_MADE
+  QUIZ_ANSWERED
+  QUIZ_CORRECT
+}
+
+type LiveLikeReward {
+  rewardItemId: UUID!
+  rewardAction: LiveLikeRewardActionEnum!
+  rewardItemAmount: NonNegativeInt!
+  rewardItemName: NonEmptyString!
+}
+
+type LiveLikeRewardItem implements LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString
+  name: NonEmptyString!
+  images: [LiveLikeRewardItemImage!]
+  attributes: [LiveLikeKeyValuePair!]
+  rewardItemPoints: NonNegativeInt
+  prizeoutPoints: NonNegativeInt
+  prizeoutConversionRate: NonNegativeInt
+  prizeoutStatus: Boolean
+}
+
+type LiveLikeRewardItemImage implements LiveLikeNode  {
+  id: UUID!
+  imageUrl: URL!
+  name: String
+  mimeType: String
+}
+
+type LiveLikeRewardItemBalance {
+  rewardItemId: UUID!
+  rewardItemName: NonEmptyString!
+  rewardItemBalance: NonNegativeInt!
+  profileId: UUID!
+}
+
+type LiveLikeRewardItemBalanceEdge {
+  node: LiveLikeRewardItemBalance!
+  cursor: String
+}
+
+type LiveLikeRewardItemBalanceCollection {
+  edges: [LiveLikeRewardItemBalanceEdge!]
+  page: LiveLikePage!
+}
+
+type LiveLikeRewardTable implements LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  name: NonEmptyString!
+  actionChoices: [LiveLikeRewardATableActionChoice!]!
+  entries: [LiveLikeRewardTableEntry!]!
+}
+
+type LiveLikeRewardATableActionChoice {
+  action: String!
+  actionDisplay: NonEmptyString!
+}
+
+type LiveLikeRewardTableEntry  {
+  id: UUID!
+  action: NonEmptyString!
+  actionDisplay: NonEmptyString!
+  rewardItemAmount: PositiveInt!
+  rewardItem: LiveLikeRewardItem!
+}
+
+type LiveLikeRewardTableEdge implements LiveLikeEdge {
+  node: LiveLikeRewardTable!
+  cursor: String
+}
+
+type LiveLikeRewardTableCollection implements LiveLikeConnection {
+  edges: [LiveLikeRewardTableEdge!]
+  page: LiveLikePage!
+}
+
+type LiveLikeRewardItemEdge implements LiveLikeEdge {
+  node: LiveLikeRewardItem!
+  cursor: String
+}
+
+type LiveLikeRewardItemCollection implements LiveLikeConnection {
+  edges: [LiveLikeRewardItemEdge!]
+  page: LiveLikePage!
+}
+
+type LiveLikeRewardAction implements LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  programId: UUID!
+  profileId: UUID!
+  profileNickname: NonEmptyString!
+  rewardActionKey: NonEmptyString!
+  rewards: [LiveLikeRewardActionItem!]
+  code: NonEmptyString
+  attributes: [LiveLikeKeyValuePair!]
+  createdAt: NonEmptyString!
+}
+
+type LiveLikeRewardActionItem implements LiveLikeNode  {
+  id: UUID!
+  name: NonEmptyString!
+  amount: NonNegativeInt!
+}
+
+type LiveLikeRewardItemTransaction implements LiveLikeNode  {
+  id: UUID!
+  newBalance: NonNegativeInt!
+  prizeoutBalance: NonNegativeInt
+  reason: NonEmptyString!
+  description: NonEmptyString
+  customData: NonEmptyString
+  attributes: [LiveLikeKeyValuePair!]
+  transactedById: UUID!
+  transactedByNickname: NonEmptyString!
+  createdAt: NonEmptyString!
+}
+
+input LiveLikeRewardBalanceGetInput {
+  rewardItemId: UUID!
+}
+
+input LiveLikeRewardBalancesGetInput {
+  rewardItemIds: [UUID!]!
+}
+
+input LiveLikeRewardTablesGetInput {
+  clientId: NonEmptyString!
+  page: PositiveInt
+}
+
+input LiveLikeRewardTableEntryInput {
+  rewardItemId: UUID!
+  rewardItemAmount: PositiveInt!
+  action: NonEmptyString!
+}
+
+input LiveLikeRewardTableEntryGetInput {
+  id: UUID!
+  entryId: UUID!
+}
+
+input LiveLikeRewardTableEntryCreateInput {
+  rewardTableId: UUID!
+  rewardItemId: UUID!
+  rewardItemAmount: PositiveInt!
+  action: NonEmptyString!
+}
+
+input LiveLikeRewardTableEntryDeleteInput {
+  id: UUID!
+  entryId: UUID!
+}
+
+input LiveLikeRewardItemCreateInput {
+  clientId: NonEmptyString!
+  name: NonEmptyString!
+  attributes: [LiveLikeKeyValuePairInput!]
+}
+
+input LiveLikeRewardTableCreateInput {
+  clientId: NonEmptyString!
+  name: NonEmptyString!
+  entries: [LiveLikeRewardTableEntryInput!]!
+}
+
+input LiveLikeRewardTableUpdateInput {
+  id: UUID!
+  name: NonEmptyString
+  entries: [LiveLikeRewardTableEntryInput!]
+}
+
+input LiveLikeRewardActionCreateInput {
+  programId: UUID!
+  profileId: UUID!
+  rewardActionKey: NonEmptyString!
+  code: NonEmptyString
+}
+
+input LiveLikeLinkRewardTableWithProgramInput {
+  programId: UUID!
+  rewardTableId: UUID!
+}
+
+input LiveLikeUnlinkRewardTableWithProgramInput {
+  programId: UUID!
+  rewardTableId: UUID!
+}
+
+input LiveLikeRewardItemTransactionInput {
+  profileId: UUID!
+  rewardItemId: UUID!
+  rewardItemAmount: PositiveInt!
+  reason: NonEmptyString
+  description: NonEmptyString
+  customData: NonEmptyString
+  attributes: [LiveLikeKeyValuePairInput!]
+}
+
+type LiveLikeLeaderboard implements LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  name: NonEmptyString!
+  isLocked: Boolean!
+  rewardItemId: UUID!
+  rewardItem: LiveLikeRewardItem
+}
+
+type LiveLikeLeaderboardEdge implements LiveLikeEdge {
+  node: LiveLikeLeaderboard!
+  cursor: String
+}
+
+type LiveLikeLeaderboardCollection implements LiveLikeConnection {
+  edges: [LiveLikeLeaderboardEdge!]
+  page: LiveLikePage!
+}
+
+type LiveLikeLeaderboardEntry {
+  score: PositiveInt!
+  rank: PositiveInt!
+  percentileRank: NonNegativeFloat!
+  profileId: UUID!
+  profileNickname: NonEmptyString!
+}
+
+type LiveLikeLeaderboardEntryEdge {
+  node: LiveLikeLeaderboardEntry!
+  cursor: String
+}
+
+type LiveLikeLeaderboardEntryCollection {
+  edges: [LiveLikeLeaderboardEntryEdge!]
+  page: LiveLikePageOffset!
+}
+
+type LiveLikeLeaderboardReward {
+  leaderboardId: UUID!
+  leaderboardName: NonEmptyString!
+  rewardItemId: UUID!
+  rewardAction: LiveLikeRewardActionEnum!
+  rewardItemAmount: PositiveInt!
+  rewardItemName: NonEmptyString!
+  newRank: NonNegativeInt!
+  newPercentileRank: NonEmptyString!
+  newScore: NonNegativeFloat!
+}
+
+input LiveLikeLeaderboardsGetInput {
+  clientId: NonEmptyString!
+  programIds: [UUID!]
+  page: PositiveInt
+}
+
+input LiveLikeLeaderboardEntryGetInput {
+  leaderboardId: UUID!
+  profileId: UUID!
+}
+
+input LiveLikeLeaderboardEntriesGetInput {
+  leaderboardId: UUID!
+  page: LiveLikePaginationOffsetInput
+}
+
+input LiveLikeLeaderboardCreateInput {
+  clientId: NonEmptyString!
+  name: NonEmptyString!
+  rewardItemId: UUID!
+  isLocked: Boolean
+  attributes: [LiveLikeKeyValuePairInput!]
+}
+
+input LiveLikeLeaderboardUpdateInput {
+  id: UUID!
+  name: NonEmptyString
+  isLocked: Boolean
+  attributes: [LiveLikeKeyValuePairInput!]
+}
+
+input LiveLikeLeaderboardProgramLinkInput {
+  leaderboardId: UUID!
+  programId: UUID!
+}
+
+type LiveLikeBadge implements LiveLikeNode  {
+  id: UUID!
+  mimetype: NonEmptyString!
+  description: NonEmptyString
+  name: NonEmptyString!
+  clientId: NonEmptyString!
+  badgeIconUrl: URL!
+  file: URL!
+  attributes: [LiveLikeKeyValuePair!]
+}
+
+type LiveLikeEarnedBadge  {
+  id: UUID!
+  badge: LiveLikeBadge!
+  awardedAt: DateTimeISO!
+}
+
+type LiveLikeBadgeRewardProgress {
+  rewardItemId: UUID!
+  rewardItemName: NonEmptyString!
+  rewardItemThreshold: NonNegativeInt!
+  currentRewardAmount: NonNegativeInt!
+}
+
+type LiveLikeBadgeRewardProgressCollection {
+  badge: LiveLikeBadge!
+  badgeProgress: [LiveLikeBadgeRewardProgress!]
+}
+
+type LiveLikeEarnedBadgeEdge {
+  node: LiveLikeEarnedBadge!
+  cursor: String
+}
+
+type LiveLikeBadgeEdge implements LiveLikeEdge {
+  node: LiveLikeBadge!
+  cursor: String
+}
+
+type LiveLikeBadgeCollection implements LiveLikeConnection {
+  edges: [LiveLikeBadgeEdge!]
+  page: LiveLikePage!
+}
+
+type LiveLikeEarnedBadgeCollection {
+  edges: [LiveLikeEarnedBadgeEdge!]
+  page: LiveLikePage!
+}
+
+type LiveLikeBadgeProfile {
+  badgeId: UUID!
+  awardedAt: DateTimeISO!
+  profile: LiveLikeProfile!
+}
+
+type LiveLikeUserBadge implements LiveLikeNode  {
+  id: UUID!
+  badgeId: UUID!
+  awardedAt: DateTimeISO!
+  profile: LiveLikeProfile!
+  badge: LiveLikeBadge!
+}
+
+type LiveLikeBadgeProfileEdge {
+  node: LiveLikeBadgeProfile!
+  cursor: String
+}
+
+type LiveLikeUserBadgeEdge {
+  node: LiveLikeUserBadge!
+  cursor: String
+}
+
+type LiveLikeBadgeProfileCollection {
+  edges: [LiveLikeBadgeProfileEdge!]
+  page: LiveLikePage!
+}
+
+type LiveLikeUserBadgeCollection {
+  edges: [LiveLikeUserBadgeEdge!]
+  page: LiveLikePage!
+}
+
+input LiveLikeAwardBadgeInput {
+  badgeId: UUID!
+  profileId: UUID!
+}
+
+type LiveLikeProgramBan implements LiveLikeNode  {
+  id: UUID!
+  programId: UUID!
+  clientId: NonEmptyString!
+  comment: NonEmptyString!
+  bannedProfile: LiveLikeProfile!
+  bannedByProfile: LiveLikeProfile!
+  expiringAt: DateTimeISO
+  createdAt: DateTimeISO!
+}
+
+type LiveLikeCommentBoardBan implements LiveLikeNode  {
+  id: UUID!
+  profileId: UUID!
+  clientId: NonEmptyString!
+  commentBoardId: UUID
+  description: String
+  bannedById: UUID!
+  createdAt: DateTimeISO!
+}
+
+type LiveLikeProgramBanEdge {
+  node: LiveLikeProgramBan!
+  cursor: String
+}
+
+type LiveLikeCommentBoardBanEdge implements LiveLikeEdge {
+  node: LiveLikeCommentBoardBan!
+  cursor: String
+}
+
+type LiveLikeProgramBanCollection {
+  edges: [LiveLikeProgramBanEdge!]
+  page: LiveLikePage!
+}
+
+type LiveLikeCommentBoardBanCollection implements LiveLikeConnection {
+  edges: [LiveLikeCommentBoardBanEdge!]
+  page: LiveLikePage!
+}
+
+input LiveLikeProgramBanInput {
+  programId: UUID!
+  bannedProfileId: UUID!
+  comment: NonEmptyString!
+  expiringAt: DateTimeISO
+}
+
+input LiveLikeProgramBansInput {
+  programId: UUID
+  bannedProfileId: UUID
+  bannedByProfileId: UUID
+  page: PositiveInt
+}
+
+input LiveLikeCommentBoardBansInput {
+  profileId: UUID
+  commentBoardId: UUID
+  clientId: NonEmptyString
+}
+
+input LiveLikeCommentBoardBanInput {
+  profileId: UUID!
+  commentBoardId: UUID
+  description: String
+}
+
+enum LiveLikeQuestStatusEnum {
+  ACTIVE
+  NOT_STARTED
+  EXPIRED
+}
+
+enum LiveLikeUserQuestStatusEnum {
+  INCOMPLETE
+  CANCELLED
+  COMPLETED
+}
+
+enum LiveLikeUserQuestTaskStatusEnum {
+  INCOMPLETE
+  COMPLETED
+}
+
+enum LiveLikeUserQuestRewardStatus {
+  CLAIMED
+  UNCLAIMED
+}
+
+type LiveLikeQuestTask implements LiveLikeNode  {
+  id: UUID!
+  name: NonEmptyString!
+  questId: UUID!
+  description: String!
+  targetValue: PositiveInt!
+  defaultProgressIncrement: NonNegativeInt!
+  attributes: [LiveLikeKeyValuePair!]
+  createdAt: DateTimeISO!
+}
+
+type LiveLikeQuestReward implements LiveLikeNode  {
+  id: UUID!
+  questId: UUID!
+  rewardItemId: UUID!
+  rewardItemAmount: PositiveInt!
+  rewardItemName: NonEmptyString!
+}
+
+type LiveLikeQuest implements LiveLikeNode  {
+  id: UUID!
+  clientId: NonEmptyString!
+  name: NonEmptyString!
+  description: String!
+  status: LiveLikeQuestStatusEnum!
+  questTasks: [LiveLikeQuestTask!]
+  timeout: String
+  questRewards: [LiveLikeQuestReward!]
+  attributes: [LiveLikeKeyValuePair!]
+  createdAt: DateTimeISO!
+  startedAt: DateTimeISO
+  stoppedAt: DateTimeISO
+}
+
+type LiveLikeQuestEdge implements LiveLikeEdge {
+  node: LiveLikeQuest!
+  cursor: String
+}
+
+type LiveLikeQuestCollection implements LiveLikeConnection {
+  edges: [LiveLikeQuestEdge!]
+  page: LiveLikePage!
+}
+
+type LiveLikeUserQuestTask implements LiveLikeNode {
+  id: UUID!
+  userQuestId: UUID!
+  questTask: LiveLikeQuestTask!
+  status: LiveLikeUserQuestTaskStatusEnum!
+  progress: NonNegativeInt
+  completedAt: DateTimeISO
+  createdAt: NonEmptyString!
+}
+
+type LiveLikeUserQuest implements LiveLikeNode  {
+  id: UUID!
+  profileId: UUID!
+  questId: UUID!
+  status: LiveLikeUserQuestStatusEnum!
+  quest: LiveLikeQuest!
+  userQuestTasks: [LiveLikeUserQuestTask!]
+  rewardsStatus: LiveLikeUserQuestRewardStatus!
+  timerExpired: Boolean
+  activeUntil: DateTimeISO
+  completedAt: NonEmptyString
+  createdAt: NonEmptyString!
+  rewardsClaimedAt: NonEmptyString
+}
+
+type LiveLikeUserQuestEdge implements LiveLikeEdge {
+  node: LiveLikeUserQuest!
+  cursor: String
+}
+
+type LiveLikeUserQuestCollection implements LiveLikeConnection {
+  edges: [LiveLikeUserQuestEdge!]
+  page: LiveLikePage!
+}
+
+type LiveLikeUserQuestTaskProgress  {
+  userQuestTaskId: UUID!
+  id: UUID!
+  customIncrement: NonNegativeInt
+  customProgress: NonNegativeInt
+  userQuest: LiveLikeUserQuest!
+}
+
+type LiveLikeUserQuestReward implements LiveLikeNode  {
+  id: UUID!
+  userQuestId: UUID!
+  questReward: LiveLikeQuestReward!
+  rewardStatus: LiveLikeUserQuestRewardStatus!
+}
+
+type LiveLikeUserQuestRewardsEdge implements LiveLikeEdge {
+  node: LiveLikeUserQuestReward!
+  cursor: String
+}
+
+type LiveLikeUserQuestRewardsConnection implements LiveLikeConnection {
+  edges: [LiveLikeUserQuestRewardsEdge]
+  page: LiveLikePage!
+}
+
+input LiveLikeQuestInput {
+  clientId: NonEmptyString!
+  name: NonEmptyString!
+  description: String!
+  timeout: String
+  startedAt: DateTimeISO
+  stoppedAt: DateTimeISO
+}
+
+input LiveLikeUserQuestInput {
+  profileId: UUID!
+  questId: UUID!
+}
+
+input LiveLikeUserQuestsInput {
+  clientId: NonEmptyString
+  questId: UUID
+  status: LiveLikeUserQuestStatusEnum
+  rewardsStatus: LiveLikeUserQuestRewardStatus
+}
+
+input LiveLikeUserQuestsTaskProgressInput {
+  userQuestTaskId: UUID!
+  customIncrement: NonNegativeInt
+  customProgress: NonNegativeInt
+}
+
+input LiveLikeUserQuestRewardsInput {
+  userQuestId: UUID!
+  rewardStatus: LiveLikeUserQuestRewardStatus
+}
+
+input LiveLikeclaimUserQuestRewardInput {
+  userQuestId: UUID!
+  rewardsStatus: LiveLikeUserQuestRewardStatus!
+}
+
+type UGCWidget  {
+    clientId: String! widgetId: String! type: String! count: Int
+    liveLikeUserReaction: LiveLikeUserReaction
+}
+
+type UGCPost  {
+    id: ID! liveLikeRichPost: LiveLikeRichPost
+}
+
+type UGCTextPoll  {
+    id: ID! liveLikeTextPoll: LiveLikeTextPoll
+    liveLikeUserVote: LiveLikeTextPollVote
+}
+
+type UGCImagePoll  {
+    id: ID! liveLikeImagePoll: LiveLikeImagePoll
+    liveLikeUserVote: LiveLikeImagePollVote
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+}

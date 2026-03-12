@@ -1,0 +1,86 @@
+{
+  "info": {
+    "_postman_id": "adsapi-mocks",
+    "name": "AdsAPI",
+    "description": "version=1.0 - Mock examples for AdsAPI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "flushAdRegistryCache",
+      "request": {
+        "method": "POST",
+        "url": "http://flushAdRegistryCache",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation flushAdRegistryCache($operationName: String!) { flushAdRegistryCache(operationName: $operationName) }\",\"variables\":{\"operationName\":\"Demo Name\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "DemoName",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://flushAdRegistryCache",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation flushAdRegistryCache($operationName: String!) { flushAdRegistryCache(operationName: $operationName) }\",\"variables\":{\"operationName\":\"Demo Name\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"flushAdRegistryCache\":1}}"
+        }
+      ]
+    },
+    {
+      "name": "flushAdSiteCache",
+      "request": {
+        "method": "POST",
+        "url": "http://flushAdSiteCache",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation flushAdSiteCache($siteCache: String) { flushAdSiteCache(siteCache: $siteCache) }\",\"variables\":{\"siteCache\":\"demo-siteCache\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-siteCache",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://flushAdSiteCache",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation flushAdSiteCache($siteCache: String) { flushAdSiteCache(siteCache: $siteCache) }\",\"variables\":{\"siteCache\":\"demo-siteCache\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"flushAdSiteCache\":true}}"
+        }
+      ]
+    }
+  ]
+}

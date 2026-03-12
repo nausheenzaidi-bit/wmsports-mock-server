@@ -1,0 +1,218 @@
+# microcksId: AdsAPI : 1.0
+
+scalar Time
+scalar JSON
+
+scalar Date
+
+type AdsAdSize  {
+  width: Int
+  height: Int
+}
+
+type AdsHistory  {
+  modifiedBy: String
+  modifiedOn: Float
+  area: String
+  oldValue: String
+  newValue: String
+}
+
+type AdsSlot  {
+  name: String
+  adSizes: [AdsAdSize]
+  targetings: [AdsTargeting]
+  adUnitPath: String
+  isResponsive: Boolean
+  hasInViewRefresh: Boolean
+  isFluid: Boolean
+  isInheritAdUnitFromRegistry: Boolean
+  safeFrameAllowOverlayExpansion: Boolean
+  safeFrameAllowPushExpansion: Boolean
+  safeFrameConfig: Boolean
+  safeFrameSandboxMode: Boolean
+  inViewRefreshCount: Int
+  inViewRefreshInterval: Int
+  viewports: [AdsViewport]
+}
+
+type AdsTargeting  {
+  key: String
+  value: String
+}
+
+type AdsRegistryDetailItem  {
+  name: String
+  description: String
+  lastDeployedOn: Date
+  nameLowered: String
+  slots: [String]
+  adUnitPath: String
+  error: String
+}
+
+type AdsDeployedState   {
+  error: String
+  hasInViewRefresh: Boolean
+  hasRealTimeAdInsertion: Boolean
+  inViewRefreshCount: Int
+  inViewRefreshInterval: Int
+  isSingleton: Boolean
+  name: String
+  rtaiBuffer: Int
+  rtaiInitialPlacement: Int
+  rtaiMaxNoOfAds: Int
+  rtaiOffset: Int
+  rtaiParentSelector: String
+  safeFrameOverlayExpansion: Boolean
+  safeFrameAllowPushExpansion: Boolean
+  safeFrameConfig: Boolean
+  safeFrameSandboxMode: Boolean
+  slots: [AdsSlot]
+  tagForChildDirectedTreatment: Boolean
+  targetings: [AdsTargeting]
+  template: String
+}
+
+type AdsChannelConfiguration  {
+  adUnitPath: String!
+  registry: AdsDeployedState!
+  configuration: AdsModuleConfiguration
+  groupings: [AdsChannelGroupingConfiguration]
+}
+
+type AdsChannelGroupingConfiguration  {
+  id: String!
+  adUnitPath: String!
+  registry: AdsDeployedState!
+}
+
+type AdsConfiguration  {
+  adUnitPath: String!
+  registry: AdsDeployedState!
+  configuration: AdsModuleConfiguration
+}
+
+type AdsModuleConfiguration  {
+  "Configuration for AdFuel in strigified JSON"
+  jsonBlob: String!
+}
+
+type Article   {
+  uuid: String!
+  primaryTag: TagV2! tenant: String contentType: String! "Ads Configuration | Ads API"
+  adsConfig: AdsConfiguration 
+}
+
+type Channel   {
+  uuid: String!
+  tag: TagV2! tenant: String type: ChannelType groupingList: [GroupingHeader] "Ads Channel Configuration | Ads API"
+  adsConfig: AdsChannelConfiguration 
+}
+
+enum ChannelType {
+  League
+  SmallTeam
+  PopularTeam
+  Interest
+  GameCast
+  Home
+  Following
+  FollowingAddTags
+  Alerts
+  Discovery
+  Creator
+  User
+  Onboarding
+  OnboardingAddTags
+  Scores
+}
+
+type ContentBrand  {
+  source: String!
+  tenant: String }
+
+enum ContentModuleType {
+  Article
+  ExternalArticle
+  StatsBetting
+  StatsGamecast
+  Tweet
+  UGCImagePoll
+  UGCTextPoll
+  UGCPost
+  VideoV2
+  Mixed
+}
+
+enum GameState {
+  PreGame
+  LiveGame
+  PostGame
+  Standard
+}
+
+type GroupingHeader {
+  id: String title: String isDefault: Boolean applicableGameStates: [GameState] }
+
+type ModuleMetaData  {
+  hash: String!
+  brand: ContentBrand communityTag: TagV2 }
+
+scalar MongoID
+
+type Mutation {
+  flushAdRegistryCache(operationName: String!): Int
+  flushAdSiteCache(siteCache: String): Boolean
+}
+
+type PackageContentModule   {
+  id: ID!
+  metaData: ModuleMetaData "Ads Configuration | Ads API"
+  adsConfig: AdsConfiguration 
+}
+
+type Page   {
+  _id: MongoID!
+  uuid: String! tenant: String "Ads Configuration | Ads API"
+  adsConfig: AdsConfiguration 
+}
+
+type StandaloneContentModule   {
+  type: ContentModuleType!
+  contentID: String
+  metaData: ModuleMetaData "Ads Configuration | Ads API"
+  adsConfig: AdsConfiguration 
+}
+
+enum TagTypeV2 {
+  Conference
+  Creator
+  Division
+  Editor
+  Editorial
+  Event
+  GameCast
+  Interest
+  League
+  Page
+  Player
+  Person
+  Sport
+  Team
+}
+
+type TagV2  {
+  hash: String! slug: String! type: TagTypeV2 parent: TagV2 root: TagV2 }
+
+type AdsViewport  {
+  name: String
+  width: Int!
+  height: Int!
+  fluid: Boolean
+  sizes: [String]
+}
+
+schema {
+  mutation: Mutation
+}

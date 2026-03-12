@@ -1,0 +1,1027 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Census API",
+    "description": "Census backend REST API \u2014 Go rewrite of the Elixir Census service. Consumed by Sports Push Notifications API. Sourced from sports-census-go handler structs.",
+    "version": "1.0"
+  },
+  "servers": [
+    {
+      "url": "https://census.4bleacherreport.com",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/v3/push_notifications": {
+      "post": {
+        "operationId": "createPushNotification",
+        "summary": "Create a push notification",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "examples": {
+                "create-notification": {
+                  "summary": "Create push notification",
+                  "value": {
+                    "destinations": [
+                      {
+                        "tagUUID": "b8c58b47-1b42-4f29-ac0d-4d926f674938",
+                        "tagDisplayName": "Detroit Red Wings",
+                        "contentModuleId": "09e8f004-5725-4952-b6bd-e273e4a43fdf"
+                      }
+                    ],
+                    "text": "Test NEW 2",
+                    "title": "Test NEW 2",
+                    "analytics": {
+                      "genres": [
+                        "news"
+                      ]
+                    },
+                    "url": "",
+                    "adParameters": "",
+                    "allowInRegions": [
+                      "US",
+                      "GB",
+                      "CA"
+                    ],
+                    "attachments": [],
+                    "alertCategories": [
+                      "news"
+                    ],
+                    "createdBy": "Rahul Ray",
+                    "spoiler": true,
+                    "showAlertCard": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Push notification created",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "create-notification": {
+                    "summary": "Created notification",
+                    "value": {
+                      "id": 42,
+                      "createdAt": "2026-02-20T10:00:00.000000Z",
+                      "createdBy": "Rahul Ray",
+                      "title": "Test NEW 2",
+                      "text": "Test NEW 2",
+                      "url": "",
+                      "adParameters": "",
+                      "destinationOverride": null,
+                      "showAlertCard": false,
+                      "spoiler": true,
+                      "tenant": "bleacherReport",
+                      "alertCategories": [
+                        "news"
+                      ],
+                      "allowInRegions": [
+                        "US",
+                        "GB",
+                        "CA"
+                      ],
+                      "destinations": [
+                        {
+                          "id": 1,
+                          "contentModuleId": "09e8f004-5725-4952-b6bd-e273e4a43fdf",
+                          "tagUUID": "b8c58b47-1b42-4f29-ac0d-4d926f674938"
+                        }
+                      ],
+                      "attachments": [],
+                      "analytics": {
+                        "genres": [
+                          "news"
+                        ],
+                        "gamecastType": null
+                      },
+                      "tags": [
+                        {
+                          "uuid": "b8c58b47-1b42-4f29-ac0d-4d926f674938"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/{tenant}/push_notifications": {
+      "get": {
+        "operationId": "getPushNotifications",
+        "summary": "List push notifications (paginated)",
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": ""
+        },
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Push notifications list",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "list-notifications": {
+                    "summary": "List notifications for bleacherReport",
+                    "value": {
+                      "push_notifications": [
+                        {
+                          "id": 237,
+                          "createdAt": "2026-02-20T10:00:00.000000Z",
+                          "createdBy": "Rahul Ray",
+                          "title": "NFL Alert",
+                          "text": "Breaking: Trade confirmed",
+                          "url": "https://bleacherreport.com/articles/123",
+                          "adParameters": "",
+                          "destinationOverride": null,
+                          "showAlertCard": true,
+                          "spoiler": false,
+                          "tenant": "bleacherReport",
+                          "alertCategories": [
+                            "news"
+                          ],
+                          "allowInRegions": [
+                            "US"
+                          ],
+                          "destinations": [
+                            {
+                              "id": 1,
+                              "contentModuleId": "09e8f004-5725-4952-b6bd-e273e4a43fdf",
+                              "tagUUID": "b8c58b47-1b42-4f29-ac0d-4d926f674938"
+                            }
+                          ],
+                          "attachments": [
+                            {
+                              "id": 1,
+                              "mediaType": "jpg",
+                              "mediaUrl": "https://example.com/image.jpg",
+                              "height": 400,
+                              "width": 400,
+                              "editId": null
+                            }
+                          ],
+                          "analytics": {
+                            "genres": [
+                              "news"
+                            ],
+                            "gamecastType": "pregame"
+                          },
+                          "tags": [
+                            {
+                              "uuid": "b8c58b47-1b42-4f29-ac0d-4d926f674938"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/{tenant}/push_notifications/{id}": {
+      "get": {
+        "operationId": "getPushNotificationByID",
+        "summary": "Get a single push notification by ID",
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": ""
+        },
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Single PushNotificationResponse",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "get-notification": {
+                    "summary": "Notification by ID",
+                    "value": {
+                      "id": 237,
+                      "createdAt": "2026-02-20T10:00:00.000000Z",
+                      "createdBy": "Rahul Ray",
+                      "title": "NFL Alert",
+                      "text": "Breaking: Trade confirmed",
+                      "url": "https://bleacherreport.com/articles/123",
+                      "adParameters": "",
+                      "destinationOverride": null,
+                      "showAlertCard": true,
+                      "spoiler": false,
+                      "tenant": "bleacherReport",
+                      "alertCategories": [
+                        "news"
+                      ],
+                      "allowInRegions": [
+                        "US"
+                      ],
+                      "destinations": [
+                        {
+                          "id": 1,
+                          "contentModuleId": "09e8f004-5725-4952-b6bd-e273e4a43fdf",
+                          "tagUUID": "b8c58b47-1b42-4f29-ac0d-4d926f674938"
+                        }
+                      ],
+                      "attachments": [
+                        {
+                          "id": 1,
+                          "mediaType": "jpg",
+                          "mediaUrl": "https://example.com/image.jpg",
+                          "height": 400,
+                          "width": 400,
+                          "editId": null
+                        }
+                      ],
+                      "analytics": {
+                        "genres": [
+                          "news"
+                        ],
+                        "gamecastType": "pregame"
+                      },
+                      "tags": [
+                        {
+                          "uuid": "b8c58b47-1b42-4f29-ac0d-4d926f674938"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/{tenant}/users/{bolt_id}/push_notifications": {
+      "get": {
+        "operationId": "getUserPushNotifications",
+        "summary": "Get push notifications for a user",
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK"
+        },
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bolt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User push notifications",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "user-notifications": {
+                    "summary": "User notifications list",
+                    "value": {
+                      "push_notifications": [
+                        {
+                          "id": 232,
+                          "createdAt": "2026-02-20T10:00:00",
+                          "createdBy": "Rahul Ray",
+                          "title": "NFL Alert",
+                          "text": "Breaking: Trade confirmed",
+                          "url": "https://bleacherreport.com/articles/123",
+                          "adParameters": "",
+                          "destinationOverrideId": null,
+                          "showAlertCard": true,
+                          "spoiler": false,
+                          "tenant": "bleacherReport",
+                          "news": true,
+                          "highlights": false,
+                          "viral": false,
+                          "creators": false,
+                          "alertCategories": [
+                            "news"
+                          ],
+                          "allowInRegions": [
+                            "US"
+                          ],
+                          "destinations": [
+                            {
+                              "id": 1,
+                              "contentModuleId": "09e8f004-5725-4952-b6bd-e273e4a43fdf",
+                              "tagUUID": "b8c58b47-1b42-4f29-ac0d-4d926f674938"
+                            }
+                          ],
+                          "attachments": [
+                            {
+                              "id": 1,
+                              "mediaType": "jpg",
+                              "mediaUrl": "https://example.com/image.jpg",
+                              "height": 400,
+                              "width": 400,
+                              "editId": null
+                            }
+                          ],
+                          "analytics": {
+                            "genres": [
+                              "news"
+                            ],
+                            "gamecast_type": "pregame"
+                          },
+                          "tags": [
+                            {
+                              "uuid": "b8c58b47-1b42-4f29-ac0d-4d926f674938"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/{tenant}/users/{bolt_id}/push_notifications/{id}": {
+      "get": {
+        "operationId": "getNotificationForUser",
+        "summary": "Get a specific push notification for a user",
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK"
+        },
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bolt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Single PushNotificationResponse",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "user-notification-by-id": {
+                    "summary": "User notification by ID",
+                    "value": {
+                      "id": 232,
+                      "createdAt": "2026-02-20T10:00:00.000000Z",
+                      "createdBy": "Rahul Ray",
+                      "title": "NFL Alert",
+                      "text": "Breaking: Trade confirmed",
+                      "url": "https://bleacherreport.com/articles/123",
+                      "adParameters": "",
+                      "destinationOverride": null,
+                      "showAlertCard": true,
+                      "spoiler": false,
+                      "tenant": "bleacherReport",
+                      "alertCategories": [
+                        "news"
+                      ],
+                      "allowInRegions": [
+                        "US"
+                      ],
+                      "destinations": [
+                        {
+                          "id": 1,
+                          "contentModuleId": "09e8f004-5725-4952-b6bd-e273e4a43fdf",
+                          "tagUUID": "b8c58b47-1b42-4f29-ac0d-4d926f674938"
+                        }
+                      ],
+                      "attachments": [],
+                      "analytics": {
+                        "genres": [
+                          "news"
+                        ],
+                        "gamecastType": null
+                      },
+                      "tags": [
+                        {
+                          "uuid": "b8c58b47-1b42-4f29-ac0d-4d926f674938"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/{tenant}/users/{bolt_id}/device": {
+      "post": {
+        "operationId": "createDevice",
+        "summary": "Register a user device (returns 201)",
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK"
+        },
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bolt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "examples": {
+                "register-device": {
+                  "summary": "Register iOS device",
+                  "value": {
+                    "device": {
+                      "device_token": "5c54ea4c1a059477f4762d350eb5a115c9c3162ff7deeb65c9f3a9c49f0a88a3",
+                      "platform": "ios",
+                      "app_version": "10.17.0",
+                      "os_version": "26.0.1"
+                    },
+                    "user": {
+                      "profile_id": "e87cdfce-0a86-436c-8632-9cae79bc90df"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Device created",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "register-device": {
+                    "summary": "Device registered",
+                    "value": {
+                      "device": {
+                        "id": 1,
+                        "user_id": 42,
+                        "device_id": "5c54ea4c1a059477f4762d350eb5a115c9c3162ff7deeb65c9f3a9c49f0a88a3",
+                        "device_type": "ios",
+                        "app_version": "10.17.0",
+                        "os_version": "26.0.1",
+                        "created_at": "2026-02-20T10:00:00Z",
+                        "updated_at": "2026-02-20T10:00:00Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/{tenant}/tags/{tag_uuid}/subscriptions/count": {
+      "get": {
+        "operationId": "getSubscriptionCount",
+        "summary": "Get follower count for a tag",
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK"
+        },
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag_uuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Follower count",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "tag-count": {
+                    "summary": "Tag subscription count",
+                    "value": {
+                      "count": 1500
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/{tenant}/tags/{tag_uuid}/subscriptions": {
+      "get": {
+        "operationId": "getSubscriptions",
+        "summary": "Get users subscribed to a tag",
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK"
+        },
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag_uuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subscribed users",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "tag-subscriptions": {
+                    "summary": "Users subscribed to tag",
+                    "value": {
+                      "users": [
+                        {
+                          "id": 1,
+                          "bolt_id": "1250616d-b38d-4d74-864e-9e1016394fec",
+                          "profile_id": "e87cdfce-0a86-436c-8632-9cae79bc90df",
+                          "geo_region_code": "GA",
+                          "geo_country_code": "US"
+                        },
+                        {
+                          "id": 2,
+                          "bolt_id": "006320e5-ceea-431e-9dab-8b5c368a8c0c",
+                          "profile_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                          "geo_region_code": "NY",
+                          "geo_country_code": "US"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/{tenant}/user/{user_id}/tags": {
+      "get": {
+        "operationId": "getUserTags",
+        "summary": "Get tags a user follows",
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK"
+        },
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User followed tags",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "user-tags": {
+                    "summary": "User subscriptions",
+                    "value": {
+                      "subscriptions": [
+                        {
+                          "tag_uuid": "b8c58b47-1b42-4f29-ac0d-4d926f674938",
+                          "push_notifications": true,
+                          "news": true,
+                          "highlights": false,
+                          "spoilers": false,
+                          "viral": false,
+                          "creators": false
+                        },
+                        {
+                          "tag_uuid": "0177b48b-0ab4-4dba-b132-de8e1e96cec8",
+                          "push_notifications": true,
+                          "news": true,
+                          "highlights": true,
+                          "spoilers": false,
+                          "viral": false,
+                          "creators": false
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/{tenant}/user/{user_id}/tags/count": {
+      "get": {
+        "operationId": "getUserTagsCount",
+        "summary": "Get count of tags a user follows",
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK"
+        },
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Followed tags count",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "user-tags-count": {
+                    "summary": "Tags count",
+                    "value": {
+                      "count": 25
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/{tenant}/content_modules/push_notifications": {
+      "post": {
+        "operationId": "getContentModuleIDsWithNotifications",
+        "summary": "Check which content modules have push notifications",
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": ""
+        },
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "examples": {
+                "bleacherReport": {
+                  "summary": "Check content modules",
+                  "value": {
+                    "content_module_ids": [
+                      "09e8f004-5725-4952-b6bd-e273e4a43fdf",
+                      "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Content module IDs that have push notifications",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "content-modules": {
+                    "summary": "Modules with notifications",
+                    "value": {
+                      "content_module_ids": [
+                        "09e8f004-5725-4952-b6bd-e273e4a43fdf"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/alert_buzz/ranks": {
+      "post": {
+        "operationId": "saveRanks",
+        "summary": "Submit alert rank scores (returns 202 Accepted)",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "examples": {
+                "submit-ranks": {
+                  "summary": "Submit alert ranks",
+                  "value": {
+                    "tenant": "bleacherReport",
+                    "alert_ranks": [
+                      {
+                        "push_notification_id": "1",
+                        "rank": 1
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Alert ranks accepted",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "submit-ranks": {
+                    "summary": "Ranks accepted",
+                    "value": {
+                      "status": "accepted"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/{tenant}/alert_buzz/ranks/{id}": {
+      "get": {
+        "operationId": "showRank",
+        "summary": "Get alert rank for a push notification",
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": ""
+        },
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Alert rank value",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "get-alert-rank": {
+                    "summary": "Rank for notification",
+                    "value": {
+                      "rank": 5
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

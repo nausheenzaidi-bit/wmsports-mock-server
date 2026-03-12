@@ -1,0 +1,308 @@
+# microcksId: DataServiceAPI : 1.0
+
+scalar UUID
+scalar Time
+
+scalar Date
+
+type Channel  {
+  uuid: String!
+}
+
+type Article  {
+  hash: String!
+  tags: [TagV2] primaryTag: TagV2! trendingRank: Int 
+  recommendedVideos(countryCode: String, version: Int = 0, aspectRatio: AspectRatio = Any, limit: Int = 10): [A2VResult!]! 
+  recommendedArticles(version: Int = 0, limit: Int = 10): [A2AResult!]! 
+}
+
+type VideoV2  {
+  hash: String!
+  tags: [TagV2] trendingRank: Int 
+  recommendedVideos(countryCode: String, version: Int = 0, aspectRatio: AspectRatio = Any, limit: Int = 10): [V2VResult!]! 
+}
+
+type TagV2  {
+  hash: String!
+  uuid: String! type: TagTypeV2 recommendedTags(type: TagTypeV2, limit: Int = 10): [ChannelRecommenderResult!]! 
+  recommendedArticles(limit: Int = 10): [DsContentModelResult!]! 
+}
+
+enum TagTypeV2 {
+  Conference
+  Creator
+  Division
+  Editor
+  Editorial
+  Event
+  GameCast
+  Interest
+  League
+  Page
+  Player
+  Person
+  Sport
+  Team
+}
+
+type ChannelComponent  {
+  uuid: String!
+  semanticID: SemanticID tagUUID: String dataServicesTagData(limit: Int = 10): [TagV2!]! 
+}
+
+type StandaloneContentModule  {
+  type: ContentModuleType!
+  contentID: String
+  id: ID! alertRanks(limit: Int = 10): [AlertRank]!
+}
+
+type PackageContentModule  {
+  id: ID! alertRanks(limit: Int = 10): [AlertRank]!
+}
+
+enum ContentModuleType {
+  Article
+  ExternalArticle
+  StatsBetting
+  StatsGamecast
+  Tweet
+  UGCImagePoll
+  UGCTextPoll
+  UGCPost
+  VideoV2
+  Mixed
+}
+
+enum AspectRatio {
+  Horizontal
+  Vertical
+  Any
+}
+
+interface DsContentModelResult  {
+  type: ContentModuleType!
+  contentID: String!
+}
+
+type TrendingResult implements DsContentModelResult {
+  type: ContentModuleType!
+  contentID: String!
+  rank: Int!
+}
+
+type A2VResult implements DsContentModelResult {
+  type: ContentModuleType!
+  contentID: String!
+  score: Float!
+}
+
+type A2AResult implements DsContentModelResult {
+  type: ContentModuleType!
+  contentID: String!
+  score: Float!
+}
+
+type V2VResult implements DsContentModelResult {
+  type: ContentModuleType!
+  contentID: String!
+  score: Float!
+}
+
+type TrendingChannelResult {
+  tagV2: TagV2!
+  rank: Int!
+}
+
+type User  {
+  profileId: String
+  recommendedTeams: [TrendingChannelResult!] 
+  recommendedLeagues: [TrendingChannelResult!] 
+  recommendedVideos: [TrendingResult!] 
+  recommendedArticles: [TrendingResult!] 
+}
+
+type BlockedContent {
+  type: ContentModuleType!
+  contentID: String!
+  insertedAt: Date!
+}
+
+type ChannelRecommenderResult {
+  tagV2: TagV2!
+  score: Float!
+}
+
+type PushNotification  {
+  id: ID!
+}
+
+type AlertRank  {
+  rank: Int!
+  pushNotification: PushNotification!
+}
+
+type DsModel {
+  name: String!
+  defaultVersion: Int!
+}
+
+type Query  {
+  dsModel(model: String!): DsModel
+  trendingChannels(topN: Int!): [TrendingChannelResult!]!
+  trendingArticles(topN: Int!, primaryPrioritizedTag: String = null, secondaryPrioritizedTags: [String!]! = []): [TrendingResult!]!
+  trendingVideos(topN: Int!, countryCode: String, aspectRatio: AspectRatio = Any, primaryPrioritizedTag: String = null, secondaryPrioritizedTags: [String!]! = []): [TrendingResult!]!
+  a2v(articleUuid: String!, countryCode: String, version: Int = 0, aspectRatio: AspectRatio = Any, limit: Int = 10, primaryPrioritizedTag: String = null, secondaryPrioritizedTags: [String!]! = []): [A2VResult!]!
+  a2a(articleUuid: String!, version: Int = 0, limit: Int = 10, primaryPrioritizedTag: String = null, secondaryPrioritizedTags: [String!]! = []): [A2AResult!]!
+  v2v(videoEventId: String!, countryCode: String, version: Int = 0, aspectRatio: AspectRatio = Any, limit: Int = 10, primaryPrioritizedTag: String = null, secondaryPrioritizedTags: [String!]! = []): [V2VResult!]!
+  articleBlocklist(sinceDate: Date, beforeDate: Date, limit: Int = 10): [BlockedContent!]!
+  videoBlocklist(sinceDate: Date, beforeDate: Date, limit: Int = 10): [BlockedContent!]!
+  alertRanks(limit: Int = 10, offset: Int = 0): [AlertRank!]!
+}
+
+enum Actions {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+enum ChannelType {
+  League
+  SmallTeam
+  PopularTeam
+  Interest
+  GameCast
+  Home
+  Following
+  FollowingAddTags
+  Alerts
+  Discovery
+  Creator
+  User
+  Onboarding
+  OnboardingAddTags
+  Scores
+}
+
+enum CreatorTier {
+  Platinum
+  Gold
+  Silver
+  Bronze
+}
+
+enum SemanticID {
+  StatsGamecast
+  StatsScoreboard
+  StatsScorecard
+  StatsBetting
+  StatsVenue
+  StatsInjuryReport
+  StatsLiveOdds
+  StatsSeasonPerformance
+  StatsLeagueRankings
+  StatsGameInfo
+  StatsPreviousMeetings
+  StatsLineScore
+  StatsPlayPreview
+  StatsPlaySummary
+  StatsMatchTimeline
+  StatsDriveChart
+  StatsBaseball
+  StatsPlays
+  StatsGameStats
+  StatsTeamComparison
+  StatsOdds
+  StatsSeasonLeaders
+  StatsPlayersOnIce
+  StatsHockeyGameState
+  StatsPitchingInfo
+  StatsLineup
+  StatsSubstitutions
+  StatsStandings
+  StatsScores
+  StatsSchedule
+  StatsMoneyline
+  StatsTotalPoints
+  StatsSpread
+  StatsScoringPlays
+  StatsDrawNoBet
+  Header
+  UserHeader
+  SearchBar
+  Chat
+  ExternalLink
+  TrendingClips
+  Ads
+  TagFollowing
+  TagRecommended
+  TagOnboarding
+  TagSearch
+  ContentPremiumVideo
+  ContentSocialFeed
+  ContentCommunityFeed
+  ContentHighlights
+  ContentFullGameHighlights
+  ContentChannelFeed
+  ContentWhatsBuzzing
+  ContentTopHeadlines
+  ContentTrendingVideos
+  UgcFromTheFans
+  UgcFeed
+  UgcPosts
+  UgcComments
+  Dummy
+  AlertFollowingFeed
+  AlertActivitiesFeed
+  LiveAndUpcoming
+  LiveNow
+  LiveUpcoming
+  ContentHomeLandscape
+  ContentHomePortraitCollection
+  ContentHomeHeadlines
+  ContentHomeCommunityCollections
+  ContentShortGameHighlights
+  ContentTrendingBets
+  RecForYou
+  RecYouMightLike
+  RecCreatorsInYourCommunities
+  RecMostFollowedTeams
+  RecMostFollowedLeagues
+  RecTopInterests
+  RecTopCreators
+  RecRelatedCommunities
+  StatsPlayerStats
+  StatsScoresStrip
+  StatsThreeWayMoneyline
+  StatsHeadToHead
+  StatsPlayerProp
+  StatsPodium
+  StatsPodiumEntry
+  StatsRaceInfo
+  AffiliateWatchBanner
+}
+
+enum SemanticType {
+  AdsData
+  ContentModuleData
+  StatsData
+  SocialData
+  StatsPlaceholder
+  TagData
+  UserData
+  AlertData
+  Default
+  RecommendationData
+}
+
+enum Tenant {
+  aewGame
+  bleacherReport
+  estadioArgentina
+  estadioBrazil
+  estadioChile
+  ncaa
+}
+
+schema {
+  query: Query
+}

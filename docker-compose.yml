@@ -1,0 +1,26 @@
+services:
+  microcks:
+    image: quay.io/microcks/microcks-uber:latest
+    ports:
+      - "8585:8080"
+    volumes:
+      - ./artifacts:/app/artifacts:ro
+
+  mock-server:
+    build: .
+    ports:
+      - "4010:4010"
+    environment:
+      - PORT=4010
+      - MICROCKS_URL=http://microcks:8080
+    depends_on:
+      - microcks
+
+  import:
+    build: .
+    entrypoint: ["bash", "/app/import-to-microcks.sh"]
+    environment:
+      - MICROCKS_URL=http://microcks:8080
+      - ARTIFACTS_DIR=/app/artifacts
+    depends_on:
+      - microcks

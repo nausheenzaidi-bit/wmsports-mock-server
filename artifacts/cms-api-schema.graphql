@@ -1,0 +1,1237 @@
+# microcksId: CmsAPI : 1.0
+
+scalar UUID
+scalar Time
+scalar DateTime
+
+scalar ContextFieldValue
+
+type Query {
+  getArticleByCmsId(cmsId: String, tenant: Tenant!, publishedOnly: Boolean = true): Article
+  getArticleByUUID(uuid: String, tenant: Tenant!, publishedOnly: Boolean = true): Article
+  getArticleByDisplayId(
+    displayId: Int!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): Article
+  getArticleBySlug(slug: String, tenant: Tenant!, publishedOnly: Boolean = true): Article
+  getAllArticles(tenant: Tenant!, publishedOnly: Boolean = true, before: String, after: String, limit: Int, skip: Int, searchParams: ArticleFindManyParametersInput, sort: ContentLibrarySortParametersInput): ArticleConnection
+  getAllVideos(limit: Int = 25, order: String = "asc", skip: Int = 0, videoFilters: VideoFiltersInput, tenant: Tenant!, publishedOnly: Boolean = true): [Video]
+  getVideosByEventId(
+    eventId: String
+    limit: Int = 25
+    order: String = "asc"
+    skip: Int = 0
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): [Video]
+  getVideoById(id: String, tenant: Tenant!, publishedOnly: Boolean = true): Video
+  getVideoByCmsId(cmsId: String, limit: Int = 25, skip: Int = 0, tenant: Tenant!, publishedOnly: Boolean = true): Video
+  getVideosByTeamId(
+    teamId: String
+    limit: Int = 25
+    order: String = "desc"
+    skip: Int = 0
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): [Video]
+  getPageByUri(uri: String!, componentFilters: PageComponentFiltersInput, tenant: Tenant!, publishedOnly: Boolean = true): Page
+  getAllPlaylists(tenant: Tenant!, publishedOnly: Boolean = true): [Playlist]
+  getPlaylistById(id: String, tenant: Tenant!, publishedOnly: Boolean = true): Playlist
+  getPlaylistByCmsId(cmsId: String, tenant: Tenant!, publishedOnly: Boolean = true): Playlist
+  getPlaylistByEventId(
+    tenant: Tenant!
+    eventId: String
+    publishedOnly: Boolean = true
+  ): Playlist
+  getTaxonomyByIdAndType(id: String!, type: TaxonomyType!, tenant: Tenant!, publishedOnly: Boolean = true): TaxonomyTerm
+  getAllMenus(tenant: Tenant!, publishedOnly: Boolean = true): [Menu]
+  getMenuById(
+    id: String
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): Menu
+  getConfigJsonByUri(uri: String!, tenant: Tenant!, publishedOnly: Boolean = true): ConfigJson
+  getTagByForeignId(
+    foreignId: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): TagV2
+  getTagByForeignIds(
+    foreignIds: [String!]!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): [TagV2]
+  getTagByUUID(
+    uuid: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): TagV2
+  getTagBySlugs(
+    slugs: [String!]!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): [TagV2]
+  tags(tagParams: TagsQueryInput!, paginationControl: PaginationControlInput, tenant: Tenant!, publishedOnly: Boolean = true): TagV2Connection 
+  getTagGroupByUUID(
+    uuid: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): TagGroup
+  getTagGroupsBySlugs(
+    slugs: [String!]!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): [TagGroup]
+  getChannelByCmsId(cmsId: String, tenant: Tenant!, publishedOnly: Boolean = true): Channel
+  getChannelByTagUUID(
+    tagUUID: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): Channel 
+  getChannelByUUID(
+    uuid: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): Channel
+  getChannelBySlug(
+    slug: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): Channel 
+  getAllVideosV2(playable: Boolean, contentType: VideoContentType, videoType: VideoType, tag: String, tenant: Tenant!, publishedOnly: Boolean = true): [VideoV2]
+  getVideoV2ByCmsId(cmsId: String, tenant: Tenant!, publishedOnly: Boolean = true): VideoV2
+  getVideoV2ById(
+    eventId: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): VideoV2
+  getVideoV2ByEditId(
+    editId: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): VideoV2
+  getVideoV2TagIdsFromEventIds(
+    eventIds: [String!]!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): [VideoV2TagIds!] 
+  searchTagByMatchTerm(searchParams: TagSearchParamsInput, tenant: Tenant!, publishedOnly: Boolean = true): [TagV2!]! 
+  searchContentLibrary(tenant: Tenant!, publishedOnly: Boolean = true, searchParams: ContentLibrarySearchParametersInput, sort: ContentLibrarySortParametersInput): [ContentLibrarySearchResult] 
+  findContentBrandBySourceUrl(
+    source: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): ContentBrand 
+  getHelloWorld: String 
+}
+
+scalar ComponentCursor
+
+scalar Date
+
+scalar Float
+
+scalar ID
+
+scalar JSON
+
+scalar MongoID
+
+enum ArticleType {
+  ARTICLE
+  SLIDESHOW
+}
+
+enum ChannelType {
+  League
+  SmallTeam
+  PopularTeam
+  Interest
+  GameCast
+  Home
+  Following
+  FollowingAddTags
+  Alerts
+  Discovery
+  Creator
+  User
+  Onboarding
+  OnboardingAddTags
+  Scores
+}
+
+enum ContentLibrarySortDirection {
+  ASC
+  DESC
+}
+
+enum ContentSearchType {
+  Article
+  Tweet
+  VideoV2
+}
+
+enum CreatorTier {
+  Platinum
+  Gold
+  Silver
+  Bronze
+}
+
+enum EnumTagGroupType {
+  Suggested
+  Location
+  Programming
+  League
+}
+
+enum EnumTagV2ChannelState {
+  PreGame
+  LiveGame
+  PostGame
+  Standard
+}
+
+enum GameState {
+  PreGame
+  LiveGame
+  PostGame
+  Standard
+}
+
+enum SearchSource {
+  TITLE
+  USERNAME
+  XPOST
+  XAUTHOR
+}
+
+enum SemanticID {
+  StatsGamecast
+  StatsScoreboard
+  StatsScorecard
+  StatsBetting
+  StatsVenue
+  StatsInjuryReport
+  StatsLiveOdds
+  StatsSeasonPerformance
+  StatsLeagueRankings
+  StatsGameInfo
+  StatsPreviousMeetings
+  StatsLineScore
+  StatsPlayPreview
+  StatsPlaySummary
+  StatsMatchTimeline
+  StatsDriveChart
+  StatsBaseball
+  StatsPlays
+  StatsGameStats
+  StatsTeamComparison
+  StatsOdds
+  StatsSeasonLeaders
+  StatsPlayersOnIce
+  StatsHockeyGameState
+  StatsPitchingInfo
+  StatsLineup
+  StatsSubstitutions
+  StatsStandings
+  StatsScores
+  StatsSchedule
+  StatsMoneyline
+  StatsTotalPoints
+  StatsSpread
+  StatsScoringPlays
+  StatsDrawNoBet
+  Header
+  UserHeader
+  SearchBar
+  Chat
+  ExternalLink
+  TrendingClips
+  Ads
+  TagFollowing
+  TagRecommended
+  TagOnboarding
+  TagSearch
+  ContentPremiumVideo
+  ContentSocialFeed
+  ContentCommunityFeed
+  ContentHighlights
+  ContentFullGameHighlights
+  ContentChannelFeed
+  ContentWhatsBuzzing
+  ContentTopHeadlines
+  ContentTrendingVideos
+  UgcFromTheFans
+  UgcFeed
+  UgcPosts
+  UgcComments
+  Dummy
+  AlertFollowingFeed
+  AlertActivitiesFeed
+  LiveAndUpcoming
+  LiveNow
+  LiveUpcoming
+  ContentHomeLandscape
+  ContentHomePortraitCollection
+  ContentHomeHeadlines
+  ContentHomeCommunityCollections
+  ContentShortGameHighlights
+  ContentTrendingBets
+  RecForYou
+  RecYouMightLike
+  RecCreatorsInYourCommunities
+  RecMostFollowedTeams
+  RecMostFollowedLeagues
+  RecTopInterests
+  RecTopCreators
+  RecRelatedCommunities
+  StatsPlayerStats
+  StatsScoresStrip
+  StatsThreeWayMoneyline
+  StatsHeadToHead
+  StatsPlayerProp
+  StatsPodium
+  StatsPodiumEntry
+  StatsRaceInfo
+  AffiliateWatchBanner
+}
+
+enum SemanticType {
+  AdsData
+  ContentModuleData
+  StatsData
+  SocialData
+  StatsPlaceholder
+  TagData
+  UserData
+  AlertData
+  Default
+  RecommendationData
+}
+
+enum TagTypeV2 {
+  Conference
+  Creator
+  Division
+  Editor
+  Editorial
+  Event
+  GameCast
+  Interest
+  League
+  Page
+  Player
+  Person
+  Sport
+  Team
+}
+
+enum TaxonomyType {
+  seriesTaxonomy
+  showTaxonomy
+}
+
+enum Tenant {
+  aewGame
+  bleacherReport
+  estadioArgentina
+  estadioBrazil
+  estadioChile
+  ncaa
+}
+
+enum VideoContentType {
+  CONTENT_TYPE_UNSPECIFIED
+  CONTENT_TYPE_VOD
+  CONTENT_TYPE_LIVE
+  CONTENT_TYPE_FULL_EVENT_REPLAY
+  CONTENT_TYPE_START_OVER
+  CONTENT_TYPE_ADVERTISEMENT
+  CONTENT_TYPE_CLIP
+  CONTENT_TYPE_QUICKVOD
+}
+
+enum VideoContentTypeFilter {
+  FULL_LENGTH
+  CLIP
+}
+
+enum VideoState {
+  UPCOMING
+  LIVE
+  ENDED
+  VOD
+}
+
+enum VideoType {
+  VIDEO_TYPE_CLIP
+  VIDEO_TYPE_EPISODE
+  VIDEO_TYPE_LIVE
+  VIDEO_TYPE_MOVIE
+  VIDEO_TYPE_PROMO
+  VIDEO_TYPE_STANDALONE
+  VIDEO_TYPE_STANDALONE_EVENT
+  VIDEO_TYPE_TRAILER
+  VIDEO_TYPE_UNSPECIFIED
+}
+
+union ContentLibrarySearchResult = Article | VideoV2 | Tweet
+
+type Action {
+  download: Allowed
+  list: Allowed
+  play: Allowed
+}
+
+type AllowAll {
+  allowAll: Boolean
+}
+
+type Allowed {
+  allowed: Boolean
+}
+
+type Article    {
+  schemaVersion: String
+  uuid: String!
+  cmsId: String!
+  tenant: String
+  contentType: String!
+  contentSubtype: String
+  created: String 
+  changed: String 
+  publishedDateTime: Date
+  isPublished: Boolean!
+  isDeleted: Boolean isAdSensitive: Boolean
+  isEvergreen: Boolean
+  isPtScheduled: Boolean
+  hideBetModule: Boolean
+  title: String!
+  language: String
+  displayId: Int
+  legacy: Boolean
+  primaryTag: TagV2!
+  image: Image
+  metatags: [PageMetatags]
+  description: String
+  slug: String
+  ampUrl: String
+  tags: [TagV2]
+  betTags: [TagV2]
+  containsGeoblockedContent: Boolean
+  author: ArticleAuthor
+  slides: [Slide]
+  createdAt: Date
+  updatedAt: Date
+  _id: MongoID!
+  hash: String
+}
+
+type ArticleAuthor {
+  id: String
+  name: String
+  photoUrl: String
+  title: String
+  socialMediaHandles: [SocialMediaHandle]
+}
+
+type ArticleConnection {
+  totalFound: Int!
+  totalReturned: Int!
+  edges: [ArticleEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ArticleEdge {
+  cursor: String!
+  node: Article!
+}
+
+type BillingOrder {
+  scope: String
+  value: Int
+}
+
+type Brand {
+  id: Identifier
+  primary: Boolean
+}
+
+type Channel   {
+  schemaVersion: String
+  isDeleted: Boolean tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  language: String
+  title: String
+  headline: String
+  type: ChannelType
+  tag: TagV2!
+  isTemplate: Boolean
+  created: String 
+  changed: String 
+  createdAt: Date
+  updatedAt: Date
+  metatags: [PageMetatags]
+  gameState: GameState
+  components: [ChannelComponent]!
+  groupings(
+    filter: String
+  ): [Grouping]
+  groupingList: [GroupingHeader]
+  _id: MongoID!
+}
+
+type ChannelComponent   {
+  tagUUID: String
+  tagSlug: String
+  tagType: String
+  semanticID: SemanticID
+  semanticType: SemanticType
+  isDomesticOnly: Boolean
+  weight: Int
+  headline: String
+  subheadline: String
+  description: String
+  uuid: String!
+  link: Link
+  images: [ImageWithStyle]
+  interlacingInterval: Int
+  tagData: [TagV2]
+  watchInfo(
+    providerName: String
+  ): [WatchInfo]
+}
+
+type ChannelStreamMetaData   {
+  id: String
+  semanticID: SemanticID
+  tagUUID: String
+  weight: Float
+  _id: MongoID
+}
+
+type Component   {
+  type: String
+  weight: Float
+  headline: String
+  subheadline: String
+  description: String
+  startTime: Date
+  endTime: Date
+  link: Link
+  id: String
+  uuid: String!
+  format: String
+  orientation: String
+  isFavoriteTeam: Boolean
+  image: Image
+  images: [ImageWithStyle]
+  content: [Content]
+  _id: MongoID
+}
+
+type ComponentEdge  {
+  cursor: ComponentCursor!
+  node: Component!
+}
+
+type ComponentsConnection  {
+  totalCount: Int!
+  edges: [ComponentEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ConfigJson   {
+  schemaVersion: String
+  tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  language: String
+  title: String
+  created: String
+  changed: String
+  uri: String!
+  jsonBlob: String
+  _id: MongoID!
+}
+
+type Content    {
+  hash: String
+  weight: Float
+  allowedTypes: [String]
+  filters: ContentFilters
+  sort: ContentSort
+  clip: String 
+  event: String 
+  liveStream: String
+  league: String
+  tournament: String 
+  team: String 
+  product: [Product]
+  form: ContentForm
+  show: ContentShow
+  image: Image
+  item: Item
+  stream: StreamMetaData
+  channelStream: ChannelStreamMetaData
+  _id: MongoID
+  clips: [Video]
+}
+
+type ContentBrand   {
+  tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  isDeleted: Boolean
+  language: String
+  brandSourceUrls: [String]
+  isPartner: Boolean
+  logos: [ImageWithStyle]
+  name: String!
+  source: String!
+}
+
+type ContentFilters {
+  isFavoriteTeam: Boolean
+  maxItems: Float
+  status: [String]
+  timeWindow: [Float]
+  shows: [String]
+  collections: [String]
+  tags: [String]
+  _id: MongoID
+}
+
+type ContentForm {
+  element: FormElement
+}
+
+type ContentShow {
+  id: String
+  title: String
+  image: Image
+  weight: Float
+  _id: MongoID
+}
+
+type ContentSort {
+  field: String
+  order: String
+}
+
+type Credit {
+  billingOrders: [BillingOrder]
+  id: String
+  personId: ID
+  role: String
+}
+
+type Element  {
+  content: ElementContent
+  contentType: String
+  order: Int
+}
+
+type ElementContent  {
+  html: String
+  media: VideoV2
+  image: Image
+  url: String
+  wordCount: Float
+}
+
+type FollowingMetadata  {
+  primaryLabel: String
+  secondaryLabel: String
+  chipLabel: String
+  categoryLogo: Image
+  uuid: String
+}
+
+type FormElement {
+  weight: Float
+  type: String
+  headline: String
+  options: JSON
+  _id: MongoID
+}
+
+type Grouping  {
+  header: GroupingHeader
+  components: [ChannelComponent]
+}
+
+type GroupingHeader   {
+  id: String
+  title: String
+  isDefault: Boolean
+  isDomesticOnly: Boolean
+  applicableGameStates: [GameState]
+  image: Image
+  slug: String
+  gameStartTime: Date
+  gameEndTime: Date
+}
+
+type Identifier {
+  id: String
+  namespace: String
+}
+
+type Image  {
+  url: String!
+  alt: String
+  width: String
+  height: String
+  focalPointX: Float
+  focalPointY: Float
+  accreditation: String
+  caption: String
+  copyright: String
+  _id: MongoID
+}
+
+type ImageWithStyle  {
+  image: Image
+  style: String
+  type: String
+  _id: MongoID
+}
+
+type Item {
+  headline: String
+  subheadline: String
+  description: String
+  style: String
+  link: Link
+  startTime: Date
+  endTime: Date
+  images: [ImageWithStyle]
+  _id: MongoID
+}
+
+type Limitation {
+  adPlacement: AllowAll
+  audioLanguage: AllowAll
+  technicalQuality: AllowAll
+  textLanguage: AllowAll
+}
+
+type Link {
+  uri: String
+  text: String
+  _id: MongoID
+}
+
+type Localization {
+  value: String
+  language: String
+}
+
+type Media {
+  image: Image
+  clip: String
+  _id: MongoID
+}
+
+type Menu  {
+  schemaVersion: String!
+  tenant: String!
+  uuid: String
+  cmsId: String
+  isPublished: Boolean
+  language: String!
+  id: String!
+  title: String!
+  links: [MenuLinks]
+  _id: MongoID!
+}
+
+type MenuLinks  {
+  text: String!
+  url: String
+  weight: String!
+  tagGroups: [TagGroup]
+  tags: [TagV2]
+  options: MenuOptions
+  _id: MongoID
+  children: [MenuLinks]
+}
+
+type MenuOptions  {
+  target: String
+  expanded: Boolean
+  images: [ImageWithStyle]
+  routes: [MenuRoutes]
+  attributes: MenuOptionsAttributes
+  _id: MongoID
+}
+
+type MenuOptionsAttributes  {
+  title: String
+  class: [String]
+}
+
+type MenuRoutes  {
+  id: String
+  path: String
+  title: String
+  _id: MongoID
+}
+
+type Offering {
+  id: String
+  contentClass: String
+  contentId: String
+  editId: String 
+  actions: Action
+  alternateIds: [Identifier]
+  appNames: VideoAppName
+  brands: [Brand]
+  limitations: Limitation
+  packages: [String]
+  platforms: AllowAll
+  productLines: [ProductLine]
+  territories: [String]
+  startDate: String
+  createdDateTime: String
+  endDate: String
+  firstAvailableDate: String
+  lastModifiedDateTime: String
+}
+
+type Page   {
+  schemaVersion: String
+  tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  language: String
+  type: String
+  uri: String!
+  title: String
+  headline: String
+  body: PageBody
+  created: String
+  changed: String
+  metatags: [PageMetatags]
+  components: [Component] 
+  _id: MongoID!
+  componentsConnection(before: ComponentCursor, after: ComponentCursor, first: Int, last: Int): ComponentsConnection!
+}
+
+type PageBody {
+  value: String
+  summary: String
+  format: String
+  _id: MongoID
+}
+
+type PageInfo  {
+  hasNextPage: Boolean
+  hasPreviousPage: Boolean
+  startCursor: String
+  endCursor: String
+}
+
+type PageMetatags  {
+  type: String
+  key: String
+  content: String
+  _id: MongoID
+}
+
+type Playlist  {
+  schemaVersion: String
+  tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  language: String
+  title: String
+  headline: String
+  type: String
+  created: String
+  changed: String
+  tagging: Tagging
+  media: [Media]
+  _id: MongoID!
+}
+
+type Product {
+  weight: Float
+  productId: String
+  cta: String
+  price: String
+  headline: String
+  subHeadline: String
+  disclaimer: String
+  isPayPalEnabled: Boolean
+  _id: MongoID
+}
+
+type ProductLine {
+  id: Identifier
+  label: String
+}
+
+type Program {
+  id: String
+  entityClass: String
+  entityType: String
+  titles: [VideoTitle]
+  alternateIds: [Identifier]
+  credits: [Credit]
+  ratings: [Rating]
+  taxonomyReferenceGroups: [TaxonomyReferenceGroup]
+  createdDateTime: String
+  lastModifiedDateTime: String
+}
+
+type Rating {
+  classifier: String
+  contentDescriptors: [String]
+  ratingAuthority: String
+}
+
+type Slide  {
+  id: Int
+  slideNumber: Int
+  title: String!
+  featuredMedia: Element!
+  elements: [Element]
+}
+
+type SocialMediaHandle {
+  platform: String
+  handle: String
+}
+
+type StreamMetaData   {
+  id: String
+  headline: String
+  subtype: String
+  weight: Float
+  _id: MongoID
+}
+
+type Tagging {
+  tags: [String]
+  shows: [String]
+  _id: MongoID
+  events: [Event]
+  tournaments: [Tournament]
+  competitors: [Competitor]
+}
+
+type TagGroup {
+  schemaVersion: String
+  isDeleted: Boolean tenant: String
+  uuid: String!
+  cmsId: String
+  isPublished: Boolean
+  language: String
+  slug: String!
+  displayName: String
+  children: [TagV2]
+  type: EnumTagGroupType!
+  _id: MongoID!
+}
+
+type TagV2    {
+  schemaVersion: String
+  isDeleted: Boolean tenant: String
+  uuid: String!
+  cmsId: String
+  foreignId: String
+  isPublished: Boolean
+  language: String
+  slug: String!
+  type: TagTypeV2
+  displayName: String
+  description: String
+  shortName: String
+  abbreviation: String
+  eyebrow: String
+  ticketLink: String
+  isChannel: Boolean
+  isFeatured: Boolean
+  gameStatus: String
+  channelState: EnumTagV2ChannelState
+  logo: Image
+  followingMetadata: FollowingMetadata
+  startTime: Date
+  endTime: Date
+  changed: String 
+  updatedAt: Date
+  root: TagV2
+  parent: TagV2
+  parents: [TagV2]
+  children: [TagV2]
+  colorPrimary: String
+  colorSecondary: String
+  isVisibleContentTool: Boolean
+  isVisibleProgrammingTool: Boolean
+  creatorTier: CreatorTier
+  _id: MongoID!
+  hash: String
+  watchInfo(
+    providerName: String
+  ): [WatchInfo]
+  menu: Menu
+  locationRelatedTags: [TagV2]
+}
+
+type TagV2Connection  {
+  totalCount: Int!
+  edges: [TagV2Edge!]!
+  pageInfo: PageInfo!
+}
+
+type TagV2Edge  {
+  cursor: ComponentCursor!
+  node: TagV2!
+}
+
+type TaxonomyReference {
+  taxonomyId: Identifier
+}
+
+type TaxonomyReferenceGroup {
+  kind: String
+  taxonomyReferences: [TaxonomyReference]
+}
+
+type TaxonomyTerm  {
+  schemaVersion: String
+  tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  language: String
+  type: String
+  id: String!
+  parentId: String
+  name: String
+  description: String
+  created: String
+  changed: String
+  sportsRadarId: String
+  tournamentId: String
+  year: String
+  image: Image
+  _id: MongoID!
+}
+
+type Tweet  {
+  id: ID!
+}
+
+type Video   {
+  schemaVersion: String
+  tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  language: String
+  thumbnail: String
+  mediaId: String
+  title: String
+  headline: String
+  subHeadline: String
+  duration: String
+  cardLabel: String
+  sortDate: String
+  collectionName: String
+  episodeNumber: String
+  tagging: Tagging
+  created: String
+  changed: String
+  _id: MongoID!
+  events: [Event] 
+}
+
+type VideoAppName {
+  allowValues: [String]
+}
+
+type VideoTitle {
+  localizations: [Localization]
+  scope: String
+  type: String
+}
+
+type VideoV2    {
+  schemaVersion: String
+  isDeleted: Boolean tenant: String
+  cmsId: String
+  uuid: String
+  eventId: String!
+  title: String
+  description: String
+  headline: String
+  subHeadline: String
+  isPublished: Boolean
+  playable: Boolean
+  durationSeconds: Float
+  height: Int
+  width: Int
+  contentType: VideoContentType
+  videoSource: String
+  videoType: VideoType
+  videoState: VideoState 
+  isPtScheduled: Boolean
+  program: Program
+  offering: Offering
+  deliverableImage: Image
+  tags: [TagV2]
+  createdDateTime: String 
+  lastModifiedDateTime: String 
+  created: String 
+  changed: String 
+  createdAt: Date
+  updatedAt: Date
+  _id: MongoID!
+  hash: String
+}
+
+type VideoV2TagData  {
+  uuid: String!
+  type: TagTypeV2!
+}
+
+type VideoV2TagIds  {
+  eventId: String!
+  tagData: [VideoV2TagData]
+}
+
+type WatchInfo  {
+  name: String
+  url: String
+  text: [String]
+  logoUrl: String
+}
+
+input ArticleFindManyParametersInput {
+  query: String
+  tagUUIDList: [String!]
+  type: ArticleType
+  createdDateRange: DateRangeFilter
+  updatedDateRange: DateRangeFilter
+  publishedDateRange: DateRangeFilter
+}
+
+input ContentLibrarySearchParametersInput {
+  query: String
+  tagUUIDList: [String!]
+  contentTypeFilter: [ContentSearchType!]
+  sourceType: SearchSource
+  videoContentTypeFilter: VideoContentTypeFilter
+  isPtScheduled: Boolean
+  createdDateRange: DateRangeFilter
+  useFullTextSearch: Boolean
+}
+
+input ContentLibrarySortParametersInput {
+  created: ContentLibrarySortDirection
+  changed: ContentLibrarySortDirection
+  title: ContentLibrarySortDirection
+}
+
+input DateRangeFilter {
+  high: Date
+  low: Date
+}
+
+input PageComponentFiltersInput {
+  team: String
+}
+
+input PaginationControlInput {
+  after: ComponentCursor
+  before: ComponentCursor
+  first: Int
+  last: Int
+}
+
+input TagSearchParamsInput {
+  term: String!
+  isVisibleInContentTool: Boolean
+  isVisibleInProgrammingTool: Boolean
+  isChannel: Boolean
+}
+
+input TagsQueryInput {
+  uuids: [String!]
+  slugs: [String!]
+}
+
+input VideoFiltersInput {
+  team: String
+  event: String
+}
+
+type Event  {
+  hash: String }
+
+type Tournament  {
+  hash: String }
+
+type Competitor  {
+  hash: String }
+
+type Series  {
+  hash: String taxonomy: TaxonomyTerm
+}
+
+type Show  {
+  hash: String taxonomy(tenant: Tenant!): TaxonomyTerm
+}
+
+type Tag  {
+  id: ID!
+  permalink: String! root: Tag menu(tenant: Tenant!): Menu 
+}
+
+type ScoresLeague  {
+  id: String
+  slug: String tagV2(tenant: Tenant!): TagV2 
+}
+
+type ScoresGame  {
+  id: String
+  gamecast: String "Returns the tag for a given game's gamecast slug"
+  gamecastTag(tenant: Tenant!): TagV2 
+}
+
+type ExternalArticle  {
+  id: ID!
+  source: String! providerName: String! brand(tenant: Tenant!): ContentBrand 
+}
+
+type ScoresEvent  {
+  id: String
+  gamecast: String gamecastTag(tenant: Tenant!): TagV2 
+}
+
+enum Actions {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+type ModuleMetaData  {
+  hash: String!
+  videoContentId: String tenant: Tenant brand: ContentBrand
+  author: TagV2   
+}
+
+schema {
+  query: Query
+}

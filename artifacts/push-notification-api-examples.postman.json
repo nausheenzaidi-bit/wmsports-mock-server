@@ -1,0 +1,314 @@
+{
+  "info": {
+    "_postman_id": "pushnotificationapi-mocks",
+    "name": "PushNotificationAPI",
+    "description": "version=1.0 - Mock examples for PushNotificationAPI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "getUserPushNotifications",
+      "request": {
+        "method": "POST",
+        "url": "http://getUserPushNotifications",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query getUserPushNotifications($limit: Int, $tenant: Tenant!) { getUserPushNotifications(limit: $limit, tenant: $tenant) { id createdAt adParameters analytics { genres gamecastType } attachments { mediaType mediaUrl height width editId } allowInRegions destinations { contentModuleId tagUUID } userDestination { contentModuleId tag { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } destinationOverride createdBy showAlertCard alertCategories spoiler tags { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } text title url } }\",\"variables\":{\"limit\":1,\"tenant\":\"demo-tenant\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://getUserPushNotifications",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query getUserPushNotifications($limit: Int, $tenant: Tenant!) { getUserPushNotifications(limit: $limit, tenant: $tenant) { id createdAt adParameters analytics { genres gamecastType } attachments { mediaType mediaUrl height width editId } allowInRegions destinations { contentModuleId tagUUID } userDestination { contentModuleId tag { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } destinationOverride createdBy showAlertCard alertCategories spoiler tags { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } text title url } }\",\"variables\":{\"limit\":1,\"tenant\":\"demo-tenant\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"getUserPushNotifications\":[{\"id\":\"id-id-001\",\"createdAt\":\"2026-02-20T10:00:00Z\",\"adParameters\":\"demo-adParameters\",\"analytics\":{\"genres\":[\"viral\"],\"gamecastType\":\"pregame\"},\"attachments\":[{\"mediaType\":\"jpg\",\"mediaUrl\":\"https://example.com/demo\",\"height\":\"demo-height\",\"width\":\"id-12345\",\"editId\":\"id-12345\"}],\"allowInRegions\":[\"AD\"],\"destinations\":[{\"contentModuleId\":\"id-12345\",\"tagUUID\":\"id-12345\"}],\"userDestination\":{\"contentModuleId\":\"id-contentModuleId-001\",\"tag\":{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[],\"followersCount\":10,\"following\":[]}]}]}},\"destinationOverride\":\"id-12345\",\"createdBy\":\"id-createdBy-001\",\"showAlertCard\":true,\"alertCategories\":[\"news\"],\"spoiler\":true,\"tags\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[],\"followersCount\":10,\"following\":[]}]}]}]}],\"text\":\"Sample text\",\"title\":\"Demo Title\",\"url\":\"https://example.com/demo\"}]}}"
+        }
+      ]
+    },
+    {
+      "name": "getContentModuleIdsWithPushNotificationIds",
+      "request": {
+        "method": "POST",
+        "url": "http://getContentModuleIdsWithPushNotificationIds",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query getContentModuleIdsWithPushNotificationIds($contentModuleIds: [String!]!, $tenant: Tenant!) { getContentModuleIdsWithPushNotificationIds(contentModuleIds: $contentModuleIds, tenant: $tenant) }\",\"variables\":{\"contentModuleIds\":\"id-12345\",\"tenant\":\"demo-tenant\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-12345",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://getContentModuleIdsWithPushNotificationIds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query getContentModuleIdsWithPushNotificationIds($contentModuleIds: [String!]!, $tenant: Tenant!) { getContentModuleIdsWithPushNotificationIds(contentModuleIds: $contentModuleIds, tenant: $tenant) }\",\"variables\":{\"contentModuleIds\":\"id-12345\",\"tenant\":\"demo-tenant\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"getContentModuleIdsWithPushNotificationIds\":[1]}}"
+        }
+      ]
+    },
+    {
+      "name": "getAllNotifications",
+      "request": {
+        "method": "POST",
+        "url": "http://getAllNotifications",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query getAllNotifications($limit: Int, $tenant: Tenant!, $lastPushNotificationId: Int, $latestUnixTimestamp: Int) { getAllNotifications(limit: $limit, tenant: $tenant, lastPushNotificationId: $lastPushNotificationId, latestUnixTimestamp: $latestUnixTimestamp) { id createdAt adParameters analytics { genres gamecastType } attachments { mediaType mediaUrl height width editId } allowInRegions destinations { contentModuleId tagUUID } userDestination { contentModuleId tag { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } destinationOverride createdBy showAlertCard alertCategories spoiler tags { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } text title url } }\",\"variables\":{\"limit\":1,\"tenant\":\"demo-tenant\",\"lastPushNotificationId\":1,\"latestUnixTimestamp\":1}}"
+        }
+      },
+      "response": [
+        {
+          "name": "1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://getAllNotifications",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query getAllNotifications($limit: Int, $tenant: Tenant!, $lastPushNotificationId: Int, $latestUnixTimestamp: Int) { getAllNotifications(limit: $limit, tenant: $tenant, lastPushNotificationId: $lastPushNotificationId, latestUnixTimestamp: $latestUnixTimestamp) { id createdAt adParameters analytics { genres gamecastType } attachments { mediaType mediaUrl height width editId } allowInRegions destinations { contentModuleId tagUUID } userDestination { contentModuleId tag { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } destinationOverride createdBy showAlertCard alertCategories spoiler tags { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } text title url } }\",\"variables\":{\"limit\":1,\"tenant\":\"demo-tenant\",\"lastPushNotificationId\":1,\"latestUnixTimestamp\":1}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"getAllNotifications\":[{\"id\":\"id-id-001\",\"createdAt\":\"2026-02-20T10:00:00Z\",\"adParameters\":\"demo-adParameters\",\"analytics\":{\"genres\":[\"viral\"],\"gamecastType\":\"pregame\"},\"attachments\":[{\"mediaType\":\"jpg\",\"mediaUrl\":\"https://example.com/demo\",\"height\":\"demo-height\",\"width\":\"id-12345\",\"editId\":\"id-12345\"}],\"allowInRegions\":[\"AD\"],\"destinations\":[{\"contentModuleId\":\"id-12345\",\"tagUUID\":\"id-12345\"}],\"userDestination\":{\"contentModuleId\":\"id-contentModuleId-001\",\"tag\":{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[],\"followersCount\":10,\"following\":[]}]}]}},\"destinationOverride\":\"id-12345\",\"createdBy\":\"id-createdBy-001\",\"showAlertCard\":true,\"alertCategories\":[\"news\"],\"spoiler\":true,\"tags\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[],\"followersCount\":10,\"following\":[]}]}]}]}],\"text\":\"Sample text\",\"title\":\"Demo Title\",\"url\":\"https://example.com/demo\"}]}}"
+        }
+      ]
+    },
+    {
+      "name": "getPushNotificationById",
+      "request": {
+        "method": "POST",
+        "url": "http://getPushNotificationById",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query getPushNotificationById($id: ID!, $tenant: Tenant!) { getPushNotificationById(id: $id, tenant: $tenant) { id createdAt adParameters analytics { genres gamecastType } attachments { mediaType mediaUrl height width editId } allowInRegions destinations { contentModuleId tagUUID } userDestination { contentModuleId tag { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } destinationOverride createdBy showAlertCard alertCategories spoiler tags { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } text title url } }\",\"variables\":{\"id\":\"id-id-001\",\"tenant\":\"demo-tenant\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "id-id-001",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://getPushNotificationById",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query getPushNotificationById($id: ID!, $tenant: Tenant!) { getPushNotificationById(id: $id, tenant: $tenant) { id createdAt adParameters analytics { genres gamecastType } attachments { mediaType mediaUrl height width editId } allowInRegions destinations { contentModuleId tagUUID } userDestination { contentModuleId tag { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } destinationOverride createdBy showAlertCard alertCategories spoiler tags { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } text title url } }\",\"variables\":{\"id\":\"id-id-001\",\"tenant\":\"demo-tenant\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"getPushNotificationById\":{\"id\":\"id-id-001\",\"createdAt\":\"2026-02-20T10:00:00Z\",\"adParameters\":\"demo-adParameters\",\"analytics\":{\"genres\":[\"viral\"],\"gamecastType\":\"pregame\"},\"attachments\":[{\"mediaType\":\"jpg\",\"mediaUrl\":\"https://example.com/demo\",\"height\":\"demo-height\",\"width\":\"id-12345\",\"editId\":\"id-12345\"}],\"allowInRegions\":[\"AD\"],\"destinations\":[{\"contentModuleId\":\"id-12345\",\"tagUUID\":\"id-12345\"}],\"userDestination\":{\"contentModuleId\":\"id-contentModuleId-001\",\"tag\":{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[],\"followersCount\":10,\"following\":[]}]}]}},\"destinationOverride\":\"id-12345\",\"createdBy\":\"id-createdBy-001\",\"showAlertCard\":true,\"alertCategories\":[\"news\"],\"spoiler\":true,\"tags\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[],\"followersCount\":10,\"following\":[]}]}]}]}],\"text\":\"Sample text\",\"title\":\"Demo Title\",\"url\":\"https://example.com/demo\"}}}"
+        }
+      ]
+    },
+    {
+      "name": "sendPushNotification",
+      "request": {
+        "method": "POST",
+        "url": "http://sendPushNotification",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation sendPushNotification($tenant: Tenant!, $notification: NewPushNotification!) { sendPushNotification(tenant: $tenant, notification: $notification) { id createdAt adParameters analytics { genres gamecastType } attachments { mediaType mediaUrl height width editId } allowInRegions destinations { contentModuleId tagUUID } userDestination { contentModuleId tag { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } destinationOverride createdBy showAlertCard alertCategories spoiler tags { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } text title url } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"notification\":\"demo-notification\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-tenant",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://sendPushNotification",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation sendPushNotification($tenant: Tenant!, $notification: NewPushNotification!) { sendPushNotification(tenant: $tenant, notification: $notification) { id createdAt adParameters analytics { genres gamecastType } attachments { mediaType mediaUrl height width editId } allowInRegions destinations { contentModuleId tagUUID } userDestination { contentModuleId tag { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } destinationOverride createdBy showAlertCard alertCategories spoiler tags { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers { profileId id creatorId following followers } followersCount following { tagUUID hash followers followersCount following } } } text title url } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"notification\":\"demo-notification\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"sendPushNotification\":{\"id\":\"id-id-001\",\"createdAt\":\"2026-02-20T10:00:00Z\",\"adParameters\":\"demo-adParameters\",\"analytics\":{\"genres\":[\"viral\"],\"gamecastType\":\"pregame\"},\"attachments\":[{\"mediaType\":\"jpg\",\"mediaUrl\":\"https://example.com/demo\",\"height\":\"demo-height\",\"width\":\"id-12345\",\"editId\":\"id-12345\"}],\"allowInRegions\":[\"AD\"],\"destinations\":[{\"contentModuleId\":\"id-12345\",\"tagUUID\":\"id-12345\"}],\"userDestination\":{\"contentModuleId\":\"id-contentModuleId-001\",\"tag\":{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[],\"followersCount\":10,\"following\":[]}]}]}},\"destinationOverride\":\"id-12345\",\"createdBy\":\"id-createdBy-001\",\"showAlertCard\":true,\"alertCategories\":[\"news\"],\"spoiler\":true,\"tags\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[{\"profileId\":\"id-12345\",\"id\":\"id-12345\",\"creatorId\":\"id-12345\",\"following\":1,\"followers\":1}],\"followersCount\":10,\"following\":[{\"tagUUID\":\"id-12345\",\"hash\":\"demo-hash\",\"followers\":[],\"followersCount\":10,\"following\":[]}]}]}]}],\"text\":\"Sample text\",\"title\":\"Demo Title\",\"url\":\"https://example.com/demo\"}}}"
+        }
+      ]
+    },
+    {
+      "name": "addDevice",
+      "request": {
+        "method": "POST",
+        "url": "http://addDevice",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation addDevice($tenant: Tenant!, $device: DeviceInput!) { addDevice(tenant: $tenant, device: $device) { id token type appVersion osVersion } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"device\":\"demo-device\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-tenant",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://addDevice",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation addDevice($tenant: Tenant!, $device: DeviceInput!) { addDevice(tenant: $tenant, device: $device) { id token type appVersion osVersion } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"device\":\"demo-device\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"addDevice\":{\"id\":1,\"token\":\"demo-token\",\"type\":\"DEFAULT\",\"appVersion\":\"demo-appVersion\",\"osVersion\":\"demo-osVersion\"}}}"
+        }
+      ]
+    },
+    {
+      "name": "addPushNotificationsAlertRank",
+      "request": {
+        "method": "POST",
+        "url": "http://addPushNotificationsAlertRank",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation addPushNotificationsAlertRank($tenant: Tenant!, $alertRankInput: PushNotificationAlertRankInput) { addPushNotificationsAlertRank(tenant: $tenant, alertRankInput: $alertRankInput) { status message } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"alertRankInput\":\"demo-alertRankInput\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-tenant",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://addPushNotificationsAlertRank",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation addPushNotificationsAlertRank($tenant: Tenant!, $alertRankInput: PushNotificationAlertRankInput) { addPushNotificationsAlertRank(tenant: $tenant, alertRankInput: $alertRankInput) { status message } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"alertRankInput\":\"demo-alertRankInput\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"addPushNotificationsAlertRank\":{\"status\":\"Active\",\"message\":\"demo-message\"}}}"
+        }
+      ]
+    },
+    {
+      "name": "addAlertRank",
+      "request": {
+        "method": "POST",
+        "url": "http://addAlertRank",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"mutation addAlertRank($tenant: Tenant!, $alertRankInput: AddAlertRankInput) { addAlertRank(tenant: $tenant, alertRankInput: $alertRankInput) { status message } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"alertRankInput\":\"demo-alertRankInput\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "demo-tenant",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://addAlertRank",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"mutation addAlertRank($tenant: Tenant!, $alertRankInput: AddAlertRankInput) { addAlertRank(tenant: $tenant, alertRankInput: $alertRankInput) { status message } }\",\"variables\":{\"tenant\":\"demo-tenant\",\"alertRankInput\":\"demo-alertRankInput\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"addAlertRank\":{\"status\":\"Active\",\"message\":\"demo-message\"}}}"
+        }
+      ]
+    }
+  ]
+}

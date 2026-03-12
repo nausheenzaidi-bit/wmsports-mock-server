@@ -1,0 +1,98 @@
+# microcksId: SportsSearchAPI : 1.0
+
+type AssetConnection {
+  edges: [AssetEdge]
+  nodes: [SearchAsset]
+  pageInfo: PageInfo
+  totalCount: Int
+}
+
+type AssetEdge {
+  cursor: String
+  node: SearchAsset
+}
+
+enum ContentType {
+  VIDEO
+  ARTICLE
+  CHANNEL
+  USER
+}
+
+input FacetRequest {
+  field: String!
+  first: Int
+}
+
+type FacetResponse {
+  facetResults: [FacetResult!]
+  field: String!
+}
+
+type FacetResult {
+  count: Int!
+  value: String!
+}
+
+input Filter {
+  field: String!
+  values: [String!]
+}
+
+type PageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+}
+
+type Query {
+  popularSearches(tenant: Tenant!, first: Int, filterTerms: String): QueryAssistResponse!
+  search(after: String, algorithm: String, tenant: Tenant!, contentTypes: [ContentType!]!, facets: [FacetRequest!], filters: [Filter!], first: Int, searchTerms: String, didYouMeanResults: Int): SearchResults!
+  typeAhead(tenant: Tenant!, first: Int, input: String): QueryAssistResponse!
+}
+
+type QueryAssistResponse {
+  results: [QueryAssistResult!]
+}
+
+type QueryAssistResult {
+  term: String!
+}
+
+union SearchAsset = VideoV2 | Article | Channel | User | ExternalArticle
+
+type VideoV2  {
+  hash: String! }
+
+type Article  {
+  hash: String! }
+
+type Channel  {
+  uuid: String! }
+
+type User  {
+  profileId: String! }
+
+type ExternalArticle  {
+  id: ID! }
+
+type SearchResults {
+  connection: AssetConnection
+  errors: [String]
+  facetResponse: [FacetResponse!]
+  didYouMeanResponse: QueryAssistResponse
+}
+
+enum Tenant {
+  aewGame
+  bleacherReport
+  estadioArgentina
+  estadioBrazil
+  estadioChile
+  ncaa
+}
+
+schema {
+  query: Query
+}

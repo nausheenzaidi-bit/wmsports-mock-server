@@ -1,0 +1,186 @@
+# microcksId: HydrationStationAPI : 1.0
+
+scalar URL
+scalar Date
+
+"TEST Mutate the Hydration Station Social Entities"
+type Mutation {
+  "TEST Mutation for Tweets from Hydration Station no used in Production Clients ONLY DEV"
+  createTweetById(id: ID!): Tweet!
+}
+
+"TEST Query the Hydration Station Social Entities"
+type Query {
+  "TEST Query for fetching Tweets from Hydration Station no used in Production Clients ONLY DEV"
+  getTweetsByIds(ids: [ID!]!): [Tweet!]!
+}
+
+enum TweetType {
+  ORIGINAL
+  REPLIED_TO
+  QUOTED
+  RETWEETED
+}
+
+enum TweetMediaType {
+  ANIMATED_GIF
+  PHOTO
+  VIDEO
+}
+
+"A Tweet Entity from X"
+type Tweet   {
+  "Tweet Uuid"
+  id: ID!
+  "Type of the tweet"
+  type: TweetType!
+  "The Tweet Author"
+  author: TwitterUser
+  "A Data-Struct of the Tweet"
+  data: TweetData
+  "Additional Media referenced by the Tweet"
+  media: [TweetMedia]
+  "Another Tweet that is referenced by this Tweet"
+  referencedTweet: Tweet
+}
+
+"A Twitter User"
+type TwitterUser {
+  "Twitter User Id"
+  id: ID!
+  "Name of the User"
+  name: String!
+  "Username of the User"
+  username: String!
+  "Whether the User is Verified"
+  verified: Boolean!
+  "URL of the User's Profile Image"
+  profileImageUrl: String!
+}
+
+"A Tweet's Primary Data"
+type TweetData {
+  "Tweet AuthorId"
+  authorId: String!
+  "Tweet Attachments"
+  attachments: TweetAttachments
+  "Tweet created Date"
+  createdAt: String!
+  "Tweet metrics"
+  publicMetrics: TweetMetrics!
+  "Tweet text"
+  text: String!
+  "Tweet engagement entities"
+  entities: TweetEntities
+  "Other tweet entities referenced"
+  referencedTweets: [TweetReference]
+}
+
+"A Tweet's Attachments"
+type TweetAttachments {
+  "MediaKeys"
+  mediaKeys: [String]
+  "Ids for Polls"
+  pollIds: [String]
+}
+
+"A Tweet's Metrics"
+type TweetMetrics {
+  "Bookmark Count"
+  bookmarkCount: Int!
+  "Impression Count"
+  impressionCount: Int!
+  "Like Count"
+  likeCount: Int!
+  "Quote Count"
+  quoteCount: Int!
+  "Reply Count"
+  replyCount: Int!
+  "Retweet Count"
+  retweetCount: Int!
+}
+
+"Social Media Entities"
+type TweetEntities {
+  "Hash Tags"
+  hashTags: [TweetHashtag]
+  "Urls"
+  urls: [TweetUrl]
+  "Mentions"
+  mentions: [TweetMention]
+}
+
+"Tweet HashTag"
+type TweetHashtag {
+  "Start"
+  start: Int!
+  "End"
+  end: Int!
+  "Tag"
+  tag: String!
+}
+
+"Tweet Url"
+type TweetUrl {
+  "Start"
+  start: Int!
+  "End"
+  end: Int!
+  "Url"
+  url: String!
+  "Display Url Format"
+  displayUrl: String!
+  "Expanded Url"
+  expandedUrl: String!
+}
+
+"Tweet Mention"
+type TweetMention {
+  "Start"
+  start: Int!
+  "End"
+  end: Int!
+  "Username"
+  username: String!
+}
+
+"Tweet Reference"
+type TweetReference {
+  "Id"
+  id: ID!
+  "Reference Type"
+  referenceType: String
+}
+
+"Tweet Media"
+type TweetMedia {
+  "Media Type"
+  type: TweetMediaType!
+  "Height in px"
+  height: Int!
+  "Width in px"
+  width: Int!
+  "MediaKey"
+  mediaKey: String!
+  "Url"
+  url: String
+  "Preview Image Url"
+  previewImageUrl: String
+  "Variant"
+  variants: [TweetVariant]
+}
+
+"Tweet Variant"
+type TweetVariant {
+  "BitRate"
+  bitRate: Int
+  "Content Type"
+  contentType: String!
+  "Url"
+  url: String!
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+}

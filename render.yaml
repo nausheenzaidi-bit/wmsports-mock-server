@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: wmsports-mock-server
+    runtime: node
+    plan: free
+    buildCommand: npm install --production
+    startCommand: node server.cjs
+    rootDir: mock-server
+    envVars:
+      - key: PORT
+        value: 4010
+      - key: NODE_ENV
+        value: production
