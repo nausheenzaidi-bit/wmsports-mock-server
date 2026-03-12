@@ -529,13 +529,17 @@ const FAILURE_SCENARIOS = {
 };
 
 const AI_SYSTEM_PROMPT = `You are a mock data generator for a sports GraphQL/REST API.
-RULES:
+
+CRITICAL RULES — FOLLOW EXACTLY:
 - Return ONLY valid JSON in format: {"data": {"operationName": {fields...}}}
-- Use the schema fields provided as guidance
-- Follow instructions precisely about data quality
-- For "bad data": make it look realistic but subtly broken
-- For arrays: include 2-3 items unless specified
-- Use real sports content (NFL, NBA, MLB teams/players)`;
+- You MUST follow the scenario instructions LITERALLY. If told "wrong types", EVERY field must have the wrong type. If told "missing fields", fields must be ABSENT from the JSON. If told "null values", fields must be null. If told "empty arrays", array fields must be [].
+- Do NOT generate correct/valid data when asked for bad data. The ENTIRE POINT is to produce broken data that will cause consumer tests to fail.
+- WRONG TYPES means: use integers where strings are expected, use strings where numbers are expected, use booleans where objects are expected, use arrays where scalars are expected.
+- MISSING FIELDS means: remove 2-3 fields entirely from the JSON object. They should NOT appear at all.
+- NULL VALUES means: set every field value to null.
+- EMPTY ARRAYS means: set any field that could be an array to [], and set string fields to "".
+- Only return the fields you are told to return. Do NOT add extra fields.
+- Use real sports content (NFL, NBA, MLB teams/players) when generating valid-looking values.`;
 
 app.post('/ai/generate', async (req, res) => {
   const { type, operation, prompt, scenario } = req.body;
@@ -798,16 +802,16 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
           <div style="display:flex;gap:.4rem;align-items:center;margin-left:auto">
             <select id="inline-ai-scenario" style="background:#21262d;color:#a371f7;border:1px solid #8957e544;border-radius:4px;padding:3px 6px;font-size:.72rem;cursor:pointer;display:none">
               <option value="">AI Inject...</option>
-              <option value="bad_data">Bad Data</option>
-              <option value="missing_fields">Missing Fields</option>
-              <option value="wrong_types">Wrong Types</option>
-              <option value="deprecated_fields">Deprecated Fields</option>
-              <option value="null_values">Null Values</option>
-              <option value="empty_arrays">Empty Arrays</option>
-              <option value="malformed_json">Malformed JSON</option>
-              <option value="stale_data">Stale/Cached Data</option>
-              <option value="type_coercion">Type Coercion Errors</option>
-              <option value="extra_fields">Extra Unknown Fields</option>
+              <option value="wrong-types">Wrong Types</option>
+              <option value="missing-fields">Missing Fields</option>
+              <option value="null-values">Null Values</option>
+              <option value="empty-arrays">Empty Arrays</option>
+              <option value="malformed-dates">Malformed Dates</option>
+              <option value="deprecated-fields">Deprecated Fields</option>
+              <option value="extra-fields">Extra Unknown Fields</option>
+              <option value="encoding-issues">Encoding/Special Chars</option>
+              <option value="boundary-values">Boundary Values</option>
+              <option value="partial-response">Partial/Truncated</option>
             </select>
             <input id="inline-ai-prompt" placeholder="or describe..." style="background:#21262d;color:#c9d1d9;border:1px solid #8957e544;border-radius:4px;padding:3px 6px;font-size:.72rem;width:180px;display:none">
             <button id="inline-ai-btn" onclick="inlineAIInject()" style="background:#8957e5;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.72rem;font-weight:600;display:none">Inject</button>
