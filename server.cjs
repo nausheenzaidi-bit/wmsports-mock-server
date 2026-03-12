@@ -572,17 +572,35 @@ app.post('/ai/override', async (req, res) => {
 
   let overrideData = data;
   if (!overrideData && (prompt || scenario)) {
-    const scenarioDef = scenario ? FAILURE_SCENARIOS[scenario] : null;
     const retType = getOperationReturnType(operation);
     let schemaCtx = retType ? buildTypeSchema(retType) : '';
+    const fieldList = (fields && fields.length > 0) ? fields : null;
+    const fNames = fieldList ? fieldList.join(', ') : 'all fields';
 
-    let fieldsConstraint = '';
-    if (fields && fields.length > 0) {
-      fieldsConstraint = `\n\nIMPORTANT: The response MUST contain ONLY these fields: ${fields.join(', ')}. Do NOT include any other fields. The object should have exactly these keys and nothing else.`;
+    let scenarioPrompt = '';
+    if (scenario && FAILURE_SCENARIOS[scenario]) {
+      const base = FAILURE_SCENARIOS[scenario].prompt;
+      if (fieldList) {
+        const examples = {
+          'wrong-types': `The query has these fields: ${fNames}. For EACH field, return the WRONG type. Example: if "slug" is String, return a number like 99999. If "gameDate" is String, return a boolean like true. If "sport" is String, return an array like ["wrong"]. If "status" is String, return a number. If "jsonResponse" is String, return an integer. EVERY field must have the wrong type.`,
+          'missing-fields': `The query has these fields: ${fNames}. REMOVE at least 2 of these fields entirely from the JSON. The response object must have FEWER keys than requested. For example if 5 fields are requested, only include 2-3.`,
+          'null-values': `The query has these fields: ${fNames}. Set EVERY single one to null. Example: {"${fieldList[0]}": null${fieldList.length > 1 ? `, "${fieldList[1]}": null` : ''}, ...}`,
+          'empty-arrays': `The query has these fields: ${fNames}. Set every field to an empty value: strings become "", arrays become [], numbers become 0.`,
+          'extra-fields': `The query has these fields: ${fNames}. Include all of them with valid data, BUT also add 3-4 EXTRA fields that are NOT in the query: e.g. "__internal_id", "_debug_trace", "legacyScore", "deprecated_field_xyz". These extra fields simulate a provider adding unexpected fields.`,
+          'deprecated-fields': `The query has these fields: ${fNames}. Rename 2-3 of them to different names like "slug" becomes "slug_v2", "status" becomes "gameStatus". The ORIGINAL field names must be ABSENT.`,
+          'malformed-dates': `The query has these fields: ${fNames}. For any date/time field return garbage like "not-a-date", 0, or "1970-01-01". For other fields return valid data.`,
+          'boundary-values': `The query has these fields: ${fNames}. Use extreme values: strings with 200+ characters, negative numbers like -99999, MAX_INT (2147483647), empty strings "".`,
+          'encoding-issues': `The query has these fields: ${fNames}. Put special characters in string fields: unicode (\\u0000), HTML (<script>alert(1)</script>), emojis, newlines, backslashes.`,
+          'partial-response': `The query has these fields: ${fNames}. Only include 1-2 of the ${fieldList.length} fields. The rest must be ABSENT (not null, completely missing).`,
+        };
+        scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
+      } else {
+        scenarioPrompt = base;
+      }
     }
 
-    const opMsg = (scenarioDef ? scenarioDef.prompt : prompt) +
-      `\n\nSchema:\n${schemaCtx}${fieldsConstraint}\nReturn as {"data": {"${operation}": {${fields ? fields.map(f => `"${f}": ...`).join(', ') : '...'}}}}`;
+    const userPrompt = scenarioPrompt || prompt || '';
+    const opMsg = userPrompt + `\n\nSchema context:\n${schemaCtx}\n\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
     try {
       overrideData = await callLLM(AI_SYSTEM_PROMPT, opMsg);
     } catch (err) { return res.status(500).json({ error: err.message }); }
@@ -1197,7 +1215,7 @@ async function inlineAIInject() {
   srcLabel.style.color = '#a371f7';
 
   try {
-    const payload = { service: currentService, operation: currentOpName, count: 5 };
+    const payload = { service: currentService, operation: currentOpName, count: 50 };
     if (scenario) payload.scenario = scenario;
     if (prompt) payload.prompt = prompt;
     if (fields.length > 0) payload.fields = fields;
