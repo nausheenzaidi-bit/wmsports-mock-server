@@ -551,29 +551,27 @@ async function selectOp(name, type) {
   const prefix = type === 'MUTATION' ? 'mutation ' : '';
 
   let fieldsStr = null;
-  if (schema) {
+  try {
+    const probe = await fetch('/graphql/' + currentService, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({query: prefix + '{ ' + name + ' }'})
+    });
+    const pd = await probe.json();
+    const val = pd && pd.data ? pd.data[name] : null;
+    if (val) {
+      const obj = Array.isArray(val) ? val[0] : val;
+      if (obj && typeof obj === 'object') {
+        const scalars = Object.entries(obj)
+          .filter(([k,v]) => v === null || typeof v !== 'object')
+          .map(([k]) => k);
+        fieldsStr = scalars.length > 0 ? scalars.slice(0, 20).join(' ') : null;
+      }
+    }
+  } catch(_) {}
+
+  if (!fieldsStr && schema) {
     const retType = getReturnTypeName(schema, name, type);
     fieldsStr = retType ? buildFieldsQuery(schema, retType) : null;
-  }
-
-  if (!fieldsStr) {
-    try {
-      const probe = await fetch('/graphql/' + currentService, {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({query: prefix + '{ ' + name + ' }'})
-      });
-      const pd = await probe.json();
-      const val = pd && pd.data ? pd.data[name] : null;
-      if (val) {
-        const obj = Array.isArray(val) ? val[0] : val;
-        if (obj && typeof obj === 'object') {
-          const scalars = Object.entries(obj)
-            .filter(([k,v]) => v === null || typeof v !== 'object')
-            .map(([k]) => k);
-          fieldsStr = scalars.length > 0 ? scalars.slice(0, 20).join(' ') : null;
-        }
-      }
-    } catch(_) {}
   }
 
   if (fieldsStr) {
