@@ -309,6 +309,8 @@ app.post('/graphql/:service', async (req, res) => {
     if (override && override.remaining > 0) {
       override.remaining--;
       if (override.remaining <= 0) delete responseOverrides[overrideKey];
+      res.setHeader('X-Source', 'ai-override');
+      res.setHeader('X-Override-Remaining', override.remaining);
       return res.json(override.data);
     }
   }
@@ -714,7 +716,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .editor-right pre{flex:1;margin:0;padding:.8rem;font-family:"SF Mono",Menlo,monospace;font-size:.82rem;color:#7ee787;overflow:auto;white-space:pre-wrap;background:#0d1117}
 .editor-right pre.error{color:#f85149}
 .pg-status{padding:1px 6px;border-radius:3px;font-size:.72rem;font-weight:600;margin-right:.3rem}
-.pg-status.s2{background:#238636;color:#fff}.pg-status.s4{background:#da3633;color:#fff}.pg-status.s5{background:#da3633;color:#fff}
+.pg-status.s2{background:#238636;color:#fff}.pg-status.s206{background:#d29922;color:#fff}.pg-status.s4{background:#da3633;color:#fff}.pg-status.s5{background:#da3633;color:#fff}.pg-status.ai{background:#8957e5;color:#fff}
 .welcome{padding:3rem;color:#484f58;font-size:1rem;text-align:center;margin:auto}
 .welcome h2{color:#c9d1d9;margin-bottom:.5rem;font-size:1.2rem}
 .rest-section,.event-section{display:none;padding:1.5rem;overflow-y:auto;flex:1}
@@ -784,7 +786,25 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
           <span class="badge graphql">GraphQL</span>
           <strong id="editor-svc"></strong>
           <span class="timing" id="editor-timing"></span>
-          <button class="run-btn" onclick="runQuery()">Run</button>
+          <div style="display:flex;gap:.4rem;align-items:center;margin-left:auto">
+            <select id="inline-ai-scenario" style="background:#21262d;color:#a371f7;border:1px solid #8957e544;border-radius:4px;padding:3px 6px;font-size:.72rem;cursor:pointer;display:none">
+              <option value="">AI Inject...</option>
+              <option value="bad_data">Bad Data</option>
+              <option value="missing_fields">Missing Fields</option>
+              <option value="wrong_types">Wrong Types</option>
+              <option value="deprecated_fields">Deprecated Fields</option>
+              <option value="null_values">Null Values</option>
+              <option value="empty_arrays">Empty Arrays</option>
+              <option value="malformed_json">Malformed JSON</option>
+              <option value="stale_data">Stale/Cached Data</option>
+              <option value="type_coercion">Type Coercion Errors</option>
+              <option value="extra_fields">Extra Unknown Fields</option>
+            </select>
+            <input id="inline-ai-prompt" placeholder="or describe..." style="background:#21262d;color:#c9d1d9;border:1px solid #8957e544;border-radius:4px;padding:3px 6px;font-size:.72rem;width:180px;display:none">
+            <button id="inline-ai-btn" onclick="inlineAIInject()" style="background:#8957e5;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.72rem;font-weight:600;display:none">Inject</button>
+            <button id="inline-ai-clear" onclick="inlineAIClear()" style="background:#da363322;color:#f85149;border:1px solid #da363344;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:.72rem;display:none">Clear</button>
+            <button class="run-btn" onclick="runQuery()">Run</button>
+          </div>
         </div>
         <div class="editor-body">
           <div class="editor-left">
@@ -792,7 +812,7 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
             <textarea id="editor-query" spellcheck="false" placeholder="Select a query from the left panel..."></textarea>
           </div>
           <div class="editor-right">
-            <label>Response <span style="font-size:.6rem;color:#30363d">(from Microcks)</span></label>
+            <label>Response <span id="response-source" style="font-size:.6rem;color:#30363d">(from Microcks)</span></label>
             <pre id="editor-result">Select a query and click Run</pre>
           </div>
         </div>
@@ -873,6 +893,8 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
 <script>
 const SVC_DATA = ${svcDataJson};
 let currentService = '';
+let currentOpName = '';
+let currentOpType = '';
 
 function hideAll() {
   document.getElementById('welcome').style.display = 'none';
@@ -1001,45 +1023,92 @@ async function selectOp(name, type) {
   document.querySelectorAll('.op-btn').forEach(b => b.classList.remove('active'));
   if (event && event.currentTarget) event.currentTarget.classList.add('active');
 
+  currentOpName = name;
+  currentOpType = type;
+
   const editor = document.getElementById('editor-query');
   const result = document.getElementById('editor-result');
-  result.textContent = 'Loading schema for ' + currentService + '...';
+  const timingEl = document.getElementById('editor-timing');
+  const srcLabel = document.getElementById('response-source');
+  result.textContent = 'Loading...';
   result.className = '';
-  document.getElementById('editor-timing').innerHTML = '';
+  timingEl.innerHTML = '';
+  srcLabel.style.color = '#30363d';
+  srcLabel.textContent = '(from Microcks)';
+
+  ['inline-ai-scenario','inline-ai-prompt','inline-ai-btn','inline-ai-clear'].forEach(id => {
+    document.getElementById(id).style.display = '';
+  });
+  document.getElementById('inline-ai-scenario').value = '';
+  document.getElementById('inline-ai-prompt').value = '';
 
   const schema = await fetchSchema(currentService);
   const prefix = type === 'MUTATION' ? 'mutation ' : '';
 
   let fieldsStr = null;
+  let probeResponse = null;
+  let probeStatus = null;
+  let probeMs = null;
+  let isAIOverride = false;
+  let aiRemaining = 0;
   try {
+    const start = performance.now();
     const probe = await fetch('/graphql/' + currentService, {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({query: prefix + '{ ' + name + ' }'})
     });
+    probeMs = Math.round(performance.now() - start);
+    probeStatus = probe.status;
+    isAIOverride = probe.headers.get('X-Source') === 'ai-override';
+    aiRemaining = parseInt(probe.headers.get('X-Override-Remaining') || '0', 10);
     const pd = await probe.json();
-    const val = pd && pd.data ? pd.data[name] : null;
-    if (val) {
-      const obj = Array.isArray(val) ? val[0] : val;
-      if (obj && typeof obj === 'object') {
-        const scalars = Object.entries(obj)
-          .filter(([k,v]) => v === null || typeof v !== 'object')
-          .map(([k]) => k);
-        fieldsStr = scalars.length > 0 ? scalars.slice(0, 20).join(' ') : null;
+    probeResponse = pd;
+    if (!isAIOverride) {
+      const val = pd && pd.data ? pd.data[name] : null;
+      if (val) {
+        const obj = Array.isArray(val) ? val[0] : val;
+        if (obj && typeof obj === 'object') {
+          const scalars = Object.entries(obj)
+            .filter(([k,v]) => v === null || typeof v !== 'object')
+            .map(([k]) => k);
+          fieldsStr = scalars.length > 0 ? scalars.slice(0, 20).join(' ') : null;
+        }
       }
     }
   } catch(_) {}
 
-  if (!fieldsStr && schema) {
+  if (!isAIOverride && !fieldsStr && schema) {
     const retType = getReturnTypeName(schema, name, type);
     fieldsStr = retType ? buildFieldsQuery(schema, retType) : null;
   }
 
-  if (fieldsStr) {
+  if (isAIOverride) {
+    editor.value = '# AI Override active (' + aiRemaining + ' remaining)\\n# Response below is AI-generated, NOT from Microcks\\n\\n' + prefix + '{\\n  ' + name + '\\n}';
+  } else if (fieldsStr) {
     editor.value = prefix + '{\\n  ' + name + ' {\\n    ' + fieldsStr.split(' ').join('\\n    ') + '\\n  }\\n}';
-    result.textContent = 'Query ready — click Run or Cmd+Enter. Add arguments manually if needed.';
   } else {
     editor.value = prefix + '{\\n  ' + name + '\\n}';
-    result.textContent = 'Returns a scalar value — click Run to execute. Add fields with { } if needed.';
+  }
+
+  if (probeResponse) {
+    const display = JSON.stringify(probeResponse, null, 2);
+    result.textContent = display;
+    if (isAIOverride) {
+      result.className = '';
+      timingEl.innerHTML = '<span class="pg-status ai">AI</span> ' + probeMs + 'ms <span style="color:#a371f7;font-size:.72rem">' + aiRemaining + ' override(s) left</span>';
+      srcLabel.textContent = '(from AI Agent)';
+      srcLabel.style.color = '#a371f7';
+      document.getElementById('inline-ai-clear').style.display = '';
+    } else {
+      const hasErrors = probeResponse.errors && probeResponse.errors.length > 0;
+      const hasData = probeResponse.data && Object.keys(probeResponse.data).length > 0;
+      result.className = hasErrors ? 'error' : '';
+      const logicalStatus = hasErrors && !hasData ? 400 : (hasErrors && hasData ? 206 : probeStatus);
+      const sc = logicalStatus === 206 ? 's206' : (logicalStatus < 300 ? 's2' : (logicalStatus < 500 ? 's4' : 's5'));
+      timingEl.innerHTML = '<span class="pg-status '+sc+'">'+logicalStatus+'</span> '+probeMs+'ms';
+    }
+  } else {
+    result.textContent = 'Click Run (Cmd+Enter) to execute query.';
   }
 }
 
@@ -1092,24 +1161,112 @@ async function runQuery() {
   }
 
   const query = document.getElementById('editor-query').value;
+  const cleanQuery = query.replace(/^#.*\\n/gm, '').trim();
   try {
     const r = await fetch('/graphql/' + currentService, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({query})
+      body: JSON.stringify({query: cleanQuery})
     });
     const ms = Math.round(performance.now() - start);
+    const isAI = r.headers.get('X-Source') === 'ai-override';
+    const aiLeft = parseInt(r.headers.get('X-Override-Remaining') || '0', 10);
     const text = await r.text();
-    let display; try { display = JSON.stringify(JSON.parse(text),null,2); } catch(_) { display = text; }
-    const sc = r.status < 300 ? 's2' : 's4';
-    timingEl.innerHTML = '<span class="pg-status '+sc+'">'+r.status+'</span> '+ms+'ms';
-    el.textContent = display;
-    if (display.includes('"errors"')) el.className = 'error';
+    let parsed = null;
+    let display;
+    try { parsed = JSON.parse(text); display = JSON.stringify(parsed,null,2); } catch(_) { display = text; }
+    const srcLabel = document.getElementById('response-source');
+    if (isAI) {
+      timingEl.innerHTML = '<span class="pg-status ai">AI</span> '+ms+'ms <span style="color:#a371f7;font-size:.72rem">'+aiLeft+' override(s) left</span>';
+      el.textContent = display;
+      el.className = '';
+      srcLabel.textContent = '(from AI Agent)';
+      srcLabel.style.color = '#a371f7';
+    } else {
+      srcLabel.textContent = '(from Microcks)';
+      srcLabel.style.color = '#30363d';
+      const hasErrors = parsed && parsed.errors && parsed.errors.length > 0;
+      const hasData = parsed && parsed.data && Object.keys(parsed.data).length > 0;
+      let logicalStatus = r.status;
+      if (r.status === 200 && hasErrors && !hasData) logicalStatus = 400;
+      if (r.status === 200 && hasErrors && hasData) logicalStatus = 206;
+      const sc = logicalStatus === 206 ? 's206' : (logicalStatus < 300 ? 's2' : (logicalStatus < 500 ? 's4' : 's5'));
+      timingEl.innerHTML = '<span class="pg-status '+sc+'">'+logicalStatus+'</span> '+ms+'ms';
+      el.textContent = display;
+      if (hasErrors) el.className = 'error';
+    }
   } catch(e) { el.textContent = 'Error: '+e.message; el.className = 'error'; }
 }
 
 document.getElementById('editor-query').addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runQuery(); }
 });
+
+async function inlineAIInject() {
+  if (!currentOpName || !currentService) return;
+  const scenario = document.getElementById('inline-ai-scenario').value;
+  const prompt = document.getElementById('inline-ai-prompt').value;
+  if (!scenario && !prompt) { document.getElementById('editor-result').textContent = 'Select a scenario or enter a prompt'; return; }
+
+  const result = document.getElementById('editor-result');
+  const timingEl = document.getElementById('editor-timing');
+  const srcLabel = document.getElementById('response-source');
+  const editor = document.getElementById('editor-query');
+
+  result.textContent = 'AI generating...';
+  result.className = '';
+  timingEl.innerHTML = '<span class="pg-status ai">AI</span> generating...';
+  srcLabel.textContent = '(generating...)';
+  srcLabel.style.color = '#a371f7';
+
+  try {
+    const payload = { service: currentService, operation: currentOpName, count: 5 };
+    if (scenario) payload.scenario = scenario;
+    if (prompt) payload.prompt = prompt;
+
+    const start = performance.now();
+    const r = await fetch('/ai/override', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const ms = Math.round(performance.now() - start);
+    const d = await r.json();
+
+    if (d.error) {
+      result.textContent = 'AI Error: ' + d.error;
+      result.className = 'error';
+      timingEl.innerHTML = '<span class="pg-status s4">ERR</span>';
+      srcLabel.textContent = '(AI error)';
+      return;
+    }
+
+    result.textContent = JSON.stringify(d.preview, null, 2);
+    result.className = '';
+    timingEl.innerHTML = '<span class="pg-status ai">AI</span> '+ms+'ms <span style="color:#a371f7;font-size:.72rem">5 override(s) left</span>';
+    srcLabel.textContent = '(from AI Agent)';
+    srcLabel.style.color = '#a371f7';
+
+    const prefix = currentOpType === 'MUTATION' ? 'mutation ' : '';
+    editor.value = '# AI Override active (5 remaining)\\n# Scenario: ' + (scenario || 'custom prompt') + '\\n# Click Run to get AI data, or Clear to restore Microcks\\n\\n' + prefix + '{\\n  ' + currentOpName + '\\n}';
+  } catch(e) {
+    result.textContent = 'Error: ' + e.message;
+    result.className = 'error';
+  }
+}
+
+async function inlineAIClear() {
+  if (!currentOpName || !currentService) return;
+  const key = currentService + ':' + currentOpName;
+  await fetch('/ai/overrides', { method: 'DELETE' });
+
+  const srcLabel = document.getElementById('response-source');
+  srcLabel.textContent = '(from Microcks)';
+  srcLabel.style.color = '#30363d';
+
+  document.getElementById('inline-ai-scenario').value = '';
+  document.getElementById('inline-ai-prompt').value = '';
+
+  selectOp(currentOpName, currentOpType);
+}
 
 function showAI() {
   hideAll();
