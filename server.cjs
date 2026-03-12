@@ -138,9 +138,10 @@ function filterResponseBySelection(data, selectionMap) {
 
   const filtered = {};
   for (const key of Object.keys(selectionMap)) {
-    if (!(key in data)) continue;
     const subSel = selectionMap[key];
-    if (subSel === true) {
+    if (!(key in data)) {
+      filtered[key] = subSel === true ? null : {};
+    } else if (subSel === true) {
       filtered[key] = data[key];
     } else {
       filtered[key] = filterResponseBySelection(data[key], subSel);
@@ -174,12 +175,21 @@ function fetchFromMicrocks(targetPath, body) {
 
 // ── GraphQL proxy to Microcks (with field filtering) ────────────────────
 
+function extractOperationName(queryStr) {
+  try {
+    const doc = gqlParse(queryStr);
+    const def = doc.definitions[0];
+    if (!def || !def.selectionSet) return null;
+    const firstField = def.selectionSet.selections.find(s => s.kind === 'Field');
+    return firstField ? firstField.name.value : null;
+  } catch (_) { return null; }
+}
+
 app.post('/graphql/:service', async (req, res) => {
   const service = req.params.service;
   const microcksPath = `/graphql/${service}/1.0`;
   const queryStr = req.body?.query || '';
 
-  // Introspection queries pass through unfiltered
   if (queryStr.includes('__schema') || queryStr.includes('__type')) {
     return proxyToMicrocks(req, res, microcksPath);
   }
@@ -187,7 +197,17 @@ app.post('/graphql/:service', async (req, res) => {
   const selectionMap = extractSelectionSet(queryStr);
 
   try {
-    const resp = await fetchFromMicrocks(microcksPath, req.body);
+    let resp = await fetchFromMicrocks(microcksPath, req.body);
+
+    // Microcks returns 500 for nested field selections — retry with a bare query
+    if (resp.status === 500 && selectionMap) {
+      const opName = extractOperationName(queryStr);
+      if (opName) {
+        const isM = queryStr.trimStart().startsWith('mutation');
+        const bareQuery = (isM ? 'mutation' : '') + `{ ${opName} }`;
+        resp = await fetchFromMicrocks(microcksPath, { query: bareQuery });
+      }
+    }
 
     if (resp.status !== 200 || !selectionMap) {
       res.status(resp.status);
