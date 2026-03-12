@@ -301,7 +301,19 @@ app.post('/graphql/:service', async (req, res) => {
     return proxyToMicrocks(req, res, microcksPath);
   }
 
-  // Validate fields against real schema — return errors for non-existent fields
+  // Check for AI override
+  const opName = extractOperationName(queryStr);
+  if (opName) {
+    const overrideKey = `${service}:${opName}`;
+    const override = responseOverrides[overrideKey];
+    if (override && override.remaining > 0) {
+      override.remaining--;
+      if (override.remaining <= 0) delete responseOverrides[overrideKey];
+      return res.json(override.data);
+    }
+  }
+
+  // Validate fields against real schema
   const schema = await getServiceSchema(service);
   const hasFullSchema = Object.keys(fullTypeMap).length > 0;
   if (schema && hasFullSchema) {
@@ -408,6 +420,186 @@ app.all('/statmilk/*', (req, res) => {
 app.all('/api/*', (req, res) => {
   const search = req._parsedUrl.search || '';
   proxyToMicrocks(req, res, `/api/${req.params[0]}${search}`);
+});
+
+// ── AI Agent — LLM-powered mock data generation ─────────────────────────
+
+const AI_API_KEY = process.env.AI_API_KEY || process.env.GROQ_API_KEY || '';
+const AI_BASE_URL = process.env.AI_BASE_URL || 'https://api.groq.com/openai/v1';
+const AI_MODEL = process.env.AI_MODEL || 'llama-3.3-70b-versatile';
+
+const responseOverrides = {};
+
+function getOperationReturnType(opName) {
+  const artifactsDir = path.join(__dirname, 'artifacts');
+  const files = fs.readdirSync(artifactsDir).filter(f => f.endsWith('.graphql'));
+  for (const file of files) {
+    try {
+      const content = fs.readFileSync(path.join(artifactsDir, file), 'utf-8');
+      const doc = gqlParse(content);
+      for (const def of doc.definitions) {
+        if ((def.kind === Kind.OBJECT_TYPE_DEFINITION || def.kind === Kind.OBJECT_TYPE_EXTENSION) &&
+            (def.name.value === 'Query' || def.name.value === 'Mutation')) {
+          for (const field of (def.fields || [])) {
+            if (field.name.value === opName) return extractReturnType(field.type);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+function extractReturnType(typeNode) {
+  if (typeNode.kind === 'NamedType') return typeNode.name.value;
+  if (typeNode.kind === 'ListType') return extractReturnType(typeNode.type);
+  if (typeNode.kind === 'NonNullType') return extractReturnType(typeNode.type);
+  return null;
+}
+
+function buildTypeSchema(typeName, depth = 0) {
+  if (depth > 1 || !fullTypeMap[typeName]) return typeName;
+  const t = fullTypeMap[typeName];
+  return `type ${typeName} {\n${t.fields.map(f => '  ' + f).join('\n')}\n}`;
+}
+
+async function callLLM(systemPrompt, userPrompt) {
+  if (!AI_API_KEY) {
+    throw new Error('No AI_API_KEY set. Export GROQ_API_KEY or AI_API_KEY.');
+  }
+  const payload = {
+    model: AI_MODEL,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.7,
+    max_tokens: 2000,
+    response_format: { type: 'json_object' },
+  };
+  return new Promise((resolve, reject) => {
+    const url = new URL(`${AI_BASE_URL}/chat/completions`);
+    const postData = JSON.stringify(payload);
+    const opts = {
+      hostname: url.hostname, port: url.port || 443, path: url.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${AI_API_KEY}`,
+        'Content-Length': Buffer.byteLength(postData),
+      },
+      timeout: 30000,
+    };
+    const r = https.request(opts, (resp) => {
+      let d = '';
+      resp.on('data', c => d += c);
+      resp.on('end', () => {
+        try {
+          const parsed = JSON.parse(d);
+          if (parsed.error) return reject(new Error(parsed.error.message || 'LLM error'));
+          const content = parsed.choices?.[0]?.message?.content;
+          if (!content) return reject(new Error('Empty LLM response'));
+          resolve(JSON.parse(content));
+        } catch (e) { reject(new Error('LLM parse error: ' + e.message)); }
+      });
+    });
+    r.on('error', reject);
+    r.on('timeout', () => { r.destroy(); reject(new Error('LLM timeout')); });
+    r.write(postData);
+    r.end();
+  });
+}
+
+const FAILURE_SCENARIOS = {
+  'wrong-types': { name: 'Wrong Data Types', prompt: 'Generate data where field values have WRONG types: strings where numbers expected, numbers where strings expected, objects where arrays expected. Make it look like a provider API regression.' },
+  'missing-fields': { name: 'Missing Required Fields', prompt: 'Generate data with several important fields completely missing (not null, but absent from the JSON). Simulate a provider removing fields in a breaking change.' },
+  'null-values': { name: 'Unexpected Nulls', prompt: 'Generate data where fields that should have values are null. Simulate a database issue or incomplete data load.' },
+  'empty-arrays': { name: 'Empty Collections', prompt: 'Generate data where all array/list fields are empty []. Simulate an upstream data source returning no items.' },
+  'malformed-dates': { name: 'Malformed Dates', prompt: 'Generate data where date/time fields have wrong formats: Unix timestamps instead of ISO strings, "N/A", epoch 0, or invalid strings like "not-a-date".' },
+  'deprecated-fields': { name: 'Deprecated Field Changes', prompt: 'Generate data where deprecated fields are removed and replaced with new unexpected field names. Simulate an API migration the consumer was not notified about.' },
+  'extra-fields': { name: 'Extra Unknown Fields', prompt: 'Generate valid data but add many extra unexpected fields that the consumer schema does not define. Simulate a provider adding new fields.' },
+  'encoding-issues': { name: 'Encoding/Special Chars', prompt: 'Generate data with special characters, unicode, HTML entities, and XSS payloads in string fields. Test consumer input sanitization.' },
+  'boundary-values': { name: 'Boundary Values', prompt: 'Generate data with extreme values: very long strings (500+ chars), negative numbers, zero, MAX_INT, empty strings, single character strings.' },
+  'partial-response': { name: 'Partial/Truncated', prompt: 'Generate data that looks like a truncated API response — some objects missing, arrays with only 1 item, strings cut off mid-sentence.' },
+};
+
+const AI_SYSTEM_PROMPT = `You are a mock data generator for a sports GraphQL/REST API.
+RULES:
+- Return ONLY valid JSON in format: {"data": {"operationName": {fields...}}}
+- Use the schema fields provided as guidance
+- Follow instructions precisely about data quality
+- For "bad data": make it look realistic but subtly broken
+- For arrays: include 2-3 items unless specified
+- Use real sports content (NFL, NBA, MLB teams/players)`;
+
+app.post('/ai/generate', async (req, res) => {
+  const { type, operation, prompt, scenario } = req.body;
+  if (!prompt && !scenario) return res.status(400).json({ error: 'Provide "prompt" or "scenario"' });
+
+  let schemaCtx = '';
+  let targetType = type;
+  if (operation) {
+    const ret = getOperationReturnType(operation);
+    if (ret) { targetType = ret; schemaCtx += `Operation: ${operation} → ${ret}\n`; }
+  }
+  if (targetType && fullTypeMap[targetType]) schemaCtx += buildTypeSchema(targetType) + '\n';
+
+  const scenarioDef = scenario ? FAILURE_SCENARIOS[scenario] : null;
+  const opLabel = operation || targetType || 'result';
+  const userMsg = (scenarioDef ? scenarioDef.prompt : prompt) +
+    `\n\nSchema:\n${schemaCtx}\nReturn JSON as {"data": {"${opLabel}": {...}}}`;
+
+  try {
+    const result = await callLLM(AI_SYSTEM_PROMPT, userMsg);
+    res.json({ generated: result, schema: targetType, scenario: scenarioDef?.name || 'custom' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/ai/override', async (req, res) => {
+  const { service, operation, data, prompt, scenario, count = 1 } = req.body;
+  if (!service || !operation) return res.status(400).json({ error: 'Provide "service" and "operation"' });
+
+  let overrideData = data;
+  if (!overrideData && (prompt || scenario)) {
+    const scenarioDef = scenario ? FAILURE_SCENARIOS[scenario] : null;
+    const retType = getOperationReturnType(operation);
+    const schemaCtx = retType ? buildTypeSchema(retType) : '';
+    const opMsg = (scenarioDef ? scenarioDef.prompt : prompt) +
+      `\n\nSchema:\n${schemaCtx}\nReturn as {"data": {"${operation}": {...}}}`;
+    try {
+      overrideData = await callLLM(AI_SYSTEM_PROMPT, opMsg);
+    } catch (err) { return res.status(500).json({ error: err.message }); }
+  }
+  if (!overrideData) return res.status(400).json({ error: 'Provide "data", "prompt", or "scenario"' });
+
+  const key = `${service}:${operation}`;
+  responseOverrides[key] = { data: overrideData, remaining: count };
+  res.json({ message: `Override active for ${key} (${count} request${count > 1 ? 's' : ''})`, key, remaining: count, preview: overrideData });
+});
+
+app.get('/ai/overrides', (req, res) => {
+  const active = {};
+  for (const [k, v] of Object.entries(responseOverrides)) { if (v.remaining > 0) active[k] = { remaining: v.remaining }; }
+  res.json({ overrides: active });
+});
+
+app.delete('/ai/overrides', (req, res) => {
+  Object.keys(responseOverrides).forEach(k => delete responseOverrides[k]);
+  res.json({ message: 'All overrides cleared' });
+});
+
+app.get('/ai/scenarios', (req, res) => {
+  res.json({ scenarios: Object.entries(FAILURE_SCENARIOS).map(([id, s]) => ({ id, name: s.name, description: s.prompt.split('.')[0] + '.' })) });
+});
+
+app.get('/ai/types', (req, res) => {
+  const types = Object.entries(fullTypeMap)
+    .filter(([n]) => !n.startsWith('__'))
+    .map(([n, t]) => ({ name: n, fieldCount: t.fields.length }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  res.json({ types });
 });
 
 // ── Dashboard ────────────────────────────────────────────────────────────
@@ -572,6 +764,12 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
       <h3>Event / Async</h3>
       ${eventSvcs.map(s => `<button class="svc-btn" data-type="event" onclick="showEvents()">${s.name}<span class="cnt">${s.operations?.length||0}</span></button>`).join('\n')}
     </div>
+    <div class="sidebar-section" style="border-top:1px solid #30363d;margin-top:auto">
+      <button class="svc-btn" data-type="ai" onclick="showAI()" style="color:#a371f7;font-weight:600">
+        ⚡ AI Agent
+        <span class="cnt" style="background:#8957e522;color:#a371f7">LLM</span>
+      </button>
+    </div>
   </div>
   <div class="main">
     <div id="welcome" class="welcome" style="display:flex;flex-direction:column">
@@ -613,6 +811,55 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
         <tbody>${eventRows}</tbody>
       </table>
     </div>
+
+    <div id="ai-view" class="rest-section">
+      <h2 style="color:#c9d1d9;margin-bottom:.5rem">AI Mock Data Agent <span class="badge" style="background:#a371f722;color:#a371f7">Groq LLM</span></h2>
+      <p style="color:#8b949e;font-size:.85rem;margin-bottom:1.5rem">Generate realistic or broken mock data using natural language. Inject it into any operation on-demand.</p>
+
+      <div style="display:flex;gap:1rem;flex-wrap:wrap">
+        <div style="flex:1;min-width:400px">
+          <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem">
+            <h3 style="color:#c9d1d9;font-size:.95rem;margin-bottom:.8rem">Generate Data</h3>
+            <div style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap">
+              <select id="ai-service" style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:5px 8px;font-size:.82rem">
+                ${graphqlSvcs.map(s => '<option value="' + s.name + '">' + s.name + '</option>').join('')}
+              </select>
+              <input id="ai-operation" placeholder="Operation (e.g. getGamecastBySlug)" style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:5px 8px;font-size:.82rem;flex:1;min-width:200px">
+            </div>
+            <textarea id="ai-prompt" rows="3" placeholder="Describe what data you want...&#10;e.g. 'Generate a failed NFL game with missing scores and wrong date format'" style="width:100%;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:8px;font-family:inherit;font-size:.82rem;resize:vertical;margin-bottom:.5rem"></textarea>
+            <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+              <button onclick="aiGenerate()" style="background:#238636;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:.82rem;font-weight:600">Generate</button>
+              <button onclick="aiGenAndOverride()" style="background:#8957e5;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:.82rem;font-weight:600">Generate & Override</button>
+              <span style="color:#484f58;font-size:.75rem">Override replaces next response for the operation</span>
+            </div>
+          </div>
+
+          <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-top:1rem">
+            <h3 style="color:#c9d1d9;font-size:.95rem;margin-bottom:.8rem">Failure Scenarios</h3>
+            <div id="ai-scenarios" style="display:flex;flex-wrap:wrap;gap:.4rem"></div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-width:400px">
+          <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;height:100%">
+            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+              <h3 style="color:#c9d1d9;font-size:.95rem">Result</h3>
+              <span id="ai-status" style="color:#484f58;font-size:.75rem"></span>
+              <button onclick="aiCopyResult()" style="margin-left:auto;background:#21262d;color:#c9d1d9;border:1px solid #30363d;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:.75rem">Copy</button>
+            </div>
+            <pre id="ai-result" style="background:#0d1117;border:1px solid #21262d;border-radius:4px;padding:.8rem;font-family:'SF Mono',Menlo,monospace;font-size:.8rem;color:#7ee787;max-height:500px;overflow:auto;white-space:pre-wrap">AI-generated data will appear here...</pre>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-top:1rem">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+          <h3 style="color:#c9d1d9;font-size:.95rem">Active Overrides</h3>
+          <button onclick="aiClearOverrides()" style="margin-left:auto;background:#da363322;color:#f85149;border:1px solid #da363344;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:.75rem">Clear All</button>
+        </div>
+        <div id="ai-overrides" style="color:#8b949e;font-size:.85rem">None</div>
+      </div>
+    </div>
   </div>
 </div>
 <div class="footer-bar">
@@ -632,6 +879,7 @@ function hideAll() {
   document.getElementById('explorer').classList.remove('active');
   document.getElementById('rest-view').classList.remove('active');
   document.getElementById('event-view').classList.remove('active');
+  document.getElementById('ai-view').classList.remove('active');
   document.querySelectorAll('.svc-btn').forEach(b => b.classList.remove('active'));
 }
 
@@ -862,6 +1110,141 @@ async function runQuery() {
 document.getElementById('editor-query').addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runQuery(); }
 });
+
+function showAI() {
+  hideAll();
+  document.getElementById('ai-view').classList.add('active');
+  document.querySelector('.svc-btn[data-type="ai"]').classList.add('active');
+  loadAIScenarios();
+  loadAIOverrides();
+}
+
+async function loadAIScenarios() {
+  try {
+    const r = await fetch('/ai/scenarios');
+    const d = await r.json();
+    const el = document.getElementById('ai-scenarios');
+    el.innerHTML = d.scenarios.map(s =>
+      '<button onclick="aiRunScenario(\\x27'+s.id+'\\x27)" style="background:#21262d;color:#c9d1d9;border:1px solid #30363d;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.78rem" title="'+s.description+'">'+s.name+'</button>'
+    ).join('');
+  } catch(_) {}
+}
+
+async function loadAIOverrides() {
+  try {
+    const r = await fetch('/ai/overrides');
+    const d = await r.json();
+    const el = document.getElementById('ai-overrides');
+    const entries = Object.entries(d.overrides);
+    if (entries.length === 0) { el.textContent = 'None'; return; }
+    el.innerHTML = entries.map(([k,v]) =>
+      '<span style="background:#8957e522;color:#a371f7;padding:2px 8px;border-radius:4px;font-size:.82rem;margin-right:.5rem">'+k+' ('+v.remaining+' left)</span>'
+    ).join('');
+  } catch(_) { }
+}
+
+async function aiGenerate() {
+  const operation = document.getElementById('ai-operation').value;
+  const prompt = document.getElementById('ai-prompt').value;
+  const statusEl = document.getElementById('ai-status');
+  const resultEl = document.getElementById('ai-result');
+
+  if (!prompt) { resultEl.textContent = 'Enter a prompt first'; resultEl.style.color = '#f85149'; return; }
+  resultEl.style.color = '#7ee787';
+  statusEl.textContent = 'Generating...';
+  resultEl.textContent = 'Calling AI...';
+
+  try {
+    const r = await fetch('/ai/generate', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ operation: operation || undefined, prompt })
+    });
+    const d = await r.json();
+    if (d.error) { resultEl.textContent = 'Error: ' + d.error; resultEl.style.color = '#f85149'; }
+    else { resultEl.textContent = JSON.stringify(d.generated, null, 2); }
+    statusEl.textContent = d.schema ? 'Type: ' + d.schema : '';
+  } catch(e) { resultEl.textContent = 'Error: ' + e.message; resultEl.style.color = '#f85149'; }
+}
+
+async function aiGenAndOverride() {
+  const service = document.getElementById('ai-service').value;
+  const operation = document.getElementById('ai-operation').value;
+  const prompt = document.getElementById('ai-prompt').value;
+  const statusEl = document.getElementById('ai-status');
+  const resultEl = document.getElementById('ai-result');
+
+  if (!operation) { resultEl.textContent = 'Enter an operation name'; resultEl.style.color = '#f85149'; return; }
+  if (!prompt) { resultEl.textContent = 'Enter a prompt'; resultEl.style.color = '#f85149'; return; }
+  resultEl.style.color = '#7ee787';
+  statusEl.textContent = 'Generating & setting override...';
+  resultEl.textContent = 'Calling AI...';
+
+  try {
+    const r = await fetch('/ai/override', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ service, operation, prompt, count: 3 })
+    });
+    const d = await r.json();
+    if (d.error) { resultEl.textContent = 'Error: ' + d.error; resultEl.style.color = '#f85149'; }
+    else {
+      resultEl.textContent = JSON.stringify(d.preview, null, 2);
+      statusEl.textContent = 'Override set — next 3 requests to ' + d.key + ' will return this data';
+    }
+    loadAIOverrides();
+  } catch(e) { resultEl.textContent = 'Error: ' + e.message; resultEl.style.color = '#f85149'; }
+}
+
+async function aiRunScenario(scenarioId) {
+  const service = document.getElementById('ai-service').value;
+  const operation = document.getElementById('ai-operation').value;
+  const statusEl = document.getElementById('ai-status');
+  const resultEl = document.getElementById('ai-result');
+
+  resultEl.style.color = '#7ee787';
+
+  if (!operation) {
+    statusEl.textContent = 'Generating preview...';
+    resultEl.textContent = 'Calling AI...';
+    try {
+      const r = await fetch('/ai/generate', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ operation: 'getGamecastBySlug', scenario: scenarioId })
+      });
+      const d = await r.json();
+      if (d.error) { resultEl.textContent = 'Error: ' + d.error; resultEl.style.color = '#f85149'; }
+      else { resultEl.textContent = JSON.stringify(d.generated, null, 2); statusEl.textContent = 'Scenario: ' + d.scenario; }
+    } catch(e) { resultEl.textContent = 'Error: ' + e.message; resultEl.style.color = '#f85149'; }
+    return;
+  }
+
+  statusEl.textContent = 'Injecting scenario...';
+  resultEl.textContent = 'Calling AI...';
+  try {
+    const r = await fetch('/ai/override', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ service, operation, scenario: scenarioId, count: 3 })
+    });
+    const d = await r.json();
+    if (d.error) { resultEl.textContent = 'Error: ' + d.error; resultEl.style.color = '#f85149'; }
+    else {
+      resultEl.textContent = JSON.stringify(d.preview, null, 2);
+      statusEl.textContent = 'Scenario injected into ' + d.key + ' for next 3 requests';
+    }
+    loadAIOverrides();
+  } catch(e) { resultEl.textContent = 'Error: ' + e.message; resultEl.style.color = '#f85149'; }
+}
+
+async function aiClearOverrides() {
+  await fetch('/ai/overrides', { method: 'DELETE' });
+  loadAIOverrides();
+  document.getElementById('ai-status').textContent = 'All overrides cleared';
+}
+
+function aiCopyResult() {
+  const text = document.getElementById('ai-result').textContent;
+  navigator.clipboard.writeText(text);
+  document.getElementById('ai-status').textContent = 'Copied!';
+}
 </script>
 </body>
 </html>`);
@@ -876,7 +1259,9 @@ app.listen(PORT, async () => {
   console.log(`  Microcks:   ${MICROCKS_URL}`);
   console.log(`  GraphQL:    POST /graphql/:service`);
   console.log(`  REST:       /rest/:service/:version/...`);
-  console.log(`  Health:     GET /health\n`);
+  console.log(`  Health:     GET /health`);
+  console.log(`  AI Agent:   POST /ai/generate, /ai/override`);
+  console.log(`  AI Key:     ${AI_API_KEY ? 'Configured (' + AI_MODEL + ')' : '⚠ Not set (export GROQ_API_KEY)'}\n`);
 
   const services = await fetchMicrocksServices();
   if (services.length > 0) {
