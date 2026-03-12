@@ -567,7 +567,10 @@ async function selectOp(name, type) {
       if (val) {
         const obj = Array.isArray(val) ? val[0] : val;
         if (obj && typeof obj === 'object') {
-          fieldsStr = Object.keys(obj).slice(0, 20).join(' ');
+          const scalars = Object.entries(obj)
+            .filter(([k,v]) => v === null || typeof v !== 'object')
+            .map(([k]) => k);
+          fieldsStr = scalars.length > 0 ? scalars.slice(0, 20).join(' ') : null;
         }
       }
     } catch(_) {}
