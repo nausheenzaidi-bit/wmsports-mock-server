@@ -1055,70 +1055,19 @@ async function selectOp(name, type) {
   const prefix = type === 'MUTATION' ? 'mutation ' : '';
 
   let fieldsStr = null;
-  let probeResponse = null;
-  let probeStatus = null;
-  let probeMs = null;
-  let isAIOverride = false;
-  let aiRemaining = 0;
-  try {
-    const start = performance.now();
-    const probe = await fetch('/graphql/' + currentService, {
-      method: 'POST', headers: {'Content-Type':'application/json', 'X-Probe':'true'},
-      body: JSON.stringify({query: prefix + '{ ' + name + ' }'})
-    });
-    probeMs = Math.round(performance.now() - start);
-    probeStatus = probe.status;
-    isAIOverride = probe.headers.get('X-Source') === 'ai-override';
-    aiRemaining = parseInt(probe.headers.get('X-Override-Remaining') || '0', 10);
-    const pd = await probe.json();
-    probeResponse = pd;
-    if (!isAIOverride) {
-      const val = pd && pd.data ? pd.data[name] : null;
-      if (val) {
-        const obj = Array.isArray(val) ? val[0] : val;
-        if (obj && typeof obj === 'object') {
-          const scalars = Object.entries(obj)
-            .filter(([k,v]) => v === null || typeof v !== 'object')
-            .map(([k]) => k);
-          fieldsStr = scalars.length > 0 ? scalars.slice(0, 20).join(' ') : null;
-        }
-      }
-    }
-  } catch(_) {}
-
-  if (!isAIOverride && !fieldsStr && schema) {
+  if (schema) {
     const retType = getReturnTypeName(schema, name, type);
     fieldsStr = retType ? buildFieldsQuery(schema, retType) : null;
   }
 
-  if (isAIOverride) {
-    editor.value = '# AI Override active (' + aiRemaining + ' remaining)\\n# Response below is AI-generated, NOT from Microcks\\n\\n' + prefix + '{\\n  ' + name + '\\n}';
-  } else if (fieldsStr) {
+  if (fieldsStr) {
     editor.value = prefix + '{\\n  ' + name + ' {\\n    ' + fieldsStr.split(' ').join('\\n    ') + '\\n  }\\n}';
   } else {
     editor.value = prefix + '{\\n  ' + name + '\\n}';
   }
 
-  if (probeResponse) {
-    const display = JSON.stringify(probeResponse, null, 2);
-    result.textContent = display;
-    if (isAIOverride) {
-      result.className = '';
-      timingEl.innerHTML = '<span class="pg-status ai">AI</span> ' + probeMs + 'ms <span style="color:#a371f7;font-size:.72rem">' + aiRemaining + ' override(s) left</span>';
-      srcLabel.textContent = '(from AI Agent)';
-      srcLabel.style.color = '#a371f7';
-      document.getElementById('inline-ai-clear').style.display = '';
-    } else {
-      const hasErrors = probeResponse.errors && probeResponse.errors.length > 0;
-      const hasData = probeResponse.data && Object.keys(probeResponse.data).length > 0;
-      result.className = hasErrors ? 'error' : '';
-      const logicalStatus = hasErrors && !hasData ? 400 : (hasErrors && hasData ? 206 : probeStatus);
-      const sc = logicalStatus === 206 ? 's206' : (logicalStatus < 300 ? 's2' : (logicalStatus < 500 ? 's4' : 's5'));
-      timingEl.innerHTML = '<span class="pg-status '+sc+'">'+logicalStatus+'</span> '+probeMs+'ms';
-    }
-  } else {
-    result.textContent = 'Click Run (Cmd+Enter) to execute query.';
-  }
+  result.textContent = 'Click Run (Cmd+Enter) to execute, or select an AI scenario and click Inject.';
+  timingEl.innerHTML = '';
 }
 
 function showRest() {
