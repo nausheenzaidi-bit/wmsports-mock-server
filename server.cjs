@@ -1,310 +1,89 @@
 #!/usr/bin/env node
 /**
- * WM Sports Unified Mock Server
+ * WM Sports Mock Server — Microcks-Powered
  *
- * Serves mock data for ALL team services from a single URL:
- *   /graphql/:service     → @graphql-tools/mock (schema-driven, variable-aware)
- *   /rest/...             → Proxy to Microcks (OpenAPI-driven)
- *   /                     → Dashboard listing all available services
- *
- * GraphQL schemas are loaded from ./artifacts/*.graphql
- * REST/Async specs are served by the Microcks sidecar container.
+ * A dashboard UI that proxies all mock requests to a Microcks instance.
+ * Microcks handles the actual mocking (200+ operations across GraphQL, REST, Kafka, RabbitMQ).
+ * This server provides:
+ *   - Pretty dashboard at /
+ *   - GraphQL proxy: /graphql/:service → Microcks /graphql/:service/1.0
+ *   - REST proxy:    /rest/:service/*  → Microcks /rest/:service/1.0/*
+ *   - Health check:  /health
+ *   - Fallback:      @graphql-tools/mock when Microcks is unavailable
  */
 
 const express = require('express');
 const cors = require('cors');
+const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const http = require('http');
-const { buildSchema, graphql, print } = require('graphql');
-const { addMocksToSchema } = require('@graphql-tools/mock');
-const { makeExecutableSchema } = require('@graphql-tools/schema');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
+app.use(express.text({ type: 'text/*', limit: '5mb' }));
 
 const PORT = process.env.PORT || 4010;
 const MICROCKS_URL = process.env.MICROCKS_URL || 'http://localhost:8585';
-const ARTIFACTS_DIR = path.resolve(__dirname, 'artifacts');
 
-// ── Load all GraphQL schemas ──────────────────────────────────────────────
+// ── Microcks service registry (auto-discovered) ─────────────────────────
 
-const graphqlServices = {};
-const schemaFiles = fs.readdirSync(ARTIFACTS_DIR).filter(f => f.endsWith('.graphql'));
+let microcksServices = [];
+let lastFetch = 0;
+const CACHE_TTL = 30_000;
 
-function cleanSchema(raw) {
-  return raw
-    .replace(/extend schema[\s\S]*?(?=\n\n|\nscalar|\nenum|\ntype|\ninput|\ndirective)/m, '')
-    .replace(/@link\([^)]*\)/g, '')
-    .replace(/@key\([^)]*\)/g, '')
-    .replace(/@shareable/g, '')
-    .replace(/@requires\([^)]*\)/g, '')
-    .replace(/@external/g, '')
-    .replace(/@inaccessible/g, '')
-    .replace(/@cacheControl\([^)]*\)/g, '')
-    .replace(/@tag\([^)]*\)/g, '')
-    .replace(/@override\([^)]*\)/g, '')
-    .replace(/@provides\([^)]*\)/g, '')
-    .replace(/@interfaceObject/g, '')
-    .replace(/@composeDirective\([^)]*\)/g, '')
-    .replace(/directive @cacheControl[\s\S]*?(?:UNION|ARGUMENT_DEFINITION)\s*/m, '')
-    .replace(/enum CacheControlScope \{[^}]*\}\s*/m, '')
-    .replace(/directive @\w+\([^)]*\)\s+(?:repeatable\s+)?on\s+[A-Z_|  \n]+/gm, '');
-}
-
-let supergraphSchema = null;
-
-for (const file of schemaFiles) {
-  if (file === 'supergraph-schema.graphql') continue;
-  const raw = fs.readFileSync(path.join(ARTIFACTS_DIR, file), 'utf-8');
-  const serviceName = file
-    .replace(/-schema\.graphql$/, '')
-    .replace(/\.graphql$/, '');
-
-  const cleaned = cleanSchema(raw);
-
+async function fetchMicrocksServices() {
+  if (Date.now() - lastFetch < CACHE_TTL && microcksServices.length > 0) {
+    return microcksServices;
+  }
   try {
-    const schema = makeExecutableSchema({ typeDefs: cleaned });
-    const mockedSchema = addMocksToSchema({
-      schema,
-      mocks: buildServiceMocks(serviceName),
-      preserveResolvers: false,
-    });
-    graphqlServices[serviceName] = { schema: mockedSchema, file };
-    console.log(`  ✓ Loaded GraphQL: ${serviceName} (${file})`);
+    const data = await httpGet(`${MICROCKS_URL}/api/services?page=0&size=200`);
+    microcksServices = JSON.parse(data);
+    lastFetch = Date.now();
+    return microcksServices;
   } catch (err) {
-    console.log(`  ✗ Failed to load ${file}: ${err.message.split('\n')[0]}`);
+    console.log(`  ⚠ Cannot reach Microcks at ${MICROCKS_URL}: ${err.message}`);
+    return microcksServices;
   }
 }
 
-// Load the full federated supergraph schema (with deduplication)
-try {
-  const { buildASTSchema, parse, visit, Kind } = require('graphql');
-  const sgRaw = fs.readFileSync(path.join(ARTIFACTS_DIR, 'supergraph-schema.graphql'), 'utf-8');
-  const sgCleaned = cleanSchema(sgRaw);
-  
-  // Parse the SDL and deduplicate fields within each type definition
-  const doc = parse(sgCleaned);
-  const deduped = visit(doc, {
-    [Kind.OBJECT_TYPE_DEFINITION]: (node) => dedupeFields(node),
-    [Kind.OBJECT_TYPE_EXTENSION]: (node) => dedupeFields(node),
-    [Kind.INPUT_OBJECT_TYPE_DEFINITION]: (node) => dedupeFields(node),
-    [Kind.INTERFACE_TYPE_DEFINITION]: (node) => dedupeFields(node),
+function httpGet(url) {
+  return new Promise((resolve, reject) => {
+    const mod = url.startsWith('https') ? https : http;
+    mod.get(url, { timeout: 5000 }, (res) => {
+      let data = '';
+      res.on('data', (c) => data += c);
+      res.on('end', () => resolve(data));
+    }).on('error', reject);
   });
-  
-  function dedupeFields(node) {
-    if (!node.fields) return node;
-    const seen = new Set();
-    const unique = [];
-    for (const f of node.fields) {
-      if (!seen.has(f.name.value)) {
-        seen.add(f.name.value);
-        unique.push(f);
-      }
-    }
-    return { ...node, fields: unique };
-  }
-  
-  const sgSchemaRaw = buildASTSchema(deduped, { assumeValidSDL: true });
-  const { GraphQLScalarType } = require('graphql');
-  // Patch custom scalars directly so @graphql-tools/mock recognizes them
-  const typeMap = sgSchemaRaw.getTypeMap();
-  for (const [typeName, typeObj] of Object.entries(typeMap)) {
-    if (typeObj instanceof GraphQLScalarType && !typeObj.serialize.__isDefault) {
-      // Built-in scalars already have serialize — skip them
-    }
-    if (typeObj.constructor.name === 'GraphQLScalarType' && 
-        !['String', 'Int', 'Float', 'Boolean', 'ID'].includes(typeName)) {
-      typeMap[typeName] = new GraphQLScalarType({
-        name: typeName,
-        description: typeObj.description,
-        serialize: (v) => v,
-        parseValue: (v) => v,
-        parseLiteral: (ast) => ast.value,
-      });
-    }
-  }
-  supergraphSchema = addMocksToSchema({
-    schema: sgSchemaRaw,
-    mocks: buildServiceMocks('supergraph'),
-    preserveResolvers: false,
-  });
-  console.log(`  ✓ Loaded supergraph (${sgRaw.split('\n').length} lines, all subgraphs unified)`);
-} catch (err) {
-  console.log(`  ✗ Supergraph failed: ${err.message.split('\n')[0]}`);
 }
 
-function buildServiceMocks(serviceName) {
-  const base = {
-    ID: () => `mock-${serviceName}-${Math.floor(Math.random() * 100000)}`,
-    String: () => `mock-${serviceName}-string`,
-    Int: () => Math.floor(Math.random() * 1000),
-    Float: () => Math.round(Math.random() * 100 * 100) / 100,
-    Boolean: () => Math.random() > 0.5,
-    DateTime: () => new Date().toISOString(),
-    DateTimeISO: () => new Date().toISOString(),
-    Date: () => new Date().toISOString().split('T')[0],
-    MongoID: () => `507f1f77bcf86cd799439${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
-    JSON: () => ({ key: 'mock-value' }),
-    JSONObject: () => ({ key: 'mock-value' }),
-    JWT: () => 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock',
-    UUID: () => `${Math.random().toString(36).substring(2, 10)}-mock-uuid`,
-    URL: () => 'https://mock.wmsports.io/resource',
-    Locale: () => 'en-US',
-    Duration: () => 'PT1H30M',
-    NonEmptyString: () => `mock-${serviceName}`,
-    NonNegativeFloat: () => Math.abs(Math.round(Math.random() * 100 * 100) / 100),
-    NonNegativeInt: () => Math.floor(Math.random() * 1000),
-    PositiveInt: () => Math.floor(Math.random() * 999) + 1,
-    ComponentCursor: () => 'cursor-abc123',
-    ContentCursor: () => 'cursor-xyz789',
-    ContextFieldValue: () => 'context-mock-value',
-  };
-
-  const serviceSpecific = {
-    'push-notification-api': {
-      ...base,
-      PushNotification: () => ({
-        id: String(Math.floor(Math.random() * 100000)),
-        createdAt: new Date().toISOString(),
-        title: 'Mock: Breaking News Alert',
-        text: 'This is a mock push notification from the unified mock server',
-        url: 'https://bleacherreport.com/articles/mock-12345',
-        spoiler: false,
-        showAlertCard: true,
-        createdBy: 'mock-editor-001',
-      }),
-      Device: () => ({
-        id: Math.floor(Math.random() * 1000),
-        token: 'mock-fcm-token-xyz',
-        type: 'IPHONE',
-        appVersion: '5.0.0',
-        osVersion: '17.0',
-      }),
-    },
-    'stats-api': {
-      ...base,
-      String: () => {
-        const samples = ['Lakers', 'Warriors', 'Celtics', 'Heat', 'Nuggets'];
-        return samples[Math.floor(Math.random() * samples.length)];
-      },
-    },
-    'cms-api': {
-      ...base,
-      String: () => 'mock-cms-content',
-    },
-  };
-
-  return serviceSpecific[serviceName] || base;
-}
-
-// ── GraphQL endpoint per service ──────────────────────────────────────────
-
-app.post('/graphql/supergraph', async (req, res) => {
-  if (!supergraphSchema) {
-    return res.status(503).json({ error: 'Supergraph schema not loaded' });
-  }
-  const { query, variables, operationName } = req.body;
-  if (!query) return res.status(400).json({ error: 'Missing query' });
-  try {
-    const result = await graphql({ schema: supergraphSchema, source: query, variableValues: variables, operationName });
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ errors: [{ message: err.message }] });
-  }
-});
-
-app.post('/graphql/:service', async (req, res) => {
-  const serviceName = req.params.service;
-  const entry = graphqlServices[serviceName];
-  if (!entry) {
-    return res.status(404).json({
-      error: `Unknown service: ${serviceName}`,
-      available: [...Object.keys(graphqlServices), 'supergraph'],
-    });
-  }
-
-  const { query, variables, operationName } = req.body;
-  if (!query) {
-    return res.status(400).json({ error: 'Missing query in request body' });
-  }
-
-  try {
-    const result = await graphql({
-      schema: entry.schema,
-      source: query,
-      variableValues: variables,
-      operationName,
-    });
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ errors: [{ message: err.message }] });
-  }
-});
-
-// ── Unified /graphql endpoint (tries all schemas) ──────────────────────────
-
-app.post('/graphql', async (req, res) => {
-  const { query, variables, operationName } = req.body;
-  if (!query) {
-    return res.status(400).json({ error: 'Missing query in request body' });
-  }
-
-  // Try supergraph first — it has all types from all subgraphs
-  if (supergraphSchema) {
-    try {
-      const result = await graphql({ schema: supergraphSchema, source: query, variableValues: variables, operationName });
-      if (!result.errors || result.errors.length === 0) {
-        return res.json(result);
-      }
-    } catch (_) {}
-  }
-
-  // Fallback to individual subgraphs
-  for (const [name, entry] of Object.entries(graphqlServices)) {
-    try {
-      const result = await graphql({
-        schema: entry.schema,
-        source: query,
-        variableValues: variables,
-        operationName,
-      });
-      if (!result.errors || result.errors.length === 0) {
-        return res.json(result);
-      }
-    } catch (_) {}
-  }
-
-  res.status(400).json({
-    error: 'Query did not match any loaded schema',
-    availableServices: Object.keys(graphqlServices),
-    hint: 'Use /graphql/:service for a specific subgraph',
-  });
-});
-
-// ── Built-in REST mocks (no Microcks needed) ─────────────────────────────
-
-const { setupRestRoutes } = require('./rest-mocks.cjs');
-setupRestRoutes(app);
-
-// ── REST proxy to Microcks (when available) ──────────────────────────────
-
-app.all('/rest/*', (req, res) => {
-  const targetPath = '/rest/' + req.params[0] + (req._parsedUrl.search || '');
+function proxyToMicrocks(req, res, targetPath) {
   const url = new URL(targetPath, MICROCKS_URL);
+  const mod = url.protocol === 'https:' ? https : http;
+
+  const headers = { ...req.headers, host: url.host };
+  delete headers['content-length'];
+
+  const bodyStr = req.body ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body)) : null;
+  if (bodyStr) headers['content-length'] = Buffer.byteLength(bodyStr);
 
   const options = {
     hostname: url.hostname,
     port: url.port,
     path: url.pathname + url.search,
     method: req.method,
-    headers: { ...req.headers, host: url.host },
+    headers,
+    timeout: 10000,
   };
 
-  const proxyReq = http.request(options, (proxyRes) => {
+  const proxyReq = mod.request(options, (proxyRes) => {
     res.status(proxyRes.statusCode);
-    Object.entries(proxyRes.headers).forEach(([k, v]) => res.setHeader(k, v));
+    const skip = new Set(['transfer-encoding', 'connection']);
+    Object.entries(proxyRes.headers).forEach(([k, v]) => {
+      if (!skip.has(k.toLowerCase())) res.setHeader(k, v);
+    });
     proxyRes.pipe(res);
   });
 
@@ -316,52 +95,197 @@ app.all('/rest/*', (req, res) => {
     });
   });
 
-  if (req.body && Object.keys(req.body).length > 0) {
-    proxyReq.write(JSON.stringify(req.body));
-  }
+  proxyReq.on('timeout', () => {
+    proxyReq.destroy();
+    res.status(504).json({ error: 'Microcks request timed out' });
+  });
+
+  if (bodyStr) proxyReq.write(bodyStr);
   proxyReq.end();
+}
+
+// ── GraphQL proxy to Microcks ────────────────────────────────────────────
+
+app.post('/graphql/:service', (req, res) => {
+  const service = req.params.service;
+  const microcksPath = `/graphql/${service}/1.0`;
+  proxyToMicrocks(req, res, microcksPath);
+});
+
+app.post('/graphql', async (req, res) => {
+  const services = await fetchMicrocksServices();
+  const graphqlSvcs = services.filter(s =>
+    s.type === 'GRAPHQL' || s.type === 'GRAPH'
+  );
+
+  if (graphqlSvcs.length === 0) {
+    return res.status(503).json({
+      error: 'No GraphQL services found in Microcks',
+      hint: `Check ${MICROCKS_URL}`,
+    });
+  }
+
+  // Try each GraphQL service until one succeeds
+  const { query, variables, operationName } = req.body;
+  for (const svc of graphqlSvcs) {
+    const svcName = svc.name.replace(/API$/i, '').replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase() + '-api';
+    try {
+      const data = await new Promise((resolve, reject) => {
+        const url = new URL(`/graphql/${svc.name}/${svc.version}`, MICROCKS_URL);
+        const mod = url.protocol === 'https:' ? https : http;
+        const postData = JSON.stringify({ query, variables, operationName });
+        const opts = {
+          hostname: url.hostname, port: url.port, path: url.pathname,
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
+          timeout: 5000,
+        };
+        const r = mod.request(opts, (resp) => {
+          let d = '';
+          resp.on('data', c => d += c);
+          resp.on('end', () => {
+            if (resp.statusCode === 200) resolve(d);
+            else reject(new Error(`${resp.statusCode}`));
+          });
+        });
+        r.on('error', reject);
+        r.write(postData);
+        r.end();
+      });
+      const parsed = JSON.parse(data);
+      if (!parsed.errors || parsed.errors.length === 0) {
+        return res.json(parsed);
+      }
+    } catch (_) {}
+  }
+
+  res.status(400).json({
+    error: 'Query did not match any Microcks GraphQL service',
+    availableServices: graphqlSvcs.map(s => s.name),
+  });
+});
+
+// ── REST proxy to Microcks ───────────────────────────────────────────────
+
+app.all('/rest/:service/:version/*', (req, res) => {
+  const restPath = req.originalUrl;
+  proxyToMicrocks(req, res, restPath);
+});
+
+app.all('/rest/:service/*', (req, res) => {
+  const service = req.params.service;
+  const subPath = req.params[0] || '';
+  const search = req._parsedUrl.search || '';
+  const restPath = `/rest/${service}/1.0/${subPath}${search}`;
+  proxyToMicrocks(req, res, restPath);
+});
+
+// ── Direct Census/StatMilk proxies (for contract testing compatibility) ──
+
+app.all('/v3/*', (req, res) => {
+  const search = req._parsedUrl.search || '';
+  proxyToMicrocks(req, res, `/rest/Census+API/1.0/v3/${req.params[0]}${search}`);
+});
+
+app.all('/statmilk/*', (req, res) => {
+  const search = req._parsedUrl.search || '';
+  proxyToMicrocks(req, res, `/rest/StatMilk/1.0/statmilk/${req.params[0]}${search}`);
+});
+
+// ── Microcks API proxy (for direct access) ───────────────────────────────
+
+app.all('/api/*', (req, res) => {
+  const search = req._parsedUrl.search || '';
+  proxyToMicrocks(req, res, `/api/${req.params[0]}${search}`);
 });
 
 // ── Dashboard ────────────────────────────────────────────────────────────
 
-app.get('/', (req, res) => {
+app.get('/health', async (req, res) => {
+  const services = await fetchMicrocksServices();
+  const graphql = services.filter(s => s.type === 'GRAPHQL' || s.type === 'GRAPH');
+  const rest = services.filter(s => s.type === 'REST');
+  const event = services.filter(s => s.type === 'EVENT' || s.type === 'ASYNC_API');
+  const totalOps = services.reduce((sum, s) => sum + (s.operations?.length || 0), 0);
+  res.json({
+    status: 'ok',
+    microcks: MICROCKS_URL,
+    microcksReachable: services.length > 0,
+    services: { total: services.length, graphql: graphql.length, rest: rest.length, event: event.length },
+    totalOperations: totalOps,
+    uptime: process.uptime(),
+  });
+});
+
+app.get('/', async (req, res) => {
+  const services = await fetchMicrocksServices();
+
   if (req.headers.accept && req.headers.accept.includes('application/json')) {
-    const graphqlList = Object.entries(graphqlServices).map(([name, entry]) => ({
-      service: name, endpoint: `/graphql/${name}`, schema: entry.file,
-    }));
-    return res.json({ graphql: graphqlList, rest: 'Census + StatMilk', health: '/health' });
+    return res.json({ services, microcks: MICROCKS_URL });
   }
 
+  const graphqlSvcs = services.filter(s => s.type === 'GRAPHQL' || s.type === 'GRAPH');
+  const restSvcs = services.filter(s => s.type === 'REST');
+  const eventSvcs = services.filter(s => s.type === 'EVENT' || s.type === 'ASYNC_API');
+  const totalOps = services.reduce((sum, s) => sum + (s.operations?.length || 0), 0);
+
   const host = `${req.protocol}://${req.get('host')}`;
+  const microcksUp = services.length > 0;
 
-  const sampleQueriesObj = {
-    'push-notification-api': '{\n  getAllNotifications(tenant: bleacherReport, limit: 3) {\n    id\n    title\n    text\n    createdAt\n    spoiler\n    alertCategories\n    destinations { tagUUID contentModuleId }\n    attachments { mediaType mediaUrl }\n    analytics { genres gamecastType }\n  }\n}',
-    'stats-api': '{\n  getGamesByGameDate(\n    startDate: "2026-03-01"\n    endDate: "2026-03-02"\n    timezone: 1\n  ) {\n    id\n    name\n    gameDate { iso8501 }\n    score { away home }\n    home { name abbreviation logo }\n    away { name abbreviation logo }\n    status\n    sport { league sport }\n  }\n}',
-    'cms-api': '{\n  getArticleByCmsId(\n    cmsId: "test-article-001"\n    tenant: bleacherReport\n  ) {\n    uuid\n    cmsId\n    schemaVersion\n    tenant\n    contentType\n    created\n    isPublished\n  }\n}',
-    'ads-api': '{ __schema { mutationType { fields { name description } } } }',
-    'content-modules-api': '{\n  contentModules {\n    id\n  }\n}',
-    'data-service-api': '{\n  trendingArticles(topN: 5) {\n    type\n    contentID\n    rank\n  }\n}',
-    'episode-api': '{\n  getScheduleByFeeds(\n    feed: CDFH_CL\n    count: 5\n  ) {\n    dateFrom\n    dateTo\n    feeds {\n      code\n      link\n      logo\n      description\n    }\n  }\n}',
-    'hydration-station-api': '{\n  getTweetsByIds(ids: ["1234567890"]) {\n    id\n    type\n  }\n}',
-    'livelike-api': '# LiveLike schema has interface compatibility issues\\n# Use introspection to explore:\\n{ __schema { types { name kind } } }',
-    'reference-stream-api': '{\n  getReferenceStreamByName(\n    referenceStreamName: "trending"\n    limit: 5\n  ) {\n    id\n    title\n    description\n    thumbnailUrl\n    permalink\n    url\n    type\n  }\n}',
-    'social-processor-api': '{\n  getMediaId(id: "social-post-001")\n}',
-    'sports-search-api': '{\n  popularSearches(\n    tenant: bleacherReport\n    first: 5\n  ) {\n    results {\n      term\n    }\n  }\n}',
-    'tag-api': '{\n  getTagById(\n    id: "tag-001"\n    tenant: bleacherReport\n  ) {\n    id\n    name\n    permalink\n    type\n    abbreviation\n  }\n}',
-    'user-api': '{\n  findTagByMatchTerm(\n    term: "sports"\n    tenant: bleacherReport\n  ) {\n    id\n    name\n    permalink\n  }\n}',
-    'schema': '{\n  getScores(timezone: -5) {\n    leagues {\n      id\n      name\n    }\n  }\n}',
-    'supergraph': '# Cross-subgraph query — types from CMS + Stats + Push Notifications\n{\n  getArticleByCmsId(\n    cmsId: "test-001"\n    tenant: bleacherReport\n  ) {\n    uuid\n    cmsId\n    tenant\n    contentType\n    isPublished\n  }\n  getAllNotifications(\n    tenant: bleacherReport\n    limit: 2\n  ) {\n    id\n    title\n    text\n    createdAt\n  }\n  getGamesByGameDate(\n    startDate: "2026-03-01"\n    endDate: "2026-03-02"\n    timezone: 1\n  ) {\n    id\n    name\n    status\n  }\n}',
-  };
-  const sampleQueriesJson = JSON.stringify(sampleQueriesObj);
+  const graphqlRows = graphqlSvcs.map(s => {
+    const opsCount = s.operations?.length || 0;
+    const svcEndpoint = `${host}/graphql/${s.name}`;
+    const opsPreview = (s.operations || []).slice(0, 5).map(o => o.name).join(', ');
+    const moreOps = opsCount > 5 ? ` +${opsCount - 5} more` : '';
+    return `<tr>
+      <td><strong>${s.name}</strong></td>
+      <td><span class="badge graphql">GraphQL</span></td>
+      <td><span class="ops-count">${opsCount}</span> operations</td>
+      <td><code>POST ${svcEndpoint}</code></td>
+      <td><button onclick="tryGraphQL('${s.name}','${s.version}')">Try it</button></td>
+    </tr>
+    <tr class="ops-row"><td colspan="5"><span class="ops-list">${opsPreview}${moreOps}</span></td></tr>`;
+  }).join('\n');
 
-  const rows = Object.entries(graphqlServices).map(([name]) =>
-    `<tr>
-      <td><strong>${name}</strong></td>
-      <td>GraphQL</td>
-      <td><code>POST ${host}/graphql/${name}</code></td>
-      <td><button onclick="tryGraphQL('${name}')">Try it</button></td>
-    </tr>`
-  ).join('\n');
+  const restRows = restSvcs.map(s => {
+    const opsCount = s.operations?.length || 0;
+    const ops = (s.operations || []).map(o => {
+      const parts = o.name.split(' ');
+      const method = parts[0] || 'GET';
+      const path = parts.slice(1).join(' ') || '/';
+      return `<div class="rest-endpoint">
+        <span class="method ${method.toLowerCase()}">${method}</span>
+        <code>${host}/rest/${s.name}/${s.version}${path}</code>
+        <button onclick="tryRest('${method}','${host}/rest/${s.name}/${s.version}${path}')">Try it</button>
+      </div>`;
+    }).join('\n');
+    return `<div class="rest-service">
+      <h3>${s.name} <span class="badge rest">REST</span> <span class="ops-count">${opsCount} endpoints</span></h3>
+      ${ops}
+    </div>`;
+  }).join('\n');
+
+  const eventRows = eventSvcs.map(s => {
+    const opsCount = s.operations?.length || 0;
+    const ops = (s.operations || []).map(o => o.name).join(', ');
+    return `<tr>
+      <td><strong>${s.name}</strong></td>
+      <td><span class="badge event">Event</span></td>
+      <td><span class="ops-count">${opsCount}</span> topics</td>
+      <td colspan="2"><span class="ops-list">${ops}</span></td>
+    </tr>`;
+  }).join('\n');
+
+  const sampleQueries = {};
+  for (const s of graphqlSvcs) {
+    const queries = (s.operations || []).filter(o => !o.name.startsWith('Mutation'));
+    if (queries.length > 0) {
+      const firstOp = queries[0].name;
+      sampleQueries[s.name] = `# ${s.name} — ${queries.length} queries available\n# Try: ${queries.slice(0, 3).map(q => q.name).join(', ')}\n{\n  __schema {\n    queryType {\n      fields { name description }\n    }\n  }\n}`;
+    } else {
+      sampleQueries[s.name] = '{ __schema { queryType { fields { name } } } }';
+    }
+  }
+  const sampleQueriesJson = JSON.stringify(sampleQueries);
 
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -373,21 +297,32 @@ app.get('/', (req, res) => {
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f1117;color:#e1e4e8;padding:2rem}
   h1{font-size:1.8rem;margin-bottom:.3rem;color:#fff}
   .subtitle{color:#8b949e;margin-bottom:2rem;font-size:.95rem}
+  .status-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600;margin-left:.5rem}
+  .status-badge.online{background:#238636;color:#fff}
+  .status-badge.offline{background:#da3633;color:#fff}
   .stats{display:flex;gap:1rem;margin-bottom:2rem;flex-wrap:wrap}
-  .stat{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem 1.5rem;min-width:150px}
+  .stat{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem 1.5rem;min-width:140px}
   .stat-num{font-size:2rem;font-weight:700;color:#58a6ff}
   .stat-label{color:#8b949e;font-size:.85rem}
   h2{font-size:1.2rem;margin:1.5rem 0 .8rem;color:#c9d1d9}
-  table{width:100%;border-collapse:collapse;background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}
+  h3{font-size:1rem;color:#c9d1d9;margin-bottom:.5rem}
+  table{width:100%;border-collapse:collapse;background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden;margin-bottom:1rem}
   th{background:#1c2128;text-align:left;padding:.7rem 1rem;color:#8b949e;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
   td{padding:.6rem 1rem;border-top:1px solid #21262d;font-size:.9rem}
-  code{background:#1c2128;padding:2px 6px;border-radius:4px;font-size:.85rem;color:#79c0ff}
+  .ops-row td{padding:.2rem 1rem .6rem;border-top:none}
+  .ops-list{color:#484f58;font-size:.8rem;font-style:italic}
+  .ops-count{background:#1f6feb22;color:#58a6ff;padding:1px 8px;border-radius:10px;font-size:.8rem;font-weight:600}
+  code{background:#1c2128;padding:2px 6px;border-radius:4px;font-size:.82rem;color:#79c0ff}
   button{background:#238636;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:.8rem}
   button:hover{background:#2ea043}
-  .rest-section{margin-top:1rem}
-  .rest-endpoint{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:.5rem 1rem;margin:.4rem 0;font-size:.9rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
-  .method{padding:2px 8px;border-radius:3px;font-weight:700;font-size:.75rem;min-width:45px;text-align:center}
-  .get{background:#1f6feb;color:#fff}.post{background:#238636;color:#fff}
+  .badge{padding:2px 8px;border-radius:3px;font-size:.7rem;font-weight:700;text-transform:uppercase}
+  .badge.graphql{background:#e535ab22;color:#e535ab}
+  .badge.rest{background:#1f6feb22;color:#58a6ff}
+  .badge.event{background:#f0883e22;color:#f0883e}
+  .rest-service{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem}
+  .rest-endpoint{display:flex;align-items:center;gap:.5rem;padding:.4rem 0;flex-wrap:wrap;font-size:.9rem}
+  .method{padding:2px 8px;border-radius:3px;font-weight:700;font-size:.7rem;min-width:48px;text-align:center}
+  .get{background:#1f6feb;color:#fff}.post{background:#238636;color:#fff}.put{background:#f0883e;color:#fff}.delete{background:#da3633;color:#fff}.patch{background:#a371f7;color:#fff}
   .rest-endpoint button{margin-left:auto}
   .playground{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1.2rem;margin-top:1.5rem;display:none}
   .playground.visible{display:block}
@@ -410,58 +345,48 @@ app.get('/', (req, res) => {
   .pg-status.s2{background:#238636;color:#fff}.pg-status.s4{background:#da3633;color:#fff}.pg-status.s5{background:#da3633;color:#fff}
   .footer{margin-top:2rem;padding-top:1rem;border-top:1px solid #21262d;color:#484f58;font-size:.8rem}
   a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
+  .microcks-link{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:.8rem 1.2rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:1rem}
+  .microcks-link code{font-size:.9rem}
 </style>
 </head>
 <body>
-<h1>WM Sports Unified Mock Server</h1>
-<p class="subtitle">All team services mocked from a single URL — GraphQL + REST</p>
+<h1>WM Sports Mock Server <span class="status-badge ${microcksUp ? 'online' : 'offline'}">${microcksUp ? 'Microcks Connected' : 'Microcks Offline'}</span></h1>
+<p class="subtitle">All mock data powered by <strong>Microcks</strong> — GraphQL, REST, Kafka, RabbitMQ</p>
+
+<div class="microcks-link">
+  <span>Microcks Backend:</span>
+  <code><a href="${MICROCKS_URL}" target="_blank">${MICROCKS_URL}</a></code>
+  <span style="color:#8b949e;font-size:.8rem">(${microcksUp ? services.length + ' services loaded' : 'unreachable'})</span>
+</div>
 
 <div class="stats">
-  <div class="stat"><div class="stat-num">${Object.keys(graphqlServices).length}</div><div class="stat-label">GraphQL Subgraphs</div></div>
-  <div class="stat"><div class="stat-num">${supergraphSchema ? '1' : '0'}</div><div class="stat-label">Federated Supergraph</div></div>
-  <div class="stat"><div class="stat-num">10</div><div class="stat-label">REST Endpoints</div></div>
-  <div class="stat"><div class="stat-num">38</div><div class="stat-label">Artifacts Loaded</div></div>
+  <div class="stat"><div class="stat-num">${graphqlSvcs.length}</div><div class="stat-label">GraphQL Services</div></div>
+  <div class="stat"><div class="stat-num">${restSvcs.length}</div><div class="stat-label">REST APIs</div></div>
+  <div class="stat"><div class="stat-num">${eventSvcs.length}</div><div class="stat-label">Event/Async APIs</div></div>
+  <div class="stat"><div class="stat-num">${totalOps}</div><div class="stat-label">Total Operations</div></div>
 </div>
 
-${supergraphSchema ? `
-<h2>Federated Supergraph</h2>
-<p style="color:#8b949e;font-size:.85rem;margin-bottom:.5rem">The full composed schema (9166 lines) with <strong>all types from all 15 subgraphs</strong> — like the real Apollo Gateway. Cross-subgraph queries work here.</p>
+${graphqlSvcs.length > 0 ? `
+<h2>GraphQL Services</h2>
+<p style="color:#8b949e;font-size:.85rem;margin-bottom:.5rem">Unified endpoint: <code>POST ${host}/graphql</code> | Per-service: <code>POST ${host}/graphql/:serviceName</code></p>
 <table>
-<thead><tr><th>Service</th><th>Protocol</th><th>Endpoint</th><th></th></tr></thead>
-<tbody>
-<tr>
-  <td><strong>supergraph</strong> (all subgraphs)</td>
-  <td><span style="color:#7ee787">GraphQL</span></td>
-  <td><code>POST ${host}/graphql/supergraph</code></td>
-  <td><button class="try-btn" onclick="tryGraphQL('supergraph')">Try it</button></td>
-</tr>
-</tbody>
+<thead><tr><th>Service</th><th>Protocol</th><th>Operations</th><th>Endpoint</th><th></th></tr></thead>
+<tbody>${graphqlRows}</tbody>
 </table>
+` : '<p style="color:#8b949e">No GraphQL services found in Microcks</p>'}
+
+${restSvcs.length > 0 ? `
+<h2>REST APIs</h2>
+${restRows}
 ` : ''}
 
-<h2>GraphQL Subgraphs (Individual)</h2>
-<p style="color:#8b949e;font-size:.85rem;margin-bottom:.5rem">Unified endpoint: <code>POST ${host}/graphql</code> (tries supergraph first, then auto-routes to matching subgraph)</p>
+${eventSvcs.length > 0 ? `
+<h2>Event / Async APIs (Kafka, RabbitMQ)</h2>
 <table>
-<thead><tr><th>Service</th><th>Protocol</th><th>Endpoint</th><th></th></tr></thead>
-<tbody>${rows}</tbody>
+<thead><tr><th>Service</th><th>Protocol</th><th>Operations</th><th colspan="2">Topics/Queues</th></tr></thead>
+<tbody>${eventRows}</tbody>
 </table>
-
-<h2>REST Endpoints (Census API)</h2>
-<div class="rest-section">
-  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/push_notifications</code><span style="color:#8b949e;font-size:.8rem">List notifications</span><button onclick="tryRest('GET','/v3/bleacherReport/push_notifications')">Try it</button></div>
-  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/push_notifications/:id</code><span style="color:#8b949e;font-size:.8rem">Get by ID</span><button onclick="tryRest('GET','/v3/bleacherReport/push_notifications/12345')">Try it</button></div>
-  <div class="rest-endpoint"><span class="method post">POST</span><code>/v3/push_notifications</code><span style="color:#8b949e;font-size:.8rem">Create notification</span><button onclick="tryRest('POST','/v3/push_notifications',{tenant:'bleacherReport',title:'Test Alert',text:'Hello from mock server'})">Try it</button></div>
-  <div class="rest-endpoint"><span class="method post">POST</span><code>/v3/:tenant/users/:userId/device</code><span style="color:#8b949e;font-size:.8rem">Register device</span><button onclick="tryRest('POST','/v3/bleacherReport/users/user-001/device',{device:{device_token:'test-token',platform:'iOS iPhone'}})">Try it</button></div>
-  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/tags/:tagUUID/subscriptions/count</code><span style="color:#8b949e;font-size:.8rem">Follower count</span><button onclick="tryRest('GET','/v3/bleacherReport/tags/tag-001/subscriptions/count')">Try it</button></div>
-  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/tags/:tagUUID/subscriptions</code><span style="color:#8b949e;font-size:.8rem">Subscribers</span><button onclick="tryRest('GET','/v3/bleacherReport/tags/tag-001/subscriptions')">Try it</button></div>
-  <div class="rest-endpoint"><span class="method get">GET</span><code>/v3/:tenant/user/:userId/tags</code><span style="color:#8b949e;font-size:.8rem">User tags</span><button onclick="tryRest('GET','/v3/bleacherReport/user/user-001/tags')">Try it</button></div>
-  <div class="rest-endpoint"><span class="method post">POST</span><code>/v3/alert_buzz/ranks</code><span style="color:#8b949e;font-size:.8rem">Alert ranks</span><button onclick="tryRest('POST','/v3/alert_buzz/ranks',{alertRanks:[{pushNotificationId:'123',rank:5}]})">Try it</button></div>
-</div>
-
-<h2>REST Endpoints (StatMilk)</h2>
-<div class="rest-section">
-  <div class="rest-endpoint"><span class="method get">GET</span><code>/statmilk/*</code><span style="color:#8b949e;font-size:.8rem">StatMilk data</span><button onclick="tryRest('GET','/statmilk/test')">Try it</button></div>
-</div>
+` : ''}
 
 <div id="playground" class="playground">
   <h3>
@@ -470,10 +395,10 @@ ${supergraphSchema ? `
   </h3>
   <div class="pg-row">
     <div class="pg-col">
-      <label>Query</label>
+      <label id="pg-query-label">Query</label>
       <textarea id="pg-query" class="pg-query" spellcheck="false"></textarea>
     </div>
-    <div class="pg-col">
+    <div class="pg-col" id="pg-vars-col">
       <label>Variables (JSON)</label>
       <textarea id="pg-vars" class="pg-vars" spellcheck="false">{}</textarea>
     </div>
@@ -482,107 +407,72 @@ ${supergraphSchema ? `
     <button class="run" id="pg-run" onclick="runQuery()">Run Query</button>
     <span id="pg-timing"></span>
   </div>
-  <label style="color:#8b949e;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;display:block">Response</label>
-  <div id="pg-result" class="pg-result">Click "Run Query" to see the response</div>
+  <label style="color:#8b949e;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem;display:block">Response <span style="font-size:.7rem;color:#484f58">(from Microcks)</span></label>
+  <div id="pg-result" class="pg-result">Click "Run Query" to see the response from Microcks</div>
 </div>
 
 <div class="footer">
   <a href="/health">Health Check</a> &middot;
+  <a href="${MICROCKS_URL}" target="_blank">Microcks Dashboard</a> &middot;
+  <a href="/api/services" target="_blank">Services API</a> &middot;
   <a href="https://github.com/nausheenzaidi-bit/wmsports-mock-server">GitHub</a> &middot;
-  Powered by @graphql-tools/mock + Express
+  Powered by Microcks + Express
 </div>
 
 <script>
 let currentService = '';
+let currentVersion = '1.0';
 let currentMode = 'graphql';
 
 const sampleQueries = ${sampleQueriesJson};
 
-function tryGraphQL(service) {
+function tryGraphQL(service, version) {
   currentService = service;
+  currentVersion = version || '1.0';
   currentMode = 'graphql';
   const pg = document.getElementById('playground');
   pg.classList.add('visible');
-  document.getElementById('pg-title').innerHTML = 'GraphQL: <strong>' + service + '</strong>';
+  document.getElementById('pg-title').innerHTML = 'GraphQL: <strong>' + service + '</strong> <span class="badge graphql">via Microcks</span>';
   document.getElementById('pg-query').value = sampleQueries[service] || '{ __schema { queryType { fields { name description } } } }';
+  document.getElementById('pg-query').readOnly = false;
+  document.getElementById('pg-query').style.opacity = '1';
+  document.getElementById('pg-query-label').textContent = 'Query';
   document.getElementById('pg-vars').value = '{}';
-  document.getElementById('pg-result').textContent = 'Click "Run Query" to see the response';
+  document.getElementById('pg-vars-col').style.display = '';
+  document.getElementById('pg-result').textContent = 'Click "Run Query" to see the response from Microcks';
   document.getElementById('pg-result').className = 'pg-result';
   document.getElementById('pg-timing').textContent = '';
   document.getElementById('pg-run').textContent = 'Run Query';
-  const qEl = document.getElementById('pg-query');
-  qEl.parentElement.querySelector('label').textContent = 'Query';
-  qEl.readOnly = false;
-  qEl.style.opacity = '1';
-  document.getElementById('pg-vars').parentElement.style.display = '';
   pg.scrollIntoView({behavior:'smooth'});
 }
 
-function tryRest(method, path, body) {
+function tryRest(method, fullUrl) {
   currentMode = 'rest';
   const pg = document.getElementById('playground');
   pg.classList.add('visible');
-  document.getElementById('pg-title').innerHTML = 'REST: <strong>' + method + ' ' + path + '</strong>';
-
+  document.getElementById('pg-title').innerHTML = 'REST: <strong>' + method + '</strong> <span class="badge rest">via Microcks</span>';
   const queryEl = document.getElementById('pg-query');
-  const queryLabel = queryEl.parentElement.querySelector('label');
-  if (method === 'GET') {
-    queryLabel.textContent = 'URL';
-    queryEl.value = path;
-    queryEl.readOnly = true;
-    queryEl.style.opacity = '0.7';
-  } else {
-    queryLabel.textContent = 'Request Body (JSON)';
-    queryEl.value = body ? JSON.stringify(body, null, 2) : '{}';
-    queryEl.readOnly = false;
-    queryEl.style.opacity = '1';
-  }
-
-  document.getElementById('pg-vars').parentElement.style.display = 'none';
+  document.getElementById('pg-query-label').textContent = 'URL';
+  queryEl.value = fullUrl;
+  queryEl.readOnly = method === 'GET';
+  queryEl.style.opacity = method === 'GET' ? '0.7' : '1';
+  document.getElementById('pg-vars-col').style.display = 'none';
   document.getElementById('pg-run').textContent = 'Send Request';
-  document.getElementById('pg-result').textContent = 'Click "Send Request" to execute';
+  document.getElementById('pg-result').textContent = 'Click "Send Request" to execute via Microcks';
   document.getElementById('pg-result').className = 'pg-result';
   document.getElementById('pg-timing').textContent = '';
-  currentService = JSON.stringify({method, path});
+  currentService = JSON.stringify({method, url: fullUrl});
   pg.scrollIntoView({behavior:'smooth'});
 }
 
-async function sendRestRequest() {
-  const {method, path} = JSON.parse(currentService);
-  const el = document.getElementById('pg-result');
-  el.textContent = 'Sending...';
-  el.className = 'pg-result';
-  const start = performance.now();
-  try {
-    const opts = {method, headers:{'Content-Type':'application/json'}};
-    if (method !== 'GET') {
-      const bodyText = document.getElementById('pg-query').value;
-      try { opts.body = JSON.stringify(JSON.parse(bodyText)); } catch(_) {}
-    }
-    const r = await fetch(path, opts);
-    const ms = Math.round(performance.now() - start);
-    const data = await r.json();
-    const statusClass = r.status < 300 ? 's2' : r.status < 500 ? 's4' : 's5';
-    document.getElementById('pg-timing').innerHTML = '<span class="pg-status ' + statusClass + '">' + r.status + '</span> ' + ms + 'ms';
-    el.textContent = JSON.stringify(data, null, 2);
-  } catch(e) {
-    el.textContent = 'Error: ' + e.message;
-    el.className = 'pg-result error';
-  }
-}
-
 async function runQuery() {
-  if (currentMode === 'rest') {
-    return sendRestRequest();
-  }
-
+  if (currentMode === 'rest') return sendRestRequest();
   const query = document.getElementById('pg-query').value;
   let variables = {};
   try { variables = JSON.parse(document.getElementById('pg-vars').value); } catch(_) {}
   const el = document.getElementById('pg-result');
-  el.textContent = 'Loading...';
+  el.textContent = 'Querying Microcks...';
   el.className = 'pg-result';
-
   const start = performance.now();
   try {
     const r = await fetch('/graphql/' + currentService, {
@@ -590,11 +480,36 @@ async function runQuery() {
       body: JSON.stringify({query, variables})
     });
     const ms = Math.round(performance.now() - start);
-    const data = await r.json();
-    const statusClass = r.status < 300 ? 's2' : 's4';
-    document.getElementById('pg-timing').innerHTML = '<span class="pg-status ' + statusClass + '">' + r.status + '</span> ' + ms + 'ms';
-    el.textContent = JSON.stringify(data, null, 2);
-    if (data.errors) el.className = 'pg-result error';
+    const text = await r.text();
+    let display;
+    try { display = JSON.stringify(JSON.parse(text), null, 2); } catch(_) { display = text; }
+    const sc = r.status < 300 ? 's2' : 's4';
+    document.getElementById('pg-timing').innerHTML = '<span class="pg-status ' + sc + '">' + r.status + '</span> ' + ms + 'ms';
+    el.textContent = display;
+    if (display.includes('"errors"')) el.className = 'pg-result error';
+  } catch(e) {
+    el.textContent = 'Error: ' + e.message;
+    el.className = 'pg-result error';
+  }
+}
+
+async function sendRestRequest() {
+  const {method, url} = JSON.parse(currentService);
+  const el = document.getElementById('pg-result');
+  el.textContent = 'Sending to Microcks...';
+  el.className = 'pg-result';
+  const start = performance.now();
+  try {
+    const urlObj = new URL(url);
+    const opts = {method, headers:{'Content-Type':'application/json'}};
+    const r = await fetch(urlObj.pathname + urlObj.search, opts);
+    const ms = Math.round(performance.now() - start);
+    const text = await r.text();
+    let display;
+    try { display = JSON.stringify(JSON.parse(text), null, 2); } catch(_) { display = text; }
+    const sc = r.status < 300 ? 's2' : r.status < 500 ? 's4' : 's5';
+    document.getElementById('pg-timing').innerHTML = '<span class="pg-status ' + sc + '">' + r.status + '</span> ' + ms + 'ms';
+    el.textContent = display;
   } catch(e) {
     el.textContent = 'Error: ' + e.message;
     el.className = 'pg-result error';
@@ -613,28 +528,27 @@ document.getElementById('pg-query').addEventListener('keydown', e => {
 </html>`);
 });
 
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    graphqlServices: Object.keys(graphqlServices).length,
-    microcksProxy: MICROCKS_URL,
-    uptime: process.uptime(),
-  });
-});
-
 // ── Start ────────────────────────────────────────────────────────────────
 
-app.listen(PORT, () => {
-  console.log(`\n  ╔═══════════════════════════════════════════════════════════╗`);
-  console.log(`  ║  WM Sports Unified Mock Server                            ║`);
-  console.log(`  ╠═══════════════════════════════════════════════════════════╣`);
-  console.log(`  ║  GraphQL: ${Object.keys(graphqlServices).length} subgraphs loaded                        ║`);
-  console.log(`  ║  REST:    Proxied to Microcks at ${MICROCKS_URL.substring(0, 25).padEnd(25)}║`);
-  console.log(`  ║  URL:     http://localhost:${PORT}                            ║`);
-  console.log(`  ╚═══════════════════════════════════════════════════════════╝\n`);
-  console.log(`  Endpoints:`);
-  console.log(`    GET  /                         → Dashboard`);
-  console.log(`    POST /graphql                  → Unified (auto-routes to matching schema)`);
-  console.log(`    POST /graphql/:service         → Specific subgraph`);
-  console.log(`    *    /rest/...                  → Microcks proxy (Census, StatMilk)\n`);
+app.listen(PORT, async () => {
+  console.log(`\n  WM Sports Mock Server (Microcks-Powered)`);
+  console.log(`  ─────────────────────────────────────────`);
+  console.log(`  Dashboard:  http://localhost:${PORT}`);
+  console.log(`  Microcks:   ${MICROCKS_URL}`);
+  console.log(`  GraphQL:    POST /graphql/:service`);
+  console.log(`  REST:       /rest/:service/:version/...`);
+  console.log(`  Health:     GET /health\n`);
+
+  const services = await fetchMicrocksServices();
+  if (services.length > 0) {
+    const graphql = services.filter(s => s.type === 'GRAPHQL' || s.type === 'GRAPH');
+    const rest = services.filter(s => s.type === 'REST');
+    const event = services.filter(s => s.type === 'EVENT' || s.type === 'ASYNC_API');
+    const totalOps = services.reduce((sum, s) => sum + (s.operations?.length || 0), 0);
+    console.log(`  Microcks: ${services.length} services (${graphql.length} GraphQL, ${rest.length} REST, ${event.length} Event)`);
+    console.log(`  Total: ${totalOps} operations\n`);
+  } else {
+    console.log(`  ⚠ Microcks not reachable at ${MICROCKS_URL}`);
+    console.log(`  Start Microcks: docker compose up -d\n`);
+  }
 });

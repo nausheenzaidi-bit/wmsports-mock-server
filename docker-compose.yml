@@ -5,8 +5,27 @@ services:
       - "8585:8080"
     volumes:
       - ./artifacts:/app/artifacts:ro
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/services"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
-  mock-server:
+  import:
+    image: quay.io/microcks/microcks-uber:latest
+    entrypoint: ["bash", "/scripts/import-to-microcks.sh"]
+    volumes:
+      - ./artifacts:/app/artifacts:ro
+      - ./import-to-microcks.sh:/scripts/import-to-microcks.sh:ro
+    environment:
+      - MICROCKS_URL=http://microcks:8080
+      - ARTIFACTS_DIR=/app/artifacts
+    depends_on:
+      microcks:
+        condition: service_healthy
+
+  dashboard:
     build: .
     ports:
       - "4010:4010"
@@ -14,13 +33,5 @@ services:
       - PORT=4010
       - MICROCKS_URL=http://microcks:8080
     depends_on:
-      - microcks
-
-  import:
-    build: .
-    entrypoint: ["bash", "/app/import-to-microcks.sh"]
-    environment:
-      - MICROCKS_URL=http://microcks:8080
-      - ARTIFACTS_DIR=/app/artifacts
-    depends_on:
-      - microcks
+      microcks:
+        condition: service_healthy
