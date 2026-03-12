@@ -377,51 +377,70 @@ function tryGraphQL(service) {
   document.getElementById('pg-result').className = 'pg-result';
   document.getElementById('pg-timing').textContent = '';
   document.getElementById('pg-run').textContent = 'Run Query';
-  document.getElementById('pg-query').parentElement.querySelector('label').textContent = 'Query';
+  const qEl = document.getElementById('pg-query');
+  qEl.parentElement.querySelector('label').textContent = 'Query';
+  qEl.readOnly = false;
+  qEl.style.opacity = '1';
   document.getElementById('pg-vars').parentElement.style.display = '';
   pg.scrollIntoView({behavior:'smooth'});
 }
 
-async function tryRest(method, path, body) {
+function tryRest(method, path, body) {
   currentMode = 'rest';
   const pg = document.getElementById('playground');
   pg.classList.add('visible');
   document.getElementById('pg-title').innerHTML = 'REST: <strong>' + method + ' ' + path + '</strong>';
-  document.getElementById('pg-query').value = body ? JSON.stringify(body, null, 2) : '(no request body)';
-  document.getElementById('pg-query').parentElement.querySelector('label').textContent = 'Request Body';
+
+  const queryEl = document.getElementById('pg-query');
+  const queryLabel = queryEl.parentElement.querySelector('label');
+  if (method === 'GET') {
+    queryLabel.textContent = 'URL';
+    queryEl.value = path;
+    queryEl.readOnly = true;
+    queryEl.style.opacity = '0.7';
+  } else {
+    queryLabel.textContent = 'Request Body (JSON)';
+    queryEl.value = body ? JSON.stringify(body, null, 2) : '{}';
+    queryEl.readOnly = false;
+    queryEl.style.opacity = '1';
+  }
+
   document.getElementById('pg-vars').parentElement.style.display = 'none';
   document.getElementById('pg-run').textContent = 'Send Request';
-  document.getElementById('pg-result').textContent = 'Sending...';
+  document.getElementById('pg-result').textContent = 'Click "Send Request" to execute';
   document.getElementById('pg-result').className = 'pg-result';
   document.getElementById('pg-timing').textContent = '';
+  currentService = JSON.stringify({method, path});
   pg.scrollIntoView({behavior:'smooth'});
+}
 
-  currentService = JSON.stringify({method, path, body});
+async function sendRestRequest() {
+  const {method, path} = JSON.parse(currentService);
+  const el = document.getElementById('pg-result');
+  el.textContent = 'Sending...';
+  el.className = 'pg-result';
   const start = performance.now();
   try {
     const opts = {method, headers:{'Content-Type':'application/json'}};
-    if (body) opts.body = JSON.stringify(body);
+    if (method !== 'GET') {
+      const bodyText = document.getElementById('pg-query').value;
+      try { opts.body = JSON.stringify(JSON.parse(bodyText)); } catch(_) {}
+    }
     const r = await fetch(path, opts);
     const ms = Math.round(performance.now() - start);
     const data = await r.json();
     const statusClass = r.status < 300 ? 's2' : r.status < 500 ? 's4' : 's5';
     document.getElementById('pg-timing').innerHTML = '<span class="pg-status ' + statusClass + '">' + r.status + '</span> ' + ms + 'ms';
-    document.getElementById('pg-result').textContent = JSON.stringify(data, null, 2);
+    el.textContent = JSON.stringify(data, null, 2);
   } catch(e) {
-    document.getElementById('pg-result').textContent = 'Error: ' + e.message;
-    document.getElementById('pg-result').className = 'pg-result error';
+    el.textContent = 'Error: ' + e.message;
+    el.className = 'pg-result error';
   }
 }
 
 async function runQuery() {
   if (currentMode === 'rest') {
-    try {
-      const {method, path} = JSON.parse(currentService);
-      const bodyText = document.getElementById('pg-query').value;
-      let body = null;
-      try { body = JSON.parse(bodyText); } catch(_) {}
-      return tryRest(method, path, body);
-    } catch(_) {}
+    return sendRestRequest();
   }
 
   const query = document.getElementById('pg-query').value;
