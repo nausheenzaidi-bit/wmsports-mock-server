@@ -1,0 +1,15 @@
+ADS_API: { __schema { mutationType { fields { name } } } }
+CMS_API: query { getHelloWorld }
+CONTENT_MODULES_API: query { fetchContentModuleById(id: "cm-123") { id ... on StandaloneContentModule { title description type contentID } } }
+DATA_SERVICE_API: query { dsModel(model: "article") { name defaultVersion } trendingChannels(topN: 5) { rank tagV2 { hash uuid } } }
+EPISODE_API: query { getScheduleByFeeds(feed: CDFH_CL) { dateFrom dateTo feeds { code link logo description shows { id title genreList airDateTime } } } }
+HYDRATION_STATION_API: query { getTweetsByIds(ids: ["123", "456"]) { id type author { id name username verified profileImageUrl } data { text createdAt publicMetrics { likeCount retweetCount } } } }
+LIVELIKE_API: query { liveLikeProfile(id: "550e8400-e29b-41d4-a716-446655440000") { id nickname customId createdAt } liveLikeApplication(clientId: "my-client") { clientId name organizationName } }
+PUSH_NOTIFICATION_API: query { getUserPushNotifications(tenant: bleacherReport, limit: 10) { id title text createdAt alertCategories allowInRegions } getPushNotificationById(id: "1", tenant: bleacherReport) { id title text } }
+REFERENCE_STREAM_API: query { getReferenceStreamByName(referenceStreamName: "sports-highlights", limit: 5) { id title permalink url type createdAt } getReferenceStreamByComponentId(componentID: "comp-1") { id name type tag { id } } }
+SCHEMA: query { getGamecastBySlug(slug: "nfl-week-1") { slug status sport gameDate scoreboard { teamOne { name score } teamTwo { name score } } } getScores(timezone: -5) { leagues { id name slug } } }
+SOCIAL_PROCESSOR_API: query { getMediaId(id: "media-123") }
+SPORTS_SEARCH_API: query { search(tenant: bleacherReport, contentTypes: [VIDEO], first: 5) { connection { totalCount nodes { __typename ... on VideoV2 { hash } ... on Article { hash } ... on Channel { uuid } ... on User { profileId } ... on ExternalArticle { id } } } } popularSearches(tenant: bleacherReport, first: 5) { results { term } } }
+STATS_API: query { getGamecastBySlug(slug: "nfl-game-1") { slug status sport scoreboard { teamOne { name score } teamTwo { name score } } } getScores(timezone: -5, league: NFL) { leagues { id name } gameGroups { name games { id status } } } }
+TAG_API: query { getTagById(id: "tag-1", tenant: bleacherReport) { id name permalink type abbreviation } findTagByMatchTerm(term: "nfl", tenant: bleacherReport) { id name permalink } }
+USER_API: query { getTagById(id: "tag-1", tenant: bleacherReport) { id name permalink type children { id name } } findTagByMatchTerm(term: "sports", tenant: ncaa) { id permalink shortName } }
