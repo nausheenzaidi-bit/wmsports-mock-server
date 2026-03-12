@@ -348,11 +348,21 @@ let currentService = '';
 let currentMode = 'graphql';
 
 const sampleQueries = {
-  'push-notification-api': '{ getAllNotifications(tenant: bleacherReport) { id title text createdAt spoiler alertCategories destinations { tagUUID contentModuleId } attachments { mediaType mediaUrl } } }',
-  'stats-api': '{ getGamesByGameDate(startDate: "2026-03-01", endDate: "2026-03-02", timezone: 1) { id name gameDate { iso8501 } score { away home } home { name abbreviation } away { name abbreviation } status } }',
-  'cms-api': '{ __schema { queryType { fields { name description } } } }',
-  'ads-api': '{ __schema { queryType { fields { name } } } }',
-  'hydration-station-api': '{ __schema { queryType { fields { name } } } }',
+  'push-notification-api': '{\n  getAllNotifications(tenant: bleacherReport, limit: 3) {\n    id\n    title\n    text\n    createdAt\n    spoiler\n    alertCategories\n    destinations { tagUUID contentModuleId }\n    attachments { mediaType mediaUrl }\n    analytics { genres gamecastType }\n  }\n}',
+  'stats-api': '{\n  getGamesByGameDate(\n    startDate: "2026-03-01"\n    endDate: "2026-03-02"\n    timezone: 1\n  ) {\n    id\n    name\n    gameDate { iso8501 }\n    score { away home }\n    home { name abbreviation logo }\n    away { name abbreviation logo }\n    status\n    sport { league sport }\n  }\n}',
+  'cms-api': '{\n  getArticleByCmsId(\n    cmsId: "test-article-001"\n    tenant: bleacherReport\n  ) {\n    uuid\n    cmsId\n    title\n    description\n    permalink\n    author { name }\n  }\n}',
+  'ads-api': 'mutation {\n  setAdConfig(input: { key: "test" }) {\n    success\n  }\n}',
+  'content-modules-api': '{\n  fetchContentModuleById(id: "cm-12345") {\n    id\n    title\n    description\n  }\n}',
+  'data-service-api': '{\n  trendingArticles(topN: 5) {\n    type\n    contentID\n    rank\n    score\n  }\n}',
+  'episode-api': '{\n  getScheduleByFeeds(\n    feed: "bleacher-report"\n    count: 5\n  ) {\n    dateFrom\n    dateTo\n    feeds {\n      code\n      description\n      shows { title }\n    }\n  }\n}',
+  'hydration-station-api': '{\n  getTweetsByIds(ids: ["1234567890"]) {\n    id\n    type\n    author\n    data\n  }\n}',
+  'livelike-api': '{\n  liveLikeMe {\n    id\n    clientId\n    customId\n  }\n}',
+  'reference-stream-api': '{\n  getReferenceStreamByName(\n    referenceStreamName: "trending"\n    limit: 5\n  ) {\n    id\n    title\n    description\n    thumbnailUrl\n    permalink\n  }\n}',
+  'social-processor-api': '{\n  getMediaId(id: "social-post-001")\n}',
+  'sports-search-api': '{\n  typeAhead(\n    tenant: bleacherReport\n    first: 5\n    input: "Lakers"\n  ) {\n    results {\n      title\n      permalink\n    }\n  }\n}',
+  'tag-api': '{\n  getTagById(\n    id: "tag-001"\n    tenant: bleacherReport\n  ) {\n    id\n    name\n    permalink\n    abbreviation\n    active\n  }\n}',
+  'user-api': '{\n  getTagById(\n    id: "user-tag-001"\n    tenant: bleacherReport\n  ) {\n    id\n    name\n    permalink\n    active\n  }\n}',
+  'schema': '{\n  getGamesByGameDate(\n    startDate: "2026-03-01"\n    endDate: "2026-03-02"\n    timezone: 1\n  ) {\n    id\n    name\n    score { away home }\n    status\n  }\n}',
 };
 
 function tryGraphQL(service) {
