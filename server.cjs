@@ -1111,7 +1111,7 @@ app.get('/ai/rest-fields', (req, res) => {
 });
 
 app.post('/ai/validate', (req, res) => {
-  const { service, operation, response, apiType } = req.body;
+  const { service, operation, response, apiType, queryFields } = req.body;
   if (!service || !operation || !response) return res.status(400).json({ error: 'Provide service, operation, response' });
 
   const violations = [];
@@ -1122,27 +1122,15 @@ app.post('/ai/validate', (req, res) => {
       compareTypes(originalBody, response, '', violations);
     }
   } else {
-    // GraphQL: extract the operation data from response
     const opName = operation;
-    const retType = getOperationReturnType(opName);
-    if (retType && fullTypeMap[retType]) {
-      const data = response?.data?.[opName];
-      if (data && typeof data === 'object') {
-        const expectedFields = fullTypeMap[retType].fields;
-        for (const field of expectedFields) {
-          if (!(field in data)) {
-            violations.push({ field, expected: 'present', got: 'missing', message: `Field "${field}" is missing from the response` });
-          }
-        }
-        for (const [key, val] of Object.entries(data)) {
-          if (!expectedFields.includes(key)) {
-            violations.push({ field: key, expected: 'absent', got: typeof val, message: `Unexpected field "${key}" not in schema` });
-          }
-        }
-      }
+    const respData = response?.data?.[opName];
+    if (!respData || typeof respData !== 'object') {
+      res.json({ violations: [], count: 0, valid: true });
+      return;
     }
 
-    // Deep type check using original Postman example for GraphQL too
+    // Find original example to compare types against
+    let origData = null;
     const exFiles = fs.readdirSync(path.join(__dirname, 'artifacts')).filter(f => f.endsWith('-examples.postman.json'));
     for (const file of exFiles) {
       try {
@@ -1152,13 +1140,42 @@ app.post('/ai/validate', (req, res) => {
             const resp = (item.response || [])[0];
             if (resp && resp.body) {
               const origParsed = JSON.parse(resp.body);
-              const origData = origParsed?.data?.[opName] || origParsed;
-              const respData = response?.data?.[opName] || response;
-              compareTypes(origData, respData, opName, violations);
+              origData = origParsed?.data?.[opName] || origParsed;
             }
           }
         }
       } catch (_) {}
+    }
+
+    // Only validate fields that were in the query (not the full schema)
+    const fieldsToCheck = (queryFields && queryFields.length > 0) ? queryFields : Object.keys(respData);
+
+    if (origData && typeof origData === 'object') {
+      for (const field of fieldsToCheck) {
+        const expected = origData[field];
+        const actual = respData[field];
+
+        if (actual === undefined || actual === null) {
+          if (expected !== undefined && expected !== null) {
+            violations.push({ field, expected: describeType(expected), got: actual === null ? 'null' : 'missing', message: `"${field}" expected ${describeType(expected)}, got ${actual === null ? 'null' : 'missing'}` });
+          }
+        } else if (expected !== undefined && expected !== null) {
+          if (Array.isArray(expected) && !Array.isArray(actual)) {
+            violations.push({ field, expected: 'array', got: describeType(actual), message: `"${field}" expected array, got ${describeType(actual)}` });
+          } else if (!Array.isArray(expected) && Array.isArray(actual)) {
+            violations.push({ field, expected: describeType(expected), got: 'array', message: `"${field}" expected ${describeType(expected)}, got array` });
+          } else if (typeof expected !== typeof actual) {
+            violations.push({ field, expected: describeType(expected), got: describeType(actual), message: `"${field}" expected ${describeType(expected)}, got ${describeType(actual)}` });
+          }
+        }
+      }
+
+      // Check for unexpected extra fields not in original
+      for (const key of Object.keys(respData)) {
+        if (!(key in origData)) {
+          violations.push({ field: key, expected: 'absent', got: describeType(respData[key]), message: `"${key}" is unexpected (not in original schema)` });
+        }
+      }
     }
   }
 
@@ -1905,11 +1922,24 @@ function hideValidation() {
   document.getElementById('validation-list').innerHTML = '';
 }
 
+function extractQueryFields(queryText) {
+  try {
+    const body = queryText.replace(/^[^{]*\\{/, '').replace(/\\}[^}]*$/, '');
+    const inner = body.replace(/^[^{]*\\{/, '').replace(/\\}[^}]*$/, '');
+    return inner.split(/[\\s,]+/).map(f => f.trim()).filter(f => f && !f.startsWith('{') && !f.startsWith('}') && !f.includes('(') && !f.includes(':'));
+  } catch(_) { return []; }
+}
+
 async function validateResponse(service, operation, response, apiType) {
   try {
+    let queryFields = [];
+    if (apiType === 'graphql') {
+      const q = document.getElementById('editor-query').value || '';
+      queryFields = extractQueryFields(q);
+    }
     const r = await fetch('/ai/validate', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ service, operation, response, apiType })
+      body: JSON.stringify({ service, operation, response, apiType, queryFields })
     });
     const d = await r.json();
     if (d.count > 0) {
@@ -1925,7 +1955,7 @@ function showValidation(violations) {
 
   count.textContent = violations.length + ' issue' + (violations.length !== 1 ? 's' : '');
   list.innerHTML = violations.map(v => {
-    const icon = v.got === 'missing' ? '🔴' : v.expected === 'absent' ? '🟡' : '🟠';
+    const icon = v.got === 'missing' ? '🔴' : v.got === 'null' ? '🔴' : v.expected === 'absent' ? '🟡' : '🟠';
     return '<div style="padding:2px 0;color:#e3b341;border-bottom:1px solid #533d1133">' +
       '<span style="margin-right:4px">' + icon + '</span>' +
       '<strong style="color:#f0883e">' + escHtml(v.field) + '</strong> ' +
