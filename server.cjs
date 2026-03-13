@@ -1913,21 +1913,31 @@ function getReturnTypeName(schema, opName, method) {
   return t.name;
 }
 
-function buildFieldsQuery(schema, typeName) {
+function buildFieldsQuery(schema, typeName, depth = 0) {
+  if (depth > 3) return null;
   const t = findType(schema, typeName);
   if (!t || !t.fields || t.fields.length === 0) return null;
-  const scalars = [];
-  const allNames = [];
-  for (const f of t.fields.slice(0, 25)) {
-    allNames.push(f.name);
+
+  const parts = [];
+  for (const f of t.fields.slice(0, 20)) {
     let inner = f.type;
     while (inner.ofType) inner = inner.ofType;
+
     if (inner.kind === 'SCALAR' || inner.kind === 'ENUM') {
-      scalars.push(f.name);
+      parts.push(f.name);
+    } else if (inner.kind === 'OBJECT' && depth < 3) {
+      const nested = buildFieldsQuery(schema, inner.name, depth + 1);
+      if (nested) {
+        parts.push(f.name + ' { ' + nested + ' }');
+      } else {
+        parts.push(f.name + ' { __typename }');
+      }
     }
   }
-  if (scalars.length > 0) return scalars.join(' ');
-  return allNames.length > 0 ? allNames.slice(0, 10).join(' ') : null;
+
+  if (parts.length > 0) return parts.join(' ');
+  const fallback = t.fields.slice(0, 10).map(f => f.name);
+  return fallback.length > 0 ? fallback.join(' ') : null;
 }
 
 function getArgStr(schema, opName, method) {
