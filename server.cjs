@@ -714,6 +714,29 @@ function describeJsonStructure(obj, depth = 0) {
   return typeof obj;
 }
 
+function stripOpenApiExamples(spec) {
+  for (const [, methods] of Object.entries(spec.paths || {})) {
+    for (const [method, details] of Object.entries(methods)) {
+      if (!['get','post','put','patch','delete','head','options'].includes(method)) continue;
+      delete details['x-microcks-operation'];
+      for (const [, resp] of Object.entries(details.responses || {})) {
+        for (const [, ct] of Object.entries(resp.content || {})) {
+          delete ct.examples;
+          delete ct.example;
+        }
+        delete resp.examples;
+        delete resp.example;
+      }
+      if (details.requestBody) {
+        for (const [, ct] of Object.entries(details.requestBody.content || {})) {
+          delete ct.examples;
+          delete ct.example;
+        }
+      }
+    }
+  }
+}
+
 const REST_AI_SYSTEM_PROMPT = `You are a mock data generator for a sports REST API.
 
 CRITICAL RULES — FOLLOW EXACTLY:
@@ -968,7 +991,21 @@ app.post('/ai/inject', async (req, res) => {
       }
       const mainFile = findMainArtifact(service);
       if (!mainFile) throw new Error(`No main artifact found for ${service}`);
-      importArtifactToMicrocks(path.join(artifactsDir, mainFile), true);
+
+      // Strip inline examples from OpenAPI so Microcks only uses our AI Postman collection
+      const mainPath = path.join(artifactsDir, mainFile);
+      const ext = path.extname(mainFile).toLowerCase();
+      let strippedPath = mainPath;
+      if (ext === '.json') {
+        const spec = JSON.parse(fs.readFileSync(mainPath, 'utf-8'));
+        stripOpenApiExamples(spec);
+        const os = require('os');
+        strippedPath = path.join(os.tmpdir(), `stripped-${Date.now()}-${mainFile}`);
+        fs.writeFileSync(strippedPath, JSON.stringify(spec, null, 2));
+      }
+
+      importArtifactToMicrocks(strippedPath, true);
+      if (strippedPath !== mainPath) try { fs.unlinkSync(strippedPath); } catch(_) {}
       await new Promise(r => setTimeout(r, 2000));
 
       const collection = buildRestPostmanCollection(service, operation, aiData, details);
