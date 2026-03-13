@@ -470,41 +470,25 @@ function buildPostmanCollection(serviceName, operationName, responseBody) {
 
 function uploadToMicrocks(collection, isMain = false) {
   return new Promise((resolve, reject) => {
-    const collStr = JSON.stringify(collection);
-    const boundary = '----FormBoundary' + Date.now();
-    const body = [
-      `--${boundary}`,
-      `Content-Disposition: form-data; name="file"; filename="ai-inject.postman_collection.json"`,
-      `Content-Type: application/json`,
-      ``,
-      collStr,
-      `--${boundary}--`,
-    ].join('\r\n');
-
-    const url = new URL(`/api/artifact/upload?mainArtifact=${isMain}`, MICROCKS_URL);
-    const mod = url.protocol === 'https:' ? https : http;
-    const req = mod.request({
-      hostname: url.hostname,
-      port: url.port,
-      path: url.pathname + url.search,
-      method: 'POST',
-      headers: {
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        'Content-Length': Buffer.byteLength(body),
-      },
-      timeout: 15000,
-    }, (res) => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) resolve({ status: res.statusCode, body: data });
-        else reject(new Error(`Microcks upload failed: HTTP ${res.statusCode} — ${data}`));
-      });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('Upload timed out')); });
-    req.write(body);
-    req.end();
+    const os = require('os');
+    const tmpFile = path.join(os.tmpdir(), `microcks-inject-${Date.now()}.postman_collection.json`);
+    fs.writeFileSync(tmpFile, JSON.stringify(collection, null, 2));
+    const { execSync } = require('child_process');
+    try {
+      const result = execSync(
+        `curl -s -w "\\n%{http_code}" -X POST "${MICROCKS_URL}/api/artifact/upload?mainArtifact=${isMain}" -F "file=@${tmpFile};type=application/json"`,
+        { timeout: 20000, encoding: 'utf-8' }
+      );
+      const lines = result.trim().split('\n');
+      const statusCode = parseInt(lines[lines.length - 1], 10);
+      const body = lines.slice(0, -1).join('\n');
+      fs.unlinkSync(tmpFile);
+      if (statusCode >= 200 && statusCode < 300) resolve({ status: statusCode, body });
+      else reject(new Error(`Microcks upload failed: HTTP ${statusCode} — ${body}`));
+    } catch (err) {
+      try { fs.unlinkSync(tmpFile); } catch(_) {}
+      reject(new Error('Upload error: ' + err.message));
+    }
   });
 }
 
