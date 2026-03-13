@@ -1110,6 +1110,113 @@ app.get('/ai/rest-fields', (req, res) => {
   res.json({ fields, structure: describeJsonStructure(body) });
 });
 
+app.post('/ai/validate', (req, res) => {
+  const { service, operation, response, apiType } = req.body;
+  if (!service || !operation || !response) return res.status(400).json({ error: 'Provide service, operation, response' });
+
+  const violations = [];
+
+  if (apiType === 'rest') {
+    const originalBody = getRestExampleBody(service, operation);
+    if (originalBody) {
+      compareTypes(originalBody, response, '', violations);
+    }
+  } else {
+    // GraphQL: extract the operation data from response
+    const opName = operation;
+    const retType = getOperationReturnType(opName);
+    if (retType && fullTypeMap[retType]) {
+      const data = response?.data?.[opName];
+      if (data && typeof data === 'object') {
+        const expectedFields = fullTypeMap[retType].fields;
+        for (const field of expectedFields) {
+          if (!(field in data)) {
+            violations.push({ field, expected: 'present', got: 'missing', message: `Field "${field}" is missing from the response` });
+          }
+        }
+        for (const [key, val] of Object.entries(data)) {
+          if (!expectedFields.includes(key)) {
+            violations.push({ field: key, expected: 'absent', got: typeof val, message: `Unexpected field "${key}" not in schema` });
+          }
+        }
+      }
+    }
+
+    // Deep type check using original Postman example for GraphQL too
+    const exFiles = fs.readdirSync(path.join(__dirname, 'artifacts')).filter(f => f.endsWith('-examples.postman.json'));
+    for (const file of exFiles) {
+      try {
+        const coll = JSON.parse(fs.readFileSync(path.join(__dirname, 'artifacts', file), 'utf-8'));
+        for (const item of (coll.item || [])) {
+          if (item.name === opName) {
+            const resp = (item.response || [])[0];
+            if (resp && resp.body) {
+              const origParsed = JSON.parse(resp.body);
+              const origData = origParsed?.data?.[opName] || origParsed;
+              const respData = response?.data?.[opName] || response;
+              compareTypes(origData, respData, opName, violations);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
+  res.json({ violations, count: violations.length, valid: violations.length === 0 });
+});
+
+function compareTypes(expected, actual, path, violations) {
+  if (expected === null || expected === undefined) return;
+  if (actual === null || actual === undefined) {
+    if (expected !== null && expected !== undefined) {
+      violations.push({ field: path || 'root', expected: describeType(expected), got: 'null/undefined', message: `"${path || 'root'}" expected ${describeType(expected)}, got null` });
+    }
+    return;
+  }
+
+  if (typeof expected !== typeof actual) {
+    // Type mismatch
+    if (!(Array.isArray(expected) && Array.isArray(actual))) {
+      violations.push({ field: path || 'root', expected: describeType(expected), got: describeType(actual), message: `"${path || 'root'}" expected ${describeType(expected)}, got ${describeType(actual)}` });
+    }
+    return;
+  }
+
+  if (Array.isArray(expected) && !Array.isArray(actual)) {
+    violations.push({ field: path || 'root', expected: 'array', got: describeType(actual), message: `"${path || 'root'}" expected array, got ${describeType(actual)}` });
+    return;
+  }
+
+  if (!Array.isArray(expected) && Array.isArray(actual)) {
+    violations.push({ field: path || 'root', expected: describeType(expected), got: 'array', message: `"${path || 'root'}" expected ${describeType(expected)}, got array` });
+    return;
+  }
+
+  if (typeof expected === 'object' && !Array.isArray(expected)) {
+    for (const [key, val] of Object.entries(expected)) {
+      const childPath = path ? `${path}.${key}` : key;
+      if (!(key in actual)) {
+        violations.push({ field: childPath, expected: describeType(val), got: 'missing', message: `"${childPath}" is missing from response` });
+      } else {
+        compareTypes(val, actual[key], childPath, violations);
+      }
+    }
+    for (const key of Object.keys(actual)) {
+      if (!(key in expected)) {
+        const childPath = path ? `${path}.${key}` : key;
+        violations.push({ field: childPath, expected: 'absent', got: describeType(actual[key]), message: `"${childPath}" is unexpected (not in original schema)` });
+      }
+    }
+  }
+}
+
+function describeType(val) {
+  if (val === null) return 'null';
+  if (val === undefined) return 'undefined';
+  if (Array.isArray(val)) return 'array';
+  return typeof val;
+}
+
 app.get('/ai/types', (req, res) => {
   const types = Object.entries(fullTypeMap)
     .filter(([n]) => !n.startsWith('__'))
@@ -1332,6 +1439,13 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
           <div class="editor-right">
             <label>Response <span id="response-source" style="font-size:.6rem;color:#30363d">(from Microcks)</span></label>
             <pre id="editor-result">Select a query and click Run</pre>
+            <div id="validation-panel" style="display:none;background:#1c1208;border-top:1px solid #533d11;padding:.5rem .8rem;max-height:180px;overflow-y:auto">
+              <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem">
+                <span style="color:#d29922;font-weight:600;font-size:.75rem">⚠ Schema Violations</span>
+                <span id="validation-count" style="background:#d2992233;color:#d29922;padding:1px 6px;border-radius:8px;font-size:.68rem;font-weight:600"></span>
+              </div>
+              <div id="validation-list" style="font-family:'SF Mono',Menlo,monospace;font-size:.75rem"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -1732,6 +1846,8 @@ async function runQuery() {
   el.className = '';
   const start = performance.now();
 
+  hideValidation();
+
   if (currentService === '__rest__') {
     const method = window.__restCtx.method;
     const url = document.getElementById('editor-query').value.trim();
@@ -1741,11 +1857,15 @@ async function runQuery() {
       const r = await fetch(urlObj.pathname + urlObj.search, {method, headers:{'Content-Type':'application/json','x-api-key':'mock'}});
       const ms = Math.round(performance.now() - start);
       const text = await r.text();
-      let display; try { display = JSON.stringify(JSON.parse(text),null,2); } catch(_) { display = text; }
+      let parsed = null;
+      let display; try { parsed = JSON.parse(text); display = JSON.stringify(parsed,null,2); } catch(_) { display = text; }
       const sc = r.status < 300 ? 's2' : 's4';
       timingEl.innerHTML = '<span class="pg-status '+sc+'">'+r.status+'</span> '+ms+'ms';
       el.textContent = display;
       if (r.status >= 400) el.className = 'error';
+      if (parsed && window.__restCtx.serviceName) {
+        validateResponse(window.__restCtx.serviceName, window.__restCtx.operationName, parsed, 'rest');
+      }
     } catch(e) { el.textContent = 'Error: '+e.message; el.className = 'error'; }
     return;
   }
@@ -1774,7 +1894,53 @@ async function runQuery() {
     timingEl.innerHTML = '<span class="pg-status '+sc+'">'+logicalStatus+'</span> '+ms+'ms <span style="font-size:.7rem;color:#484f58">(via Microcks)</span>';
     el.textContent = display;
     if (hasErrors) el.className = 'error';
+    if (parsed && currentOpName) {
+      validateResponse(currentService, currentOpName, parsed, 'graphql');
+    }
   } catch(e) { el.textContent = 'Error: '+e.message; el.className = 'error'; }
+}
+
+function hideValidation() {
+  document.getElementById('validation-panel').style.display = 'none';
+  document.getElementById('validation-list').innerHTML = '';
+}
+
+async function validateResponse(service, operation, response, apiType) {
+  try {
+    const r = await fetch('/ai/validate', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ service, operation, response, apiType })
+    });
+    const d = await r.json();
+    if (d.count > 0) {
+      showValidation(d.violations);
+    }
+  } catch(_) {}
+}
+
+function showValidation(violations) {
+  const panel = document.getElementById('validation-panel');
+  const list = document.getElementById('validation-list');
+  const count = document.getElementById('validation-count');
+
+  count.textContent = violations.length + ' issue' + (violations.length !== 1 ? 's' : '');
+  list.innerHTML = violations.map(v => {
+    const icon = v.got === 'missing' ? '🔴' : v.expected === 'absent' ? '🟡' : '🟠';
+    return '<div style="padding:2px 0;color:#e3b341;border-bottom:1px solid #533d1133">' +
+      '<span style="margin-right:4px">' + icon + '</span>' +
+      '<strong style="color:#f0883e">' + escHtml(v.field) + '</strong> ' +
+      '<span style="color:#8b949e">expected </span>' +
+      '<span style="color:#7ee787">' + escHtml(v.expected) + '</span>' +
+      '<span style="color:#8b949e">, got </span>' +
+      '<span style="color:#f85149">' + escHtml(v.got) + '</span>' +
+      '</div>';
+  }).join('');
+
+  panel.style.display = 'block';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 document.getElementById('editor-query').addEventListener('keydown', e => {
