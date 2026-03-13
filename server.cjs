@@ -29,6 +29,16 @@ app.use(express.text({ type: 'text/*', limit: '5mb' }));
 // ── Load real GraphQL schemas for field validation ──────────────────────
 
 const fullTypeMap = {};
+const richTypeMap = {};
+const queryFieldMap = {};
+
+function unwrapGqlType(typeNode) {
+  if (!typeNode) return { name: 'Unknown', isList: false };
+  if (typeNode.kind === 'NonNullType') return unwrapGqlType(typeNode.type);
+  if (typeNode.kind === 'ListType') { const inner = unwrapGqlType(typeNode.type); inner.isList = true; return inner; }
+  if (typeNode.kind === 'NamedType') return { name: typeNode.name.value, isList: false };
+  return { name: 'Unknown', isList: false };
+}
 
 function loadSchemaFiles() {
   const artifactsDir = path.join(__dirname, 'artifacts');
@@ -45,9 +55,22 @@ function loadSchemaFiles() {
           if (!fullTypeMap[typeName]) {
             fullTypeMap[typeName] = { name: typeName, fields: [] };
           }
+          if (!richTypeMap[typeName]) {
+            richTypeMap[typeName] = {};
+          }
           for (const field of (def.fields || [])) {
-            if (!fullTypeMap[typeName].fields.includes(field.name.value)) {
-              fullTypeMap[typeName].fields.push(field.name.value);
+            const fname = field.name.value;
+            if (!fullTypeMap[typeName].fields.includes(fname)) {
+              fullTypeMap[typeName].fields.push(fname);
+            }
+            const unwrapped = unwrapGqlType(field.type);
+            richTypeMap[typeName][fname] = unwrapped;
+          }
+
+          if (typeName === 'Query' || typeName === 'Mutation') {
+            for (const field of (def.fields || [])) {
+              const unwrapped = unwrapGqlType(field.type);
+              queryFieldMap[field.name.value] = { returnType: unwrapped.name, method: typeName === 'Query' ? 'QUERY' : 'MUTATION' };
             }
           }
         }
@@ -55,6 +78,26 @@ function loadSchemaFiles() {
     } catch (_) {}
   }
   console.log(`  Schema: ${Object.keys(fullTypeMap).length} types loaded from ${schemaFiles.length} files`);
+}
+
+const SCALAR_TYPES = new Set(['String', 'Int', 'Float', 'Boolean', 'ID', 'DateTime', 'Date', 'JSON', 'Long', 'BigDecimal', 'URL', 'URI']);
+
+function serverBuildFieldsQuery(typeName, depth = 0) {
+  if (depth > 3 || !richTypeMap[typeName]) return null;
+  const fields = richTypeMap[typeName];
+  const parts = [];
+  const entries = Object.entries(fields).slice(0, 20);
+  for (const [fname, typeInfo] of entries) {
+    if (SCALAR_TYPES.has(typeInfo.name) || !richTypeMap[typeInfo.name]) {
+      parts.push(fname);
+    } else {
+      const nested = serverBuildFieldsQuery(typeInfo.name, depth + 1);
+      if (nested) {
+        parts.push(fname + ' { ' + nested + ' }');
+      }
+    }
+  }
+  return parts.length > 0 ? parts.join(' ') : null;
 }
 
 loadSchemaFiles();
@@ -1407,6 +1450,17 @@ app.post('/async/validate', (req, res) => {
   res.json({ violations, count: violations.length, valid: violations.length === 0 });
 });
 
+app.get('/schema/query-fields', (req, res) => {
+  const { operation } = req.query;
+  if (!operation) return res.status(400).json({ error: 'Provide "operation" query param' });
+
+  const opInfo = queryFieldMap[operation];
+  if (!opInfo) return res.json({ fields: null, returnType: null });
+
+  const fieldsStr = serverBuildFieldsQuery(opInfo.returnType);
+  res.json({ fields: fieldsStr, returnType: opInfo.returnType, method: opInfo.method });
+});
+
 app.get('/ai/types', (req, res) => {
   const types = Object.entries(fullTypeMap)
     .filter(([n]) => !n.startsWith('__'))
@@ -1998,8 +2052,30 @@ async function selectOp(name, type) {
     fieldsStr = retType ? buildFieldsQuery(schema, retType) : null;
   }
 
+  if (!fieldsStr) {
+    try {
+      const fb = await fetch('/schema/query-fields?operation=' + encodeURIComponent(name));
+      const fbData = await fb.json();
+      if (fbData.fields) fieldsStr = fbData.fields;
+    } catch (_) {}
+  }
+
+  function formatFieldsStr(str) {
+    let indent = 2;
+    let result = '';
+    const tokens = str.split(/([{}])/);
+    for (const tok of tokens) {
+      const trimmed = tok.trim();
+      if (trimmed === '{') { result += '{\\n' + '  '.repeat(++indent); }
+      else if (trimmed === '}') { result += '\\n' + '  '.repeat(--indent) + '}'; }
+      else if (trimmed) { result += trimmed.split(' ').join('\\n' + '  '.repeat(indent)); }
+    }
+    return result;
+  }
+
   if (fieldsStr) {
-    editor.value = prefix + '{\\n  ' + name + ' {\\n    ' + fieldsStr.split(' ').join('\\n    ') + '\\n  }\\n}';
+    const formatted = fieldsStr.includes('{') ? formatFieldsStr(fieldsStr) : fieldsStr.split(' ').join('\\n    ');
+    editor.value = prefix + '{\\n  ' + name + ' {\\n    ' + formatted + '\\n  }\\n}';
   } else {
     editor.value = prefix + '{\\n  ' + name + '\\n}';
   }
