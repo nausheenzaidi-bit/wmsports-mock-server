@@ -19,6 +19,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { parse: gqlParse, Kind } = require('graphql');
+const yaml = require('js-yaml');
 
 const app = express();
 app.use(cors());
@@ -57,6 +58,58 @@ function loadSchemaFiles() {
 }
 
 loadSchemaFiles();
+
+// ── Load AsyncAPI specs for event/async message examples ──────────────
+
+const asyncApiSpecs = {};
+
+function loadAsyncApiSpecs() {
+  const artifactsDir = path.join(__dirname, 'artifacts');
+  if (!fs.existsSync(artifactsDir)) return;
+
+  const yamlFiles = fs.readdirSync(artifactsDir).filter(f => f.includes('asyncapi') && (f.endsWith('.yaml') || f.endsWith('.yml')));
+  for (const file of yamlFiles) {
+    try {
+      const content = fs.readFileSync(path.join(artifactsDir, file), 'utf-8');
+      const spec = yaml.load(content);
+      const title = spec.info?.title || file;
+      const channels = {};
+
+      for (const [channelName, channelDef] of Object.entries(spec.channels || {})) {
+        const direction = channelDef.subscribe ? 'subscribe' : 'publish';
+        const opDef = channelDef.subscribe || channelDef.publish;
+        const msg = opDef?.message;
+        const examples = (msg?.examples || []).map(ex => ({
+          name: ex.name || 'default',
+          summary: ex.summary || '',
+          payload: ex.payload
+        }));
+
+        const protocol = channelName.startsWith('entity.') ? 'kafka' :
+                         channelName.startsWith('census.') ? 'rabbitmq' : 'unknown';
+
+        channels[channelName] = {
+          description: channelDef.description || '',
+          direction,
+          operationId: opDef?.operationId || '',
+          messageName: msg?.name || '',
+          contentType: msg?.contentType || 'application/json',
+          schema: msg?.payload || {},
+          examples,
+          protocol
+        };
+      }
+
+      asyncApiSpecs[title] = { title, file, channels };
+    } catch (err) {
+      console.log(`  ⚠ Failed to parse ${file}: ${err.message}`);
+    }
+  }
+  const totalChannels = Object.values(asyncApiSpecs).reduce((sum, s) => sum + Object.keys(s.channels).length, 0);
+  console.log(`  AsyncAPI: ${Object.keys(asyncApiSpecs).length} specs, ${totalChannels} channels loaded`);
+}
+
+loadAsyncApiSpecs();
 
 const PORT = process.env.PORT || 4010;
 const MICROCKS_URL = process.env.MICROCKS_URL || 'http://localhost:8585';
@@ -1234,6 +1287,126 @@ function describeType(val) {
   return typeof val;
 }
 
+// ── Async API endpoints ──────────────────────────────────────────────
+
+app.get('/async/specs', (req, res) => {
+  const result = {};
+  for (const [title, spec] of Object.entries(asyncApiSpecs)) {
+    result[title] = {
+      title: spec.title,
+      channels: Object.entries(spec.channels).map(([name, ch]) => ({
+        name,
+        description: ch.description,
+        direction: ch.direction,
+        operationId: ch.operationId,
+        messageName: ch.messageName,
+        contentType: ch.contentType,
+        protocol: ch.protocol,
+        exampleCount: ch.examples.length,
+        fields: ch.schema?.properties ? Object.keys(ch.schema.properties) : []
+      }))
+    };
+  }
+  res.json(result);
+});
+
+app.get('/async/examples', (req, res) => {
+  const { spec: specTitle, channel } = req.query;
+  if (!specTitle || !channel) return res.status(400).json({ error: 'Provide "spec" and "channel" query params' });
+
+  const spec = asyncApiSpecs[specTitle];
+  if (!spec) return res.status(404).json({ error: `Spec "${specTitle}" not found` });
+
+  const ch = spec.channels[channel];
+  if (!ch) return res.status(404).json({ error: `Channel "${channel}" not found in "${specTitle}"` });
+
+  res.json({
+    channel,
+    spec: specTitle,
+    direction: ch.direction,
+    operationId: ch.operationId,
+    messageName: ch.messageName,
+    contentType: ch.contentType,
+    protocol: ch.protocol,
+    schema: ch.schema,
+    examples: ch.examples,
+    description: ch.description
+  });
+});
+
+const ASYNC_AI_SYSTEM_PROMPT = `You are a mock data generator for async message payloads (Kafka / RabbitMQ).
+
+CRITICAL RULES — FOLLOW EXACTLY:
+- Return ONLY valid JSON matching the message payload structure provided.
+- Do NOT wrap in any extra object — return the raw message payload.
+- Do NOT include markdown, backticks, or explanations.
+- Your entire response must be parseable by JSON.parse().
+- Follow the exact field names from the schema provided.
+- If a scenario is specified, apply it precisely to ALL fields.`;
+
+app.post('/async/ai-generate', async (req, res) => {
+  const { spec: specTitle, channel, scenario, prompt } = req.body;
+  if (!specTitle || !channel) return res.status(400).json({ error: 'Provide "spec" and "channel"' });
+
+  const spec = asyncApiSpecs[specTitle];
+  if (!spec) return res.status(404).json({ error: `Spec "${specTitle}" not found` });
+
+  const ch = spec.channels[channel];
+  if (!ch) return res.status(404).json({ error: `Channel "${channel}" not found` });
+
+  const originalExample = ch.examples[0]?.payload;
+  const structure = originalExample ? describeJsonStructure(originalExample) : JSON.stringify(ch.schema, null, 2);
+  const fNames = ch.schema?.properties ? Object.keys(ch.schema.properties).join(', ') : '';
+
+  let scenarioPrompt = '';
+  if (scenario && FAILURE_SCENARIOS[scenario]) {
+    const base = FAILURE_SCENARIOS[scenario].prompt;
+    const fields = ch.schema?.properties ? Object.keys(ch.schema.properties) : [];
+    const examples = {
+      'wrong-types': `The message has these fields: ${fNames}. For EACH field, return the WRONG type. If a field is string, return a number. If boolean, return a string. EVERY field must have the wrong type.`,
+      'missing-fields': `The message has these fields: ${fNames}. REMOVE at least 2 fields entirely from the JSON.`,
+      'null-values': `The message has these fields: ${fNames}. Set EVERY field to null.`,
+      'empty-arrays': `The message has these fields: ${fNames}. Set every field to an empty value: strings become "", arrays become [], numbers become 0.`,
+      'extra-fields': `The message has these fields: ${fNames}. Include all with valid data, BUT also add 3-4 EXTRA unexpected fields.`,
+      'deprecated-fields': `The message has these fields: ${fNames}. Rename 2-3 fields to different names. The ORIGINAL names must be ABSENT.`,
+      'malformed-dates': `The message has these fields: ${fNames}. For any date/time field return garbage like "not-a-date". For other fields return valid data.`,
+      'boundary-values': `The message has these fields: ${fNames}. Use extreme values: very long strings, negative numbers, MAX_INT.`,
+      'encoding-issues': `The message has these fields: ${fNames}. Put special characters in string fields: unicode, HTML, emojis.`,
+      'partial-response': `The message has these fields: ${fNames}. Only include 1-2 fields. The rest must be completely ABSENT.`,
+    };
+    scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
+  }
+
+  const userPrompt = scenarioPrompt || prompt || 'Generate realistic valid mock data for this message.';
+  const opMsg = userPrompt + `\n\nMessage schema structure:\n${structure}\n\nOriginal example:\n${JSON.stringify(originalExample, null, 2)}\n\nReturn ONLY the raw JSON message payload.`;
+
+  try {
+    const result = await callLLM(ASYNC_AI_SYSTEM_PROMPT, opMsg);
+    res.json({ generated: result, channel, spec: specTitle, scenario: scenario || 'custom' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/async/validate', (req, res) => {
+  const { spec: specTitle, channel, payload } = req.body;
+  if (!specTitle || !channel || !payload) return res.status(400).json({ error: 'Provide spec, channel, payload' });
+
+  const spec = asyncApiSpecs[specTitle];
+  if (!spec) return res.status(404).json({ error: `Spec not found` });
+
+  const ch = spec.channels[channel];
+  if (!ch) return res.status(404).json({ error: `Channel not found` });
+
+  const violations = [];
+  const originalExample = ch.examples[0]?.payload;
+  if (originalExample) {
+    compareTypes(originalExample, payload, '', violations);
+  }
+
+  res.json({ violations, count: violations.length, valid: violations.length === 0 });
+});
+
 app.get('/ai/types', (req, res) => {
   const types = Object.entries(fullTypeMap)
     .filter(([n]) => !n.startsWith('__'))
@@ -1474,11 +1647,86 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
     </div>
 
     <div id="event-view" class="event-section">
-      <h2 style="color:#c9d1d9;margin-bottom:1rem">Event / Async APIs</h2>
-      <table>
-        <thead><tr><th>Service</th><th>Protocol</th><th>Operations</th><th>Topics/Queues</th></tr></thead>
-        <tbody>${eventRows}</tbody>
-      </table>
+      <h2 style="color:#c9d1d9;margin-bottom:1rem">Event / Async APIs <span class="badge event">Messages</span></h2>
+      <p style="color:#8b949e;font-size:.85rem;margin-bottom:1rem">View message schemas and examples from AsyncAPI specs. Generate AI test data for Kafka/RabbitMQ payloads.</p>
+
+      <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
+        <div style="flex:1;min-width:320px">
+          <div style="display:flex;gap:.5rem;margin-bottom:.8rem;align-items:center">
+            <select id="async-spec-select" onchange="loadAsyncChannels()" style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:6px 10px;font-size:.82rem;flex:1">
+              <option value="">Select a spec...</option>
+            </select>
+            <select id="async-channel-select" onchange="loadAsyncExample()" style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:6px 10px;font-size:.82rem;flex:1">
+              <option value="">Select a channel...</option>
+            </select>
+          </div>
+
+          <div id="async-channel-info" style="display:none;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:.8rem">
+            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+              <span id="async-protocol-badge" class="badge event">KAFKA</span>
+              <span id="async-direction-badge" class="badge" style="background:#8957e522;color:#a371f7">SUBSCRIBE</span>
+              <strong id="async-channel-name" style="color:#c9d1d9;font-size:.9rem"></strong>
+            </div>
+            <p id="async-channel-desc" style="color:#8b949e;font-size:.82rem;margin-bottom:.4rem"></p>
+            <div style="display:flex;gap:1rem;font-size:.75rem;color:#484f58">
+              <span>Message: <strong id="async-msg-name" style="color:#79c0ff"></strong></span>
+              <span>Operation: <strong id="async-op-id" style="color:#79c0ff"></strong></span>
+              <span>Content-Type: <strong id="async-content-type" style="color:#79c0ff"></strong></span>
+            </div>
+          </div>
+
+          <div id="async-ai-controls" style="display:none;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:.8rem;margin-bottom:.8rem">
+            <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+              <select id="async-ai-scenario" style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:5px 8px;font-size:.8rem">
+                <option value="">Select scenario...</option>
+                <option value="wrong-types">Wrong Types</option>
+                <option value="missing-fields">Missing Fields</option>
+                <option value="null-values">Null Values</option>
+                <option value="empty-arrays">Empty Values</option>
+                <option value="extra-fields">Extra Fields</option>
+                <option value="malformed-dates">Malformed Dates</option>
+                <option value="boundary-values">Boundary Values</option>
+                <option value="encoding-issues">Encoding Issues</option>
+                <option value="partial-response">Partial Data</option>
+              </select>
+              <input id="async-ai-prompt" placeholder="or describe..." style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:5px 8px;font-size:.8rem;flex:1;min-width:150px">
+              <button onclick="generateAsyncAI()" style="background:#238636;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:.82rem;font-weight:600">Generate</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:1rem;flex-wrap:wrap">
+        <div style="flex:1;min-width:400px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem">
+            <label style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:#484f58">Example Payload</label>
+            <div id="async-example-tabs" style="display:none;gap:.3rem"></div>
+          </div>
+          <div style="position:relative">
+            <pre id="async-example-payload" style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:.8rem;font-family:'SF Mono',Menlo,monospace;font-size:.82rem;color:#7ee787;min-height:200px;max-height:500px;overflow:auto;white-space:pre-wrap">Select a spec and channel to view examples</pre>
+            <button id="async-copy-btn" onclick="copyAsyncPayload()" style="display:none;position:absolute;top:8px;right:8px;background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:.72rem">Copy</button>
+          </div>
+        </div>
+        <div style="flex:1;min-width:400px">
+          <label style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:#484f58;display:block;margin-bottom:.3rem">AI Generated / Schema Validation</label>
+          <pre id="async-ai-result" style="background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:.8rem;font-family:'SF Mono',Menlo,monospace;font-size:.82rem;color:#c9d1d9;min-height:200px;max-height:400px;overflow:auto;white-space:pre-wrap">Generate AI data to see results here</pre>
+          <div id="async-validation-panel" style="display:none;background:#1c1d0f;border:1px solid #533d11;border-radius:6px;padding:.6rem;margin-top:.5rem;max-height:200px;overflow-y:auto">
+            <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem">
+              <span style="color:#d29922;font-weight:600;font-size:.8rem">&#9888; Schema Violations</span>
+              <span id="async-validation-count" style="background:#533d11;color:#d29922;padding:1px 6px;border-radius:8px;font-size:.7rem"></span>
+            </div>
+            <div id="async-validation-list" style="font-size:.78rem;font-family:'SF Mono',Menlo,monospace"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:1.5rem">
+        <h3 style="color:#c9d1d9;font-size:.9rem;margin-bottom:.5rem">All Channels Overview</h3>
+        <table>
+          <thead><tr><th>Service</th><th>Protocol</th><th>Operations</th><th>Topics/Queues</th></tr></thead>
+          <tbody>${eventRows}</tbody>
+        </table>
+      </div>
     </div>
 
     <div id="routes-view" class="rest-section">
@@ -1756,10 +2004,207 @@ function showRest() {
   document.querySelectorAll('.svc-btn[data-type="rest"]').forEach(b => b.classList.add('active'));
 }
 
+let asyncSpecsCache = null;
+let currentAsyncPayload = '';
+
 function showEvents() {
   hideAll();
   document.getElementById('event-view').classList.add('active');
   document.querySelectorAll('.svc-btn[data-type="event"]').forEach(b => b.classList.add('active'));
+  if (!asyncSpecsCache) loadAsyncSpecs();
+}
+
+async function loadAsyncSpecs() {
+  try {
+    const r = await fetch('/async/specs');
+    asyncSpecsCache = await r.json();
+    const sel = document.getElementById('async-spec-select');
+    sel.innerHTML = '<option value="">Select a spec...</option>';
+    for (const [title, spec] of Object.entries(asyncSpecsCache)) {
+      const opt = document.createElement('option');
+      opt.value = title;
+      opt.textContent = title + ' (' + spec.channels.length + ' channels)';
+      sel.appendChild(opt);
+    }
+  } catch (_) {}
+}
+
+function loadAsyncChannels() {
+  const specTitle = document.getElementById('async-spec-select').value;
+  const chSel = document.getElementById('async-channel-select');
+  chSel.innerHTML = '<option value="">Select a channel...</option>';
+  document.getElementById('async-channel-info').style.display = 'none';
+  document.getElementById('async-ai-controls').style.display = 'none';
+  document.getElementById('async-example-payload').textContent = 'Select a channel to view examples';
+  document.getElementById('async-copy-btn').style.display = 'none';
+  document.getElementById('async-ai-result').textContent = 'Generate AI data to see results here';
+  hideAsyncValidation();
+
+  if (!specTitle || !asyncSpecsCache || !asyncSpecsCache[specTitle]) return;
+
+  const spec = asyncSpecsCache[specTitle];
+  for (const ch of spec.channels) {
+    const opt = document.createElement('option');
+    opt.value = ch.name;
+    const proto = ch.protocol === 'kafka' ? 'Kafka' : ch.protocol === 'rabbitmq' ? 'RabbitMQ' : ch.protocol;
+    opt.textContent = ch.name + ' (' + proto + ', ' + ch.direction + ')';
+    chSel.appendChild(opt);
+  }
+}
+
+async function loadAsyncExample() {
+  const specTitle = document.getElementById('async-spec-select').value;
+  const channel = document.getElementById('async-channel-select').value;
+  if (!specTitle || !channel) return;
+
+  try {
+    const r = await fetch('/async/examples?spec=' + encodeURIComponent(specTitle) + '&channel=' + encodeURIComponent(channel));
+    const data = await r.json();
+
+    document.getElementById('async-channel-info').style.display = 'block';
+    document.getElementById('async-ai-controls').style.display = 'block';
+
+    const protoBadge = document.getElementById('async-protocol-badge');
+    protoBadge.textContent = data.protocol === 'kafka' ? 'KAFKA' : 'RABBITMQ';
+    protoBadge.style.background = data.protocol === 'kafka' ? '#1f6feb22' : '#f0883e22';
+    protoBadge.style.color = data.protocol === 'kafka' ? '#58a6ff' : '#f0883e';
+
+    const dirBadge = document.getElementById('async-direction-badge');
+    dirBadge.textContent = data.direction.toUpperCase();
+
+    document.getElementById('async-channel-name').textContent = channel;
+    document.getElementById('async-channel-desc').textContent = data.description || '';
+    document.getElementById('async-msg-name').textContent = data.messageName;
+    document.getElementById('async-op-id').textContent = data.operationId;
+    document.getElementById('async-content-type').textContent = data.contentType;
+
+    const tabsEl = document.getElementById('async-example-tabs');
+    if (data.examples && data.examples.length > 0) {
+      tabsEl.style.display = 'flex';
+      tabsEl.innerHTML = data.examples.map((ex, i) =>
+        '<button onclick="showAsyncExampleTab(' + i + ')" style="background:' + (i === 0 ? '#1f6feb' : '#21262d') + ';color:#fff;border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:.7rem" data-idx="' + i + '">' + (ex.name || 'Example ' + (i+1)) + '</button>'
+      ).join('');
+
+      currentAsyncPayload = JSON.stringify(data.examples[0].payload, null, 2);
+      document.getElementById('async-example-payload').textContent = currentAsyncPayload;
+      document.getElementById('async-copy-btn').style.display = 'block';
+
+      window.__asyncExamples = data.examples;
+    } else {
+      tabsEl.style.display = 'none';
+      document.getElementById('async-example-payload').textContent = 'No examples available for this channel';
+      document.getElementById('async-copy-btn').style.display = 'none';
+    }
+
+    document.getElementById('async-ai-result').textContent = 'Generate AI data to see results here';
+    hideAsyncValidation();
+  } catch (e) {
+    document.getElementById('async-example-payload').textContent = 'Error loading: ' + e.message;
+  }
+}
+
+function showAsyncExampleTab(idx) {
+  if (!window.__asyncExamples || !window.__asyncExamples[idx]) return;
+  currentAsyncPayload = JSON.stringify(window.__asyncExamples[idx].payload, null, 2);
+  document.getElementById('async-example-payload').textContent = currentAsyncPayload;
+  document.querySelectorAll('#async-example-tabs button').forEach((b, i) => {
+    b.style.background = i === idx ? '#1f6feb' : '#21262d';
+  });
+}
+
+function copyAsyncPayload() {
+  navigator.clipboard.writeText(currentAsyncPayload).then(() => {
+    const btn = document.getElementById('async-copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  });
+}
+
+async function generateAsyncAI() {
+  const specTitle = document.getElementById('async-spec-select').value;
+  const channel = document.getElementById('async-channel-select').value;
+  const scenario = document.getElementById('async-ai-scenario').value;
+  const prompt = document.getElementById('async-ai-prompt').value;
+
+  if (!specTitle || !channel) {
+    document.getElementById('async-ai-result').textContent = 'Select a spec and channel first';
+    return;
+  }
+  if (!scenario && !prompt) {
+    document.getElementById('async-ai-result').textContent = 'Select a scenario or type a prompt';
+    return;
+  }
+
+  const resultEl = document.getElementById('async-ai-result');
+  resultEl.textContent = 'Generating...';
+  resultEl.style.color = '#c9d1d9';
+  hideAsyncValidation();
+
+  try {
+    const r = await fetch('/async/ai-generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spec: specTitle, channel, scenario: scenario || undefined, prompt: prompt || undefined })
+    });
+    const data = await r.json();
+
+    if (data.error) {
+      resultEl.textContent = 'Error: ' + data.error;
+      resultEl.style.color = '#f85149';
+      return;
+    }
+
+    const generated = data.generated;
+    let display;
+    try {
+      const parsed = typeof generated === 'string' ? JSON.parse(generated) : generated;
+      display = JSON.stringify(parsed, null, 2);
+      validateAsyncPayload(specTitle, channel, parsed);
+    } catch (_) {
+      display = typeof generated === 'string' ? generated : JSON.stringify(generated, null, 2);
+    }
+
+    resultEl.textContent = display;
+    resultEl.style.color = '#7ee787';
+  } catch (e) {
+    resultEl.textContent = 'Error: ' + e.message;
+    resultEl.style.color = '#f85149';
+  }
+}
+
+async function validateAsyncPayload(specTitle, channel, payload) {
+  try {
+    const r = await fetch('/async/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spec: specTitle, channel, payload })
+    });
+    const d = await r.json();
+    if (d.count > 0) showAsyncValidation(d.violations);
+  } catch (_) {}
+}
+
+function showAsyncValidation(violations) {
+  const panel = document.getElementById('async-validation-panel');
+  const list = document.getElementById('async-validation-list');
+  const count = document.getElementById('async-validation-count');
+  count.textContent = violations.length + ' issue' + (violations.length !== 1 ? 's' : '');
+  list.innerHTML = violations.map(v => {
+    const icon = v.got === 'missing' ? '&#128308;' : v.got === 'null/undefined' ? '&#128308;' : v.expected === 'absent' ? '&#128993;' : '&#128992;';
+    return '<div style="padding:2px 0;color:#e3b341;border-bottom:1px solid #533d1133">' +
+      '<span style="margin-right:4px">' + icon + '</span>' +
+      '<strong style="color:#f0883e">' + escHtml(v.field) + '</strong> ' +
+      '<span style="color:#8b949e">expected </span>' +
+      '<span style="color:#7ee787">' + escHtml(v.expected) + '</span>' +
+      '<span style="color:#8b949e">, got </span>' +
+      '<span style="color:#f85149">' + escHtml(v.got) + '</span></div>';
+  }).join('');
+  panel.style.display = 'block';
+}
+
+function hideAsyncValidation() {
+  document.getElementById('async-validation-panel').style.display = 'none';
+  document.getElementById('async-validation-list').innerHTML = '';
 }
 
 function showRoutes() {
