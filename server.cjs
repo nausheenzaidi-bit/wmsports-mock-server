@@ -714,27 +714,28 @@ function describeJsonStructure(obj, depth = 0) {
   return typeof obj;
 }
 
-function stripOpenApiExamples(spec) {
-  for (const [, methods] of Object.entries(spec.paths || {})) {
-    for (const [method, details] of Object.entries(methods)) {
-      if (!['get','post','put','patch','delete','head','options'].includes(method)) continue;
-      delete details['x-microcks-operation'];
-      for (const [, resp] of Object.entries(details.responses || {})) {
-        for (const [, ct] of Object.entries(resp.content || {})) {
-          delete ct.examples;
-          delete ct.example;
-        }
-        delete resp.examples;
-        delete resp.example;
-      }
-      if (details.requestBody) {
-        for (const [, ct] of Object.entries(details.requestBody.content || {})) {
-          delete ct.examples;
-          delete ct.example;
-        }
+function injectIntoOpenApiSpec(spec, operationName, aiData) {
+  const parts = operationName.split(' ');
+  const method = (parts[0] || 'GET').toLowerCase();
+  const opPath = parts.slice(1).join(' ');
+
+  for (const [pathKey, methods] of Object.entries(spec.paths || {})) {
+    if (pathKey !== opPath) continue;
+    const opDef = methods[method];
+    if (!opDef) continue;
+
+    // Ensure FALLBACK dispatcher so Microcks serves the first example
+    opDef['x-microcks-operation'] = { dispatcher: 'FALLBACK', dispatcherRules: '' };
+
+    // Replace response examples with AI data
+    for (const [, resp] of Object.entries(opDef.responses || {})) {
+      for (const [, ct] of Object.entries(resp.content || {})) {
+        ct.examples = { 'ai-injected': { value: aiData } };
       }
     }
+    return true;
   }
+  return false;
 }
 
 const REST_AI_SYSTEM_PROMPT = `You are a mock data generator for a sports REST API.
@@ -992,24 +993,26 @@ app.post('/ai/inject', async (req, res) => {
       const mainFile = findMainArtifact(service);
       if (!mainFile) throw new Error(`No main artifact found for ${service}`);
 
-      // Strip inline examples from OpenAPI so Microcks only uses our AI Postman collection
+      // Inject AI data directly into the OpenAPI spec's inline examples
       const mainPath = path.join(artifactsDir, mainFile);
       const ext = path.extname(mainFile).toLowerCase();
-      let strippedPath = mainPath;
+      const os = require('os');
+      let uploadPath = mainPath;
+
       if (ext === '.json') {
         const spec = JSON.parse(fs.readFileSync(mainPath, 'utf-8'));
-        stripOpenApiExamples(spec);
-        const os = require('os');
-        strippedPath = path.join(os.tmpdir(), `stripped-${Date.now()}-${mainFile}`);
-        fs.writeFileSync(strippedPath, JSON.stringify(spec, null, 2));
+        const injected = injectIntoOpenApiSpec(spec, operation, aiData);
+        if (injected) {
+          uploadPath = path.join(os.tmpdir(), `ai-inject-${Date.now()}-${mainFile}`);
+          fs.writeFileSync(uploadPath, JSON.stringify(spec, null, 2));
+        }
       }
 
-      importArtifactToMicrocks(strippedPath, true);
-      if (strippedPath !== mainPath) try { fs.unlinkSync(strippedPath); } catch(_) {}
+      importArtifactToMicrocks(uploadPath, true);
+      if (uploadPath !== mainPath) try { fs.unlinkSync(uploadPath); } catch(_) {}
       await new Promise(r => setTimeout(r, 2000));
 
-      const collection = buildRestPostmanCollection(service, operation, aiData, details);
-      const uploadResult = uploadPostmanCollection(collection);
+      const uploadResult = { status: 201 };
       lastFetch = 0;
       res.json({
         message: `AI data injected into Microcks for REST ${service}/${operation}`,
