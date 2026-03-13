@@ -435,77 +435,57 @@ const AI_MODEL = process.env.AI_MODEL || 'llama-3.3-70b-versatile';
 
 const responseOverrides = {};
 
-function getOriginalExampleName(serviceName, operationName) {
-  const artifactsDir = path.join(__dirname, 'artifacts');
-  const file = findExamplesFile(serviceName);
-  if (!file) return null;
+async function getMicrocksServiceId(serviceName) {
+  lastFetch = 0;
+  const services = await fetchMicrocksServices();
+  const svc = services.find(s => s.name === serviceName);
+  return svc ? svc.id : null;
+}
+
+function curlExec(args, timeoutMs = 20000) {
+  const { execSync } = require('child_process');
+  return execSync(`curl -s -w "\\n%{http_code}" ${args}`, { timeout: timeoutMs, encoding: 'utf-8' });
+}
+
+function parseCurlResult(result) {
+  const lines = result.trim().split('\n');
+  const statusCode = parseInt(lines[lines.length - 1], 10);
+  const body = lines.slice(0, -1).join('\n');
+  return { status: statusCode, body };
+}
+
+async function deleteServiceFromMicrocks(serviceId) {
   try {
-    const coll = JSON.parse(fs.readFileSync(path.join(artifactsDir, file), 'utf-8'));
-    for (const item of (coll.item || [])) {
-      if (item.name === operationName && item.response && item.response[0]) {
-        return item.response[0].name;
-      }
-    }
-  } catch(_) {}
+    const result = curlExec(`-X DELETE "${MICROCKS_URL}/api/services/${serviceId}"`);
+    const { status } = parseCurlResult(result);
+    return status >= 200 && status < 300;
+  } catch (_) { return false; }
+}
+
+function importArtifactToMicrocks(filePath, isMain = true) {
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeMap = { '.graphql': 'text/plain', '.json': 'application/json', '.yaml': 'text/yaml', '.yml': 'text/yaml' };
+  const mime = mimeMap[ext] || 'application/octet-stream';
+  const result = curlExec(`-X POST "${MICROCKS_URL}/api/artifact/upload?mainArtifact=${isMain}" -F "file=@${filePath};type=${mime}"`, 30000);
+  const { status, body } = parseCurlResult(result);
+  if (status >= 200 && status < 300) return { status, body };
+  throw new Error(`Microcks upload failed: HTTP ${status} — ${body}`);
+}
+
+function findMainArtifact(serviceName) {
+  const artifactsDir = path.join(__dirname, 'artifacts');
+  const norm = serviceName.toLowerCase().replace(/api$/i, '').replace(/[^a-z0-9]/g, '');
+  const schemaFiles = fs.readdirSync(artifactsDir).filter(f => f.endsWith('-schema.graphql'));
+  for (const file of schemaFiles) {
+    const fn = file.toLowerCase().replace(/-schema\.graphql$/, '').replace(/-/g, '');
+    if (fn === norm || fn.includes(norm) || norm.includes(fn)) return file;
+  }
+  const openapiFiles = fs.readdirSync(artifactsDir).filter(f => f.endsWith('-openapi.json') || f.endsWith('-openapi.yaml'));
+  for (const file of openapiFiles) {
+    const fn = file.toLowerCase().replace(/-openapi\.(json|yaml)$/, '').replace(/-/g, '');
+    if (fn === norm || fn.includes(norm) || norm.includes(fn)) return file;
+  }
   return null;
-}
-
-function buildPostmanCollection(serviceName, operationName, responseBody) {
-  const bodyStr = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody);
-  const queryStr = `{ ${operationName} }`;
-  const originalName = getOriginalExampleName(serviceName, operationName) || operationName;
-  return {
-    info: {
-      _postman_id: `ai-inject-${serviceName}-${operationName}`,
-      name: serviceName,
-      description: `version=1.0 - AI injected example for ${operationName}`,
-      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
-    },
-    item: [{
-      name: operationName,
-      request: {
-        method: 'POST',
-        url: `http://${operationName}`,
-        header: [{ key: 'Content-Type', value: 'application/json' }],
-        body: { mode: 'raw', raw: JSON.stringify({ query: queryStr }) },
-      },
-      response: [{
-        name: originalName,
-        originalRequest: {
-          method: 'POST',
-          url: `http://${operationName}`,
-          body: { mode: 'raw', raw: JSON.stringify({ query: queryStr }) },
-        },
-        code: 200,
-        header: [{ key: 'Content-Type', value: 'application/json' }],
-        body: bodyStr,
-      }],
-    }],
-  };
-}
-
-function uploadToMicrocks(collection, isMain = false) {
-  return new Promise((resolve, reject) => {
-    const os = require('os');
-    const tmpFile = path.join(os.tmpdir(), `microcks-inject-${Date.now()}.postman_collection.json`);
-    fs.writeFileSync(tmpFile, JSON.stringify(collection, null, 2));
-    const { execSync } = require('child_process');
-    try {
-      const result = execSync(
-        `curl -s -w "\\n%{http_code}" -X POST "${MICROCKS_URL}/api/artifact/upload?mainArtifact=${isMain}" -F "file=@${tmpFile};type=application/json"`,
-        { timeout: 20000, encoding: 'utf-8' }
-      );
-      const lines = result.trim().split('\n');
-      const statusCode = parseInt(lines[lines.length - 1], 10);
-      const body = lines.slice(0, -1).join('\n');
-      fs.unlinkSync(tmpFile);
-      if (statusCode >= 200 && statusCode < 300) resolve({ status: statusCode, body });
-      else reject(new Error(`Microcks upload failed: HTTP ${statusCode} — ${body}`));
-    } catch (err) {
-      try { fs.unlinkSync(tmpFile); } catch(_) {}
-      reject(new Error('Upload error: ' + err.message));
-    }
-  });
 }
 
 function findExamplesFile(serviceName) {
@@ -526,13 +506,91 @@ function findExamplesFile(serviceName) {
   return null;
 }
 
-function restoreOriginalExamples(serviceName) {
+function buildPostmanCollection(serviceName, operationName, responseBody) {
+  const bodyStr = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody);
+  const queryStr = `{ ${operationName} }`;
+  return {
+    info: {
+      _postman_id: `ai-inject-${serviceName}-${operationName}`,
+      name: serviceName,
+      description: `version=1.0 - AI injected example for ${operationName}`,
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+    },
+    item: [{
+      name: operationName,
+      request: {
+        method: 'POST',
+        url: `http://${operationName}`,
+        header: [{ key: 'Content-Type', value: 'application/json' }],
+        body: { mode: 'raw', raw: JSON.stringify({ query: queryStr }) },
+      },
+      response: [{
+        name: 'ai-injected',
+        originalRequest: {
+          method: 'POST',
+          url: `http://${operationName}`,
+          body: { mode: 'raw', raw: JSON.stringify({ query: queryStr }) },
+        },
+        code: 200,
+        header: [{ key: 'Content-Type', value: 'application/json' }],
+        body: bodyStr,
+      }],
+    }],
+  };
+}
+
+function uploadPostmanCollection(collection) {
+  const os = require('os');
+  const tmpFile = path.join(os.tmpdir(), `microcks-inject-${Date.now()}.postman_collection.json`);
+  fs.writeFileSync(tmpFile, JSON.stringify(collection, null, 2));
+  try {
+    const result = importArtifactToMicrocks(tmpFile, false);
+    fs.unlinkSync(tmpFile);
+    return result;
+  } catch (err) {
+    try { fs.unlinkSync(tmpFile); } catch(_) {}
+    throw err;
+  }
+}
+
+async function resetAndInjectAI(serviceName, operationName, aiData) {
   const artifactsDir = path.join(__dirname, 'artifacts');
-  const file = findExamplesFile(serviceName);
-  if (!file) return Promise.resolve({ restored: false, reason: 'No original examples found for ' + serviceName });
-  const filePath = path.join(artifactsDir, file);
-  const collection = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  return uploadToMicrocks(collection, false).then(() => ({ restored: true, file }));
+
+  const serviceId = await getMicrocksServiceId(serviceName);
+  if (serviceId) {
+    await deleteServiceFromMicrocks(serviceId);
+    await new Promise(r => setTimeout(r, 1000));
+  }
+
+  const mainFile = findMainArtifact(serviceName);
+  if (!mainFile) throw new Error(`No main artifact found for ${serviceName}`);
+  importArtifactToMicrocks(path.join(artifactsDir, mainFile), true);
+  await new Promise(r => setTimeout(r, 2000));
+
+  const collection = buildPostmanCollection(serviceName, operationName, aiData);
+  return uploadPostmanCollection(collection);
+}
+
+async function restoreOriginalExamples(serviceName) {
+  const artifactsDir = path.join(__dirname, 'artifacts');
+
+  const serviceId = await getMicrocksServiceId(serviceName);
+  if (serviceId) {
+    await deleteServiceFromMicrocks(serviceId);
+    await new Promise(r => setTimeout(r, 1000));
+  }
+
+  const mainFile = findMainArtifact(serviceName);
+  if (!mainFile) return { restored: false, reason: 'No main artifact found for ' + serviceName };
+  importArtifactToMicrocks(path.join(artifactsDir, mainFile), true);
+  await new Promise(r => setTimeout(r, 2000));
+
+  const examplesFile = findExamplesFile(serviceName);
+  if (!examplesFile) return { restored: false, reason: 'No examples file found for ' + serviceName };
+  importArtifactToMicrocks(path.join(artifactsDir, examplesFile), false);
+
+  lastFetch = 0;
+  return { restored: true, mainFile, examplesFile };
 }
 
 function getOperationReturnType(opName) {
@@ -768,11 +826,10 @@ app.post('/ai/inject', async (req, res) => {
   } catch (err) { return res.status(500).json({ error: 'LLM error: ' + err.message }); }
 
   try {
-    const collection = buildPostmanCollection(service, operation, aiData);
-    const uploadResult = await uploadToMicrocks(collection, false);
+    const uploadResult = await resetAndInjectAI(service, operation, aiData);
     lastFetch = 0;
     res.json({
-      message: `AI data injected into Microcks for ${service}/${operation}`,
+      message: `AI data injected into Microcks for ${service}/${operation} (service reset + AI-only example)`,
       injectedTo: 'microcks',
       microcksUrl: `${MICROCKS_URL}/graphql/${service}/1.0`,
       preview: aiData,
@@ -780,7 +837,7 @@ app.post('/ai/inject', async (req, res) => {
       upload: uploadResult.status,
     });
   } catch (err) {
-    res.status(500).json({ error: 'Microcks upload failed: ' + err.message, preview: aiData });
+    res.status(500).json({ error: 'Microcks injection failed: ' + err.message, preview: aiData });
   }
 });
 
