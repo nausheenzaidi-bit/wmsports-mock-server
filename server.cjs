@@ -593,6 +593,140 @@ async function restoreOriginalExamples(serviceName) {
   return { restored: true, mainFile, examplesFile };
 }
 
+// ── REST AI helpers ──────────────────────────────────────────────────────
+
+function getRestExampleBody(serviceName, operationName) {
+  const artifactsDir = path.join(__dirname, 'artifacts');
+  const norm = serviceName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  const files = fs.readdirSync(artifactsDir).filter(f => f.endsWith('-examples.postman.json'));
+
+  for (const file of files) {
+    try {
+      const coll = JSON.parse(fs.readFileSync(path.join(artifactsDir, file), 'utf-8'));
+      if (coll.info && coll.info.name !== serviceName) continue;
+      for (const item of (coll.item || [])) {
+        if (item.name === operationName) {
+          const resp = (item.response || [])[0];
+          if (resp && resp.body) return JSON.parse(resp.body);
+        }
+      }
+    } catch (_) {}
+  }
+
+  for (const file of files) {
+    const fn = file.toLowerCase().replace(/-examples\.postman\.json$/, '').replace(/-/g, '');
+    const normSvc = norm.replace(/-/g, '');
+    if (fn !== normSvc && !fn.includes(normSvc) && !normSvc.includes(fn)) continue;
+    try {
+      const coll = JSON.parse(fs.readFileSync(path.join(artifactsDir, file), 'utf-8'));
+      for (const item of (coll.item || [])) {
+        if (item.name === operationName) {
+          const resp = (item.response || [])[0];
+          if (resp && resp.body) return JSON.parse(resp.body);
+        }
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+function getRestOperationDetails(serviceName, operationName) {
+  const artifactsDir = path.join(__dirname, 'artifacts');
+  const files = fs.readdirSync(artifactsDir).filter(f => f.endsWith('-examples.postman.json'));
+
+  for (const file of files) {
+    try {
+      const coll = JSON.parse(fs.readFileSync(path.join(artifactsDir, file), 'utf-8'));
+      if (coll.info && coll.info.name !== serviceName) continue;
+      for (const item of (coll.item || [])) {
+        if (item.name === operationName) {
+          const req = item.request || {};
+          const resp = (item.response || [])[0] || {};
+          let url = req.url || '';
+          if (typeof url === 'object') url = url.raw || '';
+          return {
+            method: req.method || 'GET',
+            url,
+            exampleName: resp.name || 'example',
+            statusCode: resp.code || resp.status || 200,
+            body: resp.body ? JSON.parse(resp.body) : null,
+          };
+        }
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+function buildRestPostmanCollection(serviceName, operationName, responseBody, details) {
+  const bodyStr = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody);
+  const method = details.method || 'GET';
+  const url = details.url || `http://example.com${operationName}`;
+  const statusCode = details.statusCode || 200;
+
+  return {
+    info: {
+      _postman_id: `ai-inject-rest-${serviceName}-${Date.now()}`,
+      name: serviceName,
+      description: `version=1.0 - AI injected example for ${operationName}`,
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+    },
+    item: [{
+      name: operationName,
+      request: {
+        method,
+        url,
+        header: [{ key: 'Content-Type', value: 'application/json' }],
+      },
+      response: [{
+        name: 'ai-injected',
+        originalRequest: {
+          method,
+          url,
+          header: [{ key: 'Content-Type', value: 'application/json' }],
+        },
+        code: statusCode,
+        _postman_previewlanguage: 'json',
+        header: [{ key: 'Content-Type', value: 'application/json' }],
+        body: bodyStr,
+      }],
+    }],
+  };
+}
+
+function describeJsonStructure(obj, depth = 0) {
+  if (depth > 2) return typeof obj;
+  if (obj === null) return 'null';
+  if (Array.isArray(obj)) {
+    if (obj.length === 0) return '[]';
+    return `[${describeJsonStructure(obj[0], depth + 1)}]`;
+  }
+  if (typeof obj === 'object') {
+    const entries = Object.entries(obj).slice(0, 20);
+    const fields = entries.map(([k, v]) => {
+      if (v === null) return `  ${k}: nullable`;
+      if (Array.isArray(v)) return `  ${k}: array`;
+      if (typeof v === 'object') return `  ${k}: object`;
+      return `  ${k}: ${typeof v}`;
+    });
+    return `{\n${fields.join('\n')}\n}`;
+  }
+  return typeof obj;
+}
+
+const REST_AI_SYSTEM_PROMPT = `You are a mock data generator for a sports REST API.
+
+CRITICAL RULES — FOLLOW EXACTLY:
+- Return ONLY valid JSON matching the response structure provided.
+- Do NOT wrap the response in {"data": {...}}. Return the raw REST response object directly.
+- You MUST follow the scenario instructions LITERALLY. If told "wrong types", EVERY field must have the wrong type. If told "missing fields", fields must be ABSENT from the JSON. If told "null values", fields must be null. If told "empty arrays", array fields must be [].
+- Do NOT generate correct/valid data when asked for bad data. The ENTIRE POINT is to produce broken data that will cause consumer tests to fail.
+- WRONG TYPES means: use integers where strings are expected, use strings where numbers are expected, use booleans where objects are expected, use arrays where scalars are expected.
+- MISSING FIELDS means: remove 2-3 fields entirely from the JSON object. They should NOT appear at all.
+- NULL VALUES means: set every field value to null.
+- EMPTY ARRAYS means: set any field that could be an array to [], and set string fields to "".
+- Use real sports content (NFL, NBA, MLB teams/players) when generating valid-looking values.`;
+
 function getOperationReturnType(opName) {
   const artifactsDir = path.join(__dirname, 'artifacts');
   const files = fs.readdirSync(artifactsDir).filter(f => f.endsWith('.graphql'));
@@ -782,10 +916,80 @@ app.delete('/ai/overrides', (req, res) => {
 });
 
 app.post('/ai/inject', async (req, res) => {
-  const { service, operation, prompt, scenario, fields } = req.body;
+  const { service, operation, prompt, scenario, fields, apiType } = req.body;
   if (!service || !operation) return res.status(400).json({ error: 'Provide "service" and "operation"' });
   if (!prompt && !scenario) return res.status(400).json({ error: 'Provide "prompt" or "scenario"' });
 
+  const isRest = apiType === 'rest';
+
+  if (isRest) {
+    const details = getRestOperationDetails(service, operation);
+    const exampleBody = details ? details.body : null;
+    const structureDesc = exampleBody ? describeJsonStructure(exampleBody) : '{}';
+    const fieldList = (fields && fields.length > 0) ? fields : (exampleBody ? Object.keys(exampleBody) : []);
+    const fNames = fieldList.join(', ') || 'all fields';
+
+    let scenarioPrompt = '';
+    if (scenario && FAILURE_SCENARIOS[scenario]) {
+      const base = FAILURE_SCENARIOS[scenario].prompt;
+      const examples = {
+        'wrong-types': `The response has these fields: ${fNames}. For EACH field, return the WRONG type. Example: if "id" is number, return a string like "not-a-number". If "title" is string, return a number like 99999. If "createdAt" is string, return a boolean. EVERY field must have the wrong type.`,
+        'missing-fields': `The response has these fields: ${fNames}. REMOVE at least 2-3 of these fields entirely from the JSON. The response must have FEWER keys than the original.`,
+        'null-values': `The response has these fields: ${fNames}. Set EVERY single one to null.`,
+        'empty-arrays': `The response has these fields: ${fNames}. Set every field to an empty value: strings become "", arrays become [], numbers become 0, booleans become null.`,
+        'extra-fields': `The response has these fields: ${fNames}. Include all with valid data, BUT also add 3-4 EXTRA unexpected fields like "__internal_id", "_debug_trace", "legacyField", "deprecated_v1".`,
+        'deprecated-fields': `The response has these fields: ${fNames}. Rename 2-3 of them (e.g. "title" → "title_v2", "id" → "notification_id"). Original names must be ABSENT.`,
+        'malformed-dates': `The response has these fields: ${fNames}. For any date/time field (createdAt, updatedAt, etc) return garbage like "not-a-date", 0, or "1970-01-01". For other fields return valid data.`,
+        'boundary-values': `The response has these fields: ${fNames}. Use extreme values: 200+ char strings, negative numbers like -99999, MAX_INT (2147483647), empty strings "".`,
+        'encoding-issues': `The response has these fields: ${fNames}. Put special characters in string fields: unicode (\\u0000), HTML (<script>alert(1)</script>), emojis, newlines, backslashes.`,
+        'partial-response': `The response has these fields: ${fNames}. Only include 1-2 of the ${fieldList.length} fields. The rest must be ABSENT (not null, completely missing).`,
+      };
+      scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
+    }
+
+    const userPrompt = scenarioPrompt || prompt || '';
+    const opMsg = userPrompt + `\n\nOriginal response structure:\n${structureDesc}\n\nExample body:\n${JSON.stringify(exampleBody, null, 2).slice(0, 1500)}\n\nReturn ONLY valid JSON matching this REST response structure. Do NOT wrap in {"data": ...}.`;
+
+    let aiData;
+    try {
+      aiData = await callLLM(REST_AI_SYSTEM_PROMPT, opMsg);
+    } catch (err) { return res.status(500).json({ error: 'LLM error: ' + err.message }); }
+
+    if (!details) {
+      return res.status(400).json({ error: `Could not find operation "${operation}" in ${service} examples`, preview: aiData });
+    }
+
+    try {
+      const artifactsDir = path.join(__dirname, 'artifacts');
+      const serviceId = await getMicrocksServiceId(service);
+      if (serviceId) {
+        await deleteServiceFromMicrocks(serviceId);
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      const mainFile = findMainArtifact(service);
+      if (!mainFile) throw new Error(`No main artifact found for ${service}`);
+      importArtifactToMicrocks(path.join(artifactsDir, mainFile), true);
+      await new Promise(r => setTimeout(r, 2000));
+
+      const collection = buildRestPostmanCollection(service, operation, aiData, details);
+      const uploadResult = uploadPostmanCollection(collection);
+      lastFetch = 0;
+      res.json({
+        message: `AI data injected into Microcks for REST ${service}/${operation}`,
+        injectedTo: 'microcks',
+        microcksUrl: `${MICROCKS_URL}/rest/${service}/1.0`,
+        preview: aiData,
+        scenario: scenario || 'custom',
+        upload: uploadResult.status,
+        apiType: 'rest',
+      });
+    } catch (err) {
+      res.status(500).json({ error: 'Microcks injection failed: ' + err.message, preview: aiData });
+    }
+    return;
+  }
+
+  // GraphQL inject (existing logic)
   const retType = getOperationReturnType(operation);
   let schemaCtx = retType ? buildTypeSchema(retType) : '';
   const fieldList = (fields && fields.length > 0) ? fields : null;
@@ -855,6 +1059,15 @@ app.post('/ai/restore', async (req, res) => {
 
 app.get('/ai/scenarios', (req, res) => {
   res.json({ scenarios: Object.entries(FAILURE_SCENARIOS).map(([id, s]) => ({ id, name: s.name, description: s.prompt.split('.')[0] + '.' })) });
+});
+
+app.get('/ai/rest-fields', (req, res) => {
+  const { service, operation } = req.query;
+  if (!service || !operation) return res.status(400).json({ error: 'Provide "service" and "operation" query params' });
+  const body = getRestExampleBody(service, operation);
+  if (!body) return res.json({ fields: [], structure: null });
+  const fields = typeof body === 'object' && !Array.isArray(body) ? Object.keys(body) : [];
+  res.json({ fields, structure: describeJsonStructure(body) });
 });
 
 app.get('/ai/types', (req, res) => {
@@ -1048,7 +1261,7 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
       <div class="ops-panel" id="ops-panel"></div>
       <div class="editor-area">
         <div class="editor-header">
-          <span class="badge graphql">GraphQL</span>
+          <span class="badge graphql" id="editor-type-badge">GraphQL</span>
           <strong id="editor-svc"></strong>
           <span class="timing" id="editor-timing"></span>
           <div style="display:flex;gap:.4rem;align-items:center;margin-left:auto">
@@ -1140,7 +1353,8 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
             <h3 style="color:#c9d1d9;font-size:.95rem;margin-bottom:.8rem">Generate Data</h3>
             <div style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap">
               <select id="ai-service" style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:5px 8px;font-size:.82rem">
-                ${graphqlSvcs.map(s => '<option value="' + s.name + '">' + s.name + '</option>').join('')}
+                <optgroup label="GraphQL">${graphqlSvcs.map(s => '<option value="' + s.name + '">' + s.name + '</option>').join('')}</optgroup>
+                <optgroup label="REST">${restSvcs.map(s => '<option value="' + s.name + '" data-type="rest">' + s.name + '</option>').join('')}</optgroup>
               </select>
               <input id="ai-operation" placeholder="Operation (e.g. getGamecastBySlug)" style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:5px 8px;font-size:.82rem;flex:1;min-width:200px">
             </div>
@@ -1324,6 +1538,11 @@ async function selectOp(name, type) {
 
   currentOpName = name;
   currentOpType = type;
+  window.__restCtx = null;
+
+  const typeBadge = document.getElementById('editor-type-badge');
+  typeBadge.textContent = 'GraphQL';
+  typeBadge.className = 'badge graphql';
 
   const editor = document.getElementById('editor-query');
   const result = document.getElementById('editor-result');
@@ -1414,12 +1633,34 @@ function tryRest(method, fullUrl) {
   const resolvedUrl = substitutePathParams(fullUrl);
   const templateUrl = fullUrl;
 
-  document.getElementById('editor-svc').textContent = method + ' ' + new URL(templateUrl).pathname;
+  // Parse service name + operation from template URL (keep {param} braces intact)
+  const urlPath = new URL(templateUrl).pathname;
+  const decodedPath = decodeURIComponent(urlPath);
+  const restMatch = decodedPath.match(/\\/rest\\/([^/]+)\\/([^/]+)\\/(.*)/);
+  let restServiceName = '', restOpPath = '';
+  if (restMatch) {
+    restServiceName = restMatch[1].replace(/\\+/g, ' ');
+    restOpPath = '/' + restMatch[3];
+  }
+  window.__restCtx = { method, url: resolvedUrl, serviceName: restServiceName, operationName: method + ' ' + restOpPath };
+
+  document.getElementById('editor-svc').textContent = method + ' ' + urlPath;
+  const typeBadge = document.getElementById('editor-type-badge');
+  typeBadge.textContent = 'REST';
+  typeBadge.className = 'badge rest';
+
+  // Show AI controls for REST
+  ['inline-ai-scenario','inline-ai-prompt','inline-ai-btn','inline-ai-clear'].forEach(id => {
+    document.getElementById(id).style.display = '';
+  });
+  document.getElementById('inline-ai-scenario').value = '';
+  document.getElementById('inline-ai-prompt').value = '';
 
   const hasParams = /\\{[^}]+\\}/.test(templateUrl);
   let panelHtml = '<div style="padding:1rem;color:#8b949e;font-size:.82rem">';
   panelHtml += '<strong style="color:#c9d1d9">REST Endpoint</strong><br><br>';
-  panelHtml += '<span class="badge ' + method.toLowerCase() + '" style="font-size:.7rem">' + method + '</span><br><br>';
+  panelHtml += '<span class="badge ' + method.toLowerCase() + '" style="font-size:.7rem">' + method + '</span>';
+  panelHtml += ' <span style="color:#58a6ff;font-size:.78rem">' + restServiceName + '</span><br><br>';
   if (hasParams) {
     panelHtml += '<strong style="color:#f0883e;font-size:.75rem">Path Parameters</strong><br>';
     const params = templateUrl.match(/\\{([^}]+)\\}/g) || [];
@@ -1428,16 +1669,20 @@ function tryRest(method, fullUrl) {
       const val = REST_PARAM_DEFAULTS[name] || REST_PARAM_DEFAULTS[name.replace(/-/g,'_')] || 'example';
       panelHtml += '<span style="color:#79c0ff">{' + name + '}</span> = <span style="color:#7ee787">' + val + '</span><br>';
     });
-    panelHtml += '<br><span style="font-size:.72rem;color:#484f58">Edit the URL in the operation panel to change values.</span>';
+    panelHtml += '<br>';
   }
+  panelHtml += '<div style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid #21262d"><strong style="color:#a371f7;font-size:.72rem">AI Agent</strong><br><span style="font-size:.72rem;color:#484f58">Select a scenario above and click Inject to generate bad data for this REST endpoint via AI.</span></div>';
   panelHtml += '</div>';
   document.getElementById('ops-panel').innerHTML = panelHtml;
 
   document.getElementById('editor-query').value = resolvedUrl;
-  document.getElementById('editor-result').textContent = 'Click Run to send the request';
+  document.getElementById('editor-result').textContent = 'Click Run to send the request, or select an AI scenario and click Inject.';
   document.getElementById('editor-result').className = '';
   document.getElementById('editor-timing').innerHTML = '';
-  window.__restCtx = { method, url: resolvedUrl };
+
+  const srcLabel = document.getElementById('response-source');
+  srcLabel.style.color = '#30363d';
+  srcLabel.textContent = '(from Microcks)';
 }
 
 async function runQuery() {
@@ -1511,7 +1756,10 @@ function extractFieldsFromQuery(queryText) {
 }
 
 async function inlineAIInject() {
-  if (!currentOpName || !currentService) return;
+  const isRest = currentService === '__rest__' && window.__restCtx;
+  if (!isRest && (!currentOpName || !currentService)) return;
+  if (isRest && !window.__restCtx.serviceName) return;
+
   const scenario = document.getElementById('inline-ai-scenario').value;
   const prompt = document.getElementById('inline-ai-prompt').value;
   if (!scenario && !prompt) { document.getElementById('editor-result').textContent = 'Select a scenario or type a prompt, then click Inject'; return; }
@@ -1521,8 +1769,52 @@ async function inlineAIInject() {
   const srcLabel = document.getElementById('response-source');
   const editor = document.getElementById('editor-query');
 
-  const fields = extractFieldsFromQuery(editor.value);
+  if (isRest) {
+    const ctx = window.__restCtx;
+    result.textContent = 'Injecting AI data into Microcks for REST: ' + ctx.serviceName + ' / ' + ctx.operationName + '...';
+    result.className = '';
+    timingEl.innerHTML = '<span class="pg-status ai">AI</span> injecting into Microcks...';
+    srcLabel.textContent = '(injecting...)';
+    srcLabel.style.color = '#a371f7';
 
+    try {
+      const payload = {
+        service: ctx.serviceName,
+        operation: ctx.operationName,
+        apiType: 'rest',
+      };
+      if (scenario) payload.scenario = scenario;
+      if (prompt) payload.prompt = prompt;
+
+      const r = await fetch('/ai/inject', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const d = await r.json();
+
+      if (d.error) {
+        result.textContent = 'AI Error: ' + d.error;
+        result.className = 'error';
+        timingEl.innerHTML = '<span class="pg-status s4">ERR</span>';
+        srcLabel.textContent = '(injection failed)';
+        return;
+      }
+
+      srcLabel.textContent = '(AI injected into Microcks)';
+      srcLabel.style.color = '#a371f7';
+
+      result.textContent = JSON.stringify(d.preview, null, 2);
+      timingEl.innerHTML = '<span class="pg-status ai">AI</span> injected — click Run to verify';
+      await runQuery();
+    } catch(e) {
+      result.textContent = 'Error: ' + e.message;
+      result.className = 'error';
+    }
+    return;
+  }
+
+  // GraphQL inject
+  const fields = extractFieldsFromQuery(editor.value);
   result.textContent = 'Injecting AI data into Microcks for: ' + (fields.length ? fields.join(', ') : 'all fields') + '...';
   result.className = '';
   timingEl.innerHTML = '<span class="pg-status ai">AI</span> injecting into Microcks...';
@@ -1564,20 +1856,24 @@ async function inlineAIInject() {
 }
 
 async function inlineAIClear() {
-  if (!currentOpName || !currentService) return;
+  const isRest = currentService === '__rest__' && window.__restCtx;
+  if (!isRest && (!currentOpName || !currentService)) return;
+
+  const serviceName = isRest ? window.__restCtx.serviceName : currentService;
+  if (!serviceName) return;
 
   const result = document.getElementById('editor-result');
   const timingEl = document.getElementById('editor-timing');
   const srcLabel = document.getElementById('response-source');
 
-  result.textContent = 'Restoring original Microcks examples...';
+  result.textContent = 'Restoring original Microcks examples for ' + serviceName + '...';
   timingEl.innerHTML = '<span class="pg-status s206">...</span> restoring';
 
   try {
     await fetch('/ai/overrides', { method: 'DELETE' });
     const r = await fetch('/ai/restore', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ service: currentService })
+      body: JSON.stringify({ service: serviceName })
     });
     const d = await r.json();
 
@@ -1587,7 +1883,7 @@ async function inlineAIClear() {
     document.getElementById('inline-ai-scenario').value = '';
     document.getElementById('inline-ai-prompt').value = '';
 
-    result.textContent = d.restored ? 'Original examples restored (' + d.file + '). Click Run to verify.' : d.reason || 'Cleared.';
+    result.textContent = d.restored ? 'Original examples restored. Click Run to verify.' : d.reason || 'Cleared.';
     timingEl.innerHTML = '';
   } catch(e) {
     result.textContent = 'Restore error: ' + e.message;
