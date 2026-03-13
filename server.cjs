@@ -1254,7 +1254,7 @@ async function fetchSchema(svc) {
   try {
     const r = await fetch('/graphql/' + svc, {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({query: '{ __schema { types { name kind fields { name args { name type { name kind ofType { name kind ofType { name } } } } type { name kind ofType { name kind ofType { name kind } } } } } queryType { name } mutationType { name } } }'})
+      body: JSON.stringify({query: '{ __schema { types { name kind fields { name args { name type { name kind ofType { name kind ofType { name } } } } type { name kind ofType { name kind ofType { name kind ofType { name kind } } } } } } queryType { name } mutationType { name } } }'})
     });
     const d = await r.json();
     if (d.data) { schemaCache[svc] = d.data.__schema; return d.data.__schema; }
