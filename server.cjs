@@ -435,9 +435,25 @@ const AI_MODEL = process.env.AI_MODEL || 'llama-3.3-70b-versatile';
 
 const responseOverrides = {};
 
+function getOriginalExampleName(serviceName, operationName) {
+  const artifactsDir = path.join(__dirname, 'artifacts');
+  const file = findExamplesFile(serviceName);
+  if (!file) return null;
+  try {
+    const coll = JSON.parse(fs.readFileSync(path.join(artifactsDir, file), 'utf-8'));
+    for (const item of (coll.item || [])) {
+      if (item.name === operationName && item.response && item.response[0]) {
+        return item.response[0].name;
+      }
+    }
+  } catch(_) {}
+  return null;
+}
+
 function buildPostmanCollection(serviceName, operationName, responseBody) {
   const bodyStr = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody);
   const queryStr = `{ ${operationName} }`;
+  const originalName = getOriginalExampleName(serviceName, operationName) || operationName;
   return {
     info: {
       _postman_id: `ai-inject-${serviceName}-${operationName}`,
@@ -454,7 +470,7 @@ function buildPostmanCollection(serviceName, operationName, responseBody) {
         body: { mode: 'raw', raw: JSON.stringify({ query: queryStr }) },
       },
       response: [{
-        name: 'ai-injected',
+        name: originalName,
         originalRequest: {
           method: 'POST',
           url: `http://${operationName}`,
@@ -492,16 +508,31 @@ function uploadToMicrocks(collection, isMain = false) {
   });
 }
 
+function findExamplesFile(serviceName) {
+  const artifactsDir = path.join(__dirname, 'artifacts');
+  const files = fs.readdirSync(artifactsDir).filter(f => f.endsWith('-examples.postman.json'));
+  const norm = serviceName.toLowerCase().replace(/api$/i, '').replace(/[^a-z0-9]/g, '');
+
+  for (const file of files) {
+    const fn = file.toLowerCase().replace(/-examples\.postman\.json$/, '').replace(/-/g, '');
+    if (fn === norm || fn.includes(norm) || norm.includes(fn)) return file;
+  }
+  for (const file of files) {
+    try {
+      const coll = JSON.parse(fs.readFileSync(path.join(artifactsDir, file), 'utf-8'));
+      if (coll.info && coll.info.name === serviceName) return file;
+    } catch(_) {}
+  }
+  return null;
+}
+
 function restoreOriginalExamples(serviceName) {
   const artifactsDir = path.join(__dirname, 'artifacts');
-  const safeName = serviceName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-  const candidates = fs.readdirSync(artifactsDir).filter(f =>
-    f.endsWith('-examples.postman.json') && f.toLowerCase().includes(safeName)
-  );
-  if (candidates.length === 0) return Promise.resolve({ restored: false, reason: 'No original examples found for ' + serviceName });
-  const filePath = path.join(artifactsDir, candidates[0]);
+  const file = findExamplesFile(serviceName);
+  if (!file) return Promise.resolve({ restored: false, reason: 'No original examples found for ' + serviceName });
+  const filePath = path.join(artifactsDir, file);
   const collection = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  return uploadToMicrocks(collection, false).then(() => ({ restored: true, file: candidates[0] }));
+  return uploadToMicrocks(collection, false).then(() => ({ restored: true, file }));
 }
 
 function getOperationReturnType(opName) {
