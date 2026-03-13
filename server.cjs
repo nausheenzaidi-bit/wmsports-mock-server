@@ -1378,17 +1378,66 @@ function showRoutes() {
   document.querySelector('.svc-btn[data-type="routes"]').classList.add('active');
 }
 
+const REST_PARAM_DEFAULTS = {
+  tenant: 'bleacherReport',
+  bolt_id: '1250616d-b38d-4d74-864e-9e1016394fec',
+  boltId: '1250616d-b38d-4d74-864e-9e1016394fec',
+  id: '237',
+  user_id: '006320e5-ceea-431e-9dab-8b5c368a8c0c',
+  tag_uuid: '0177b48b-0ab4-4dba-b132-de8e1e96cec8',
+  tagUUID: '0177b48b-0ab4-4dba-b132-de8e1e96cec8',
+  gamePermalink: 'nfl-game-2026-01-15',
+  gamecastPermalink: 'nfl-game-2026-01-15',
+  permalink: 'nfl',
+  season: '2026',
+  date: '2026-03-01',
+  leagueSlug: 'nfl',
+  language: 'en',
+  gameId: '1',
+  playerId: '1',
+  apiWidgetId: '1',
+  customerId: '1',
+  wranglerConfigId: '1',
+};
+
+function substitutePathParams(url) {
+  return url.replace(/\\{([^}]+)\\}/g, (match, param) => {
+    return REST_PARAM_DEFAULTS[param] || REST_PARAM_DEFAULTS[param.replace(/-/g,'_')] || 'example';
+  });
+}
+
 function tryRest(method, fullUrl) {
   hideAll();
   document.getElementById('explorer').classList.add('active');
   currentService = '__rest__';
-  document.getElementById('editor-svc').textContent = method + ' ' + new URL(fullUrl).pathname;
-  document.getElementById('ops-panel').innerHTML = '<div style="padding:1rem;color:#484f58;font-size:.8rem">REST endpoint selected.<br>Click Run to send request.</div>';
-  document.getElementById('editor-query').value = fullUrl;
+
+  const resolvedUrl = substitutePathParams(fullUrl);
+  const templateUrl = fullUrl;
+
+  document.getElementById('editor-svc').textContent = method + ' ' + new URL(templateUrl).pathname;
+
+  const hasParams = /\\{[^}]+\\}/.test(templateUrl);
+  let panelHtml = '<div style="padding:1rem;color:#8b949e;font-size:.82rem">';
+  panelHtml += '<strong style="color:#c9d1d9">REST Endpoint</strong><br><br>';
+  panelHtml += '<span class="badge ' + method.toLowerCase() + '" style="font-size:.7rem">' + method + '</span><br><br>';
+  if (hasParams) {
+    panelHtml += '<strong style="color:#f0883e;font-size:.75rem">Path Parameters</strong><br>';
+    const params = templateUrl.match(/\\{([^}]+)\\}/g) || [];
+    params.forEach(p => {
+      const name = p.replace(/[{}]/g, '');
+      const val = REST_PARAM_DEFAULTS[name] || REST_PARAM_DEFAULTS[name.replace(/-/g,'_')] || 'example';
+      panelHtml += '<span style="color:#79c0ff">{' + name + '}</span> = <span style="color:#7ee787">' + val + '</span><br>';
+    });
+    panelHtml += '<br><span style="font-size:.72rem;color:#484f58">Edit the URL in the operation panel to change values.</span>';
+  }
+  panelHtml += '</div>';
+  document.getElementById('ops-panel').innerHTML = panelHtml;
+
+  document.getElementById('editor-query').value = resolvedUrl;
   document.getElementById('editor-result').textContent = 'Click Run to send the request';
   document.getElementById('editor-result').className = '';
   document.getElementById('editor-timing').innerHTML = '';
-  window.__restCtx = {method, url: fullUrl};
+  window.__restCtx = { method, url: resolvedUrl };
 }
 
 async function runQuery() {
@@ -1399,9 +1448,11 @@ async function runQuery() {
   const start = performance.now();
 
   if (currentService === '__rest__') {
-    const {method, url} = window.__restCtx;
+    const method = window.__restCtx.method;
+    const url = document.getElementById('editor-query').value.trim();
+    window.__restCtx.url = url;
     try {
-      const urlObj = new URL(url);
+      const urlObj = new URL(url.startsWith('http') ? url : window.location.origin + url);
       const r = await fetch(urlObj.pathname + urlObj.search, {method, headers:{'Content-Type':'application/json','x-api-key':'mock'}});
       const ms = Math.round(performance.now() - start);
       const text = await r.text();
