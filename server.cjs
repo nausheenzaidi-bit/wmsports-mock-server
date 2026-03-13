@@ -435,6 +435,91 @@ const AI_MODEL = process.env.AI_MODEL || 'llama-3.3-70b-versatile';
 
 const responseOverrides = {};
 
+function buildPostmanCollection(serviceName, operationName, responseBody) {
+  const bodyStr = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody);
+  const queryStr = `{ ${operationName} }`;
+  return {
+    info: {
+      _postman_id: `ai-inject-${serviceName}-${operationName}`,
+      name: serviceName,
+      description: `version=1.0 - AI injected example for ${operationName}`,
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+    },
+    item: [{
+      name: operationName,
+      request: {
+        method: 'POST',
+        url: `http://${operationName}`,
+        header: [{ key: 'Content-Type', value: 'application/json' }],
+        body: { mode: 'raw', raw: JSON.stringify({ query: queryStr }) },
+      },
+      response: [{
+        name: 'ai-injected',
+        originalRequest: {
+          method: 'POST',
+          url: `http://${operationName}`,
+          body: { mode: 'raw', raw: JSON.stringify({ query: queryStr }) },
+        },
+        code: 200,
+        header: [{ key: 'Content-Type', value: 'application/json' }],
+        body: bodyStr,
+      }],
+    }],
+  };
+}
+
+function uploadToMicrocks(collection, isMain = false) {
+  return new Promise((resolve, reject) => {
+    const collStr = JSON.stringify(collection);
+    const boundary = '----FormBoundary' + Date.now();
+    const body = [
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="file"; filename="ai-inject.postman.json"`,
+      `Content-Type: application/json`,
+      ``,
+      collStr,
+      `--${boundary}--`,
+    ].join('\r\n');
+
+    const url = new URL(`/api/artifact/upload?mainArtifact=${isMain}`, MICROCKS_URL);
+    const mod = url.protocol === 'https:' ? https : http;
+    const req = mod.request({
+      hostname: url.hostname,
+      port: url.port,
+      path: url.pathname + url.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': Buffer.byteLength(body),
+      },
+      timeout: 15000,
+    }, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) resolve({ status: res.statusCode, body: data });
+        else reject(new Error(`Microcks upload failed: HTTP ${res.statusCode} — ${data}`));
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Upload timed out')); });
+    req.write(body);
+    req.end();
+  });
+}
+
+function restoreOriginalExamples(serviceName) {
+  const artifactsDir = path.join(__dirname, 'artifacts');
+  const safeName = serviceName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+  const candidates = fs.readdirSync(artifactsDir).filter(f =>
+    f.endsWith('-examples.postman.json') && f.toLowerCase().includes(safeName)
+  );
+  if (candidates.length === 0) return Promise.resolve({ restored: false, reason: 'No original examples found for ' + serviceName });
+  const filePath = path.join(artifactsDir, candidates[0]);
+  const collection = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  return uploadToMicrocks(collection, false).then(() => ({ restored: true, file: candidates[0] }));
+}
+
 function getOperationReturnType(opName) {
   const artifactsDir = path.join(__dirname, 'artifacts');
   const files = fs.readdirSync(artifactsDir).filter(f => f.endsWith('.graphql'));
@@ -623,6 +708,79 @@ app.delete('/ai/overrides', (req, res) => {
   res.json({ message: 'All overrides cleared' });
 });
 
+app.post('/ai/inject', async (req, res) => {
+  const { service, operation, prompt, scenario, fields } = req.body;
+  if (!service || !operation) return res.status(400).json({ error: 'Provide "service" and "operation"' });
+  if (!prompt && !scenario) return res.status(400).json({ error: 'Provide "prompt" or "scenario"' });
+
+  const retType = getOperationReturnType(operation);
+  let schemaCtx = retType ? buildTypeSchema(retType) : '';
+  const fieldList = (fields && fields.length > 0) ? fields : null;
+  const fNames = fieldList ? fieldList.join(', ') : 'all fields';
+
+  let scenarioPrompt = '';
+  if (scenario && FAILURE_SCENARIOS[scenario]) {
+    const base = FAILURE_SCENARIOS[scenario].prompt;
+    if (fieldList) {
+      const examples = {
+        'wrong-types': `The query has these fields: ${fNames}. For EACH field, return the WRONG type. Example: if "slug" is String, return a number like 99999. If "gameDate" is String, return a boolean like true. If "sport" is String, return an array like ["wrong"]. EVERY field must have the wrong type.`,
+        'missing-fields': `The query has these fields: ${fNames}. REMOVE at least 2 of these fields entirely from the JSON. The response must have FEWER keys than requested.`,
+        'null-values': `The query has these fields: ${fNames}. Set EVERY single one to null.`,
+        'empty-arrays': `The query has these fields: ${fNames}. Set every field to an empty value: strings become "", arrays become [], numbers become 0.`,
+        'extra-fields': `The query has these fields: ${fNames}. Include all with valid data, BUT also add 3-4 EXTRA unexpected fields like "__internal_id", "_debug", "legacyScore".`,
+        'deprecated-fields': `The query has these fields: ${fNames}. Rename 2-3 of them (e.g. "slug" → "slug_v2"). Original names must be ABSENT.`,
+        'malformed-dates': `The query has these fields: ${fNames}. For date fields return "not-a-date" or 0. Other fields can be valid.`,
+        'boundary-values': `The query has these fields: ${fNames}. Use extreme values: 200+ char strings, -99999, MAX_INT, empty strings.`,
+        'encoding-issues': `The query has these fields: ${fNames}. Put special chars: unicode, HTML entities, <script> tags, emojis.`,
+        'partial-response': `The query has these fields: ${fNames}. Only include 1-2 of the ${fieldList ? fieldList.length : '?'} fields. Rest must be ABSENT.`,
+      };
+      scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
+    } else {
+      scenarioPrompt = base;
+    }
+  }
+
+  const userPrompt = scenarioPrompt || prompt || '';
+  let fieldsConstraint = '';
+  if (fieldList && !['missing-fields', 'extra-fields', 'deprecated-fields', 'partial-response'].includes(scenario)) {
+    fieldsConstraint = `\nThe response object MUST contain ONLY these fields: ${fNames}.`;
+  }
+  const opMsg = userPrompt + `\n\nSchema:\n${schemaCtx}${fieldsConstraint}\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
+
+  let aiData;
+  try {
+    aiData = await callLLM(AI_SYSTEM_PROMPT, opMsg);
+  } catch (err) { return res.status(500).json({ error: 'LLM error: ' + err.message }); }
+
+  try {
+    const collection = buildPostmanCollection(service, operation, aiData);
+    const uploadResult = await uploadToMicrocks(collection, false);
+    lastFetch = 0;
+    res.json({
+      message: `AI data injected into Microcks for ${service}/${operation}`,
+      injectedTo: 'microcks',
+      microcksUrl: `${MICROCKS_URL}/graphql/${service}/1.0`,
+      preview: aiData,
+      scenario: scenario || 'custom',
+      upload: uploadResult.status,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Microcks upload failed: ' + err.message, preview: aiData });
+  }
+});
+
+app.post('/ai/restore', async (req, res) => {
+  const { service } = req.body;
+  if (!service) return res.status(400).json({ error: 'Provide "service"' });
+  try {
+    const result = await restoreOriginalExamples(service);
+    lastFetch = 0;
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Restore failed: ' + err.message });
+  }
+});
+
 app.get('/ai/scenarios', (req, res) => {
   res.json({ scenarios: Object.entries(FAILURE_SCENARIOS).map(([id, s]) => ({ id, name: s.name, description: s.prompt.split('.')[0] + '.' })) });
 });
@@ -798,6 +956,10 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
       ${eventSvcs.map(s => `<button class="svc-btn" data-type="event" onclick="showEvents()">${s.name}<span class="cnt">${s.operations?.length||0}</span></button>`).join('\n')}
     </div>
     <div class="sidebar-section" style="border-top:1px solid #30363d;margin-top:auto">
+      <button class="svc-btn" data-type="routes" onclick="showRoutes()" style="color:#58a6ff;font-weight:600">
+        Mock API Routes
+        <span class="cnt" style="background:#1f6feb22;color:#58a6ff">URLs</span>
+      </button>
       <button class="svc-btn" data-type="ai" onclick="showAI()" style="color:#a371f7;font-weight:600">
         ⚡ AI Agent
         <span class="cnt" style="background:#8957e522;color:#a371f7">LLM</span>
@@ -861,6 +1023,39 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
         <thead><tr><th>Service</th><th>Protocol</th><th>Operations</th><th>Topics/Queues</th></tr></thead>
         <tbody>${eventRows}</tbody>
       </table>
+    </div>
+
+    <div id="routes-view" class="rest-section">
+      <h2 style="color:#c9d1d9;margin-bottom:.5rem">Mock API Routes <span class="badge" style="background:#1f6feb22;color:#58a6ff">Microcks</span></h2>
+      <p style="color:#8b949e;font-size:.85rem;margin-bottom:1rem">These are the live mock endpoints. Hit them directly from any client (curl, Postman, tests).</p>
+      <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem">
+        <h3 style="color:#c9d1d9;font-size:.9rem;margin-bottom:.5rem">GraphQL Endpoints</h3>
+        <p style="color:#8b949e;font-size:.78rem;margin-bottom:.5rem">POST to these URLs with <code>{"query": "{ operationName { fields } }"}</code></p>
+        <table><thead><tr><th>Service</th><th>Mock URL (via dashboard)</th><th>Direct Microcks URL</th><th>Operations</th></tr></thead><tbody>
+        ${graphqlSvcs.map(s => {
+          const oc = (s.operations||[]).length;
+          return `<tr><td style="font-weight:600">${s.name}</td><td><code>/graphql/${s.name}</code></td><td><code style="color:#79c0ff">${MICROCKS_URL}/graphql/${s.name}/${s.version}</code></td><td>${oc}</td></tr>`;
+        }).join('')}
+        </tbody></table>
+      </div>
+      <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem">
+        <h3 style="color:#c9d1d9;font-size:.9rem;margin-bottom:.5rem">REST Endpoints</h3>
+        ${restSvcs.map(s => {
+          const ops = (s.operations||[]);
+          return `<div style="margin-bottom:.8rem"><strong style="color:#c9d1d9">${s.name}</strong> <span style="color:#484f58;font-size:.75rem">${ops.length} operations</span>` +
+            ops.map(o => {
+              const parts = o.name.split(' ');
+              const method = parts[0] || 'GET';
+              const path = parts.slice(1).join(' ') || o.name;
+              const mc = method.toLowerCase();
+              return `<div style="margin:.2rem 0 .2rem 1rem;font-size:.82rem"><span class="badge ${mc}" style="font-size:.65rem;padding:1px 4px">${method}</span> <code>${MICROCKS_URL}/rest/${s.name}/${s.version}${path}</code></div>`;
+            }).join('') + '</div>';
+        }).join('')}
+      </div>
+      <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem">
+        <h3 style="color:#c9d1d9;font-size:.9rem;margin-bottom:.5rem">Event / Async Endpoints</h3>
+        ${eventSvcs.map(s => `<div style="margin-bottom:.3rem"><strong style="color:#c9d1d9">${s.name}</strong> <span style="color:#484f58;font-size:.75rem">${(s.operations||[]).map(o=>o.name).join(', ')}</span></div>`).join('')}
+      </div>
     </div>
 
     <div id="ai-view" class="rest-section">
@@ -932,6 +1127,7 @@ function hideAll() {
   document.getElementById('explorer').classList.remove('active');
   document.getElementById('rest-view').classList.remove('active');
   document.getElementById('event-view').classList.remove('active');
+  document.getElementById('routes-view').classList.remove('active');
   document.getElementById('ai-view').classList.remove('active');
   document.querySelectorAll('.svc-btn').forEach(b => b.classList.remove('active'));
 }
@@ -1104,6 +1300,12 @@ function showEvents() {
   document.querySelectorAll('.svc-btn[data-type="event"]').forEach(b => b.classList.add('active'));
 }
 
+function showRoutes() {
+  hideAll();
+  document.getElementById('routes-view').classList.add('active');
+  document.querySelector('.svc-btn[data-type="routes"]').classList.add('active');
+}
+
 function tryRest(method, fullUrl) {
   hideAll();
   document.getElementById('explorer').classList.add('active');
@@ -1155,25 +1357,15 @@ async function runQuery() {
     let display;
     try { parsed = JSON.parse(text); display = JSON.stringify(parsed,null,2); } catch(_) { display = text; }
     const srcLabel = document.getElementById('response-source');
-    if (isAI) {
-      timingEl.innerHTML = '<span class="pg-status ai">AI</span> '+ms+'ms <span style="color:#a371f7;font-size:.72rem">'+aiLeft+' override(s) left</span>';
-      el.textContent = display;
-      el.className = '';
-      srcLabel.textContent = '(from AI Agent)';
-      srcLabel.style.color = '#a371f7';
-    } else {
-      srcLabel.textContent = '(from Microcks)';
-      srcLabel.style.color = '#30363d';
-      const hasErrors = parsed && parsed.errors && parsed.errors.length > 0;
-      const hasData = parsed && parsed.data && Object.keys(parsed.data).length > 0;
-      let logicalStatus = r.status;
-      if (r.status === 200 && hasErrors && !hasData) logicalStatus = 400;
-      if (r.status === 200 && hasErrors && hasData) logicalStatus = 206;
-      const sc = logicalStatus === 206 ? 's206' : (logicalStatus < 300 ? 's2' : (logicalStatus < 500 ? 's4' : 's5'));
-      timingEl.innerHTML = '<span class="pg-status '+sc+'">'+logicalStatus+'</span> '+ms+'ms';
-      el.textContent = display;
-      if (hasErrors) el.className = 'error';
-    }
+    const hasErrors = parsed && parsed.errors && parsed.errors.length > 0;
+    const hasData = parsed && parsed.data && Object.keys(parsed.data).length > 0;
+    let logicalStatus = r.status;
+    if (r.status === 200 && hasErrors && !hasData) logicalStatus = 400;
+    if (r.status === 200 && hasErrors && hasData) logicalStatus = 206;
+    const sc = logicalStatus === 206 ? 's206' : (logicalStatus < 300 ? 's2' : (logicalStatus < 500 ? 's4' : 's5'));
+    timingEl.innerHTML = '<span class="pg-status '+sc+'">'+logicalStatus+'</span> '+ms+'ms <span style="font-size:.7rem;color:#484f58">(via Microcks)</span>';
+    el.textContent = display;
+    if (hasErrors) el.className = 'error';
   } catch(e) { el.textContent = 'Error: '+e.message; el.className = 'error'; }
 }
 
@@ -1208,19 +1400,19 @@ async function inlineAIInject() {
 
   const fields = extractFieldsFromQuery(editor.value);
 
-  result.textContent = 'AI generating bad data for: ' + (fields.length ? fields.join(', ') : 'all fields') + '...';
+  result.textContent = 'Injecting AI data into Microcks for: ' + (fields.length ? fields.join(', ') : 'all fields') + '...';
   result.className = '';
-  timingEl.innerHTML = '<span class="pg-status ai">AI</span> generating...';
-  srcLabel.textContent = '(generating...)';
+  timingEl.innerHTML = '<span class="pg-status ai">AI</span> injecting into Microcks...';
+  srcLabel.textContent = '(injecting...)';
   srcLabel.style.color = '#a371f7';
 
   try {
-    const payload = { service: currentService, operation: currentOpName, count: 50 };
+    const payload = { service: currentService, operation: currentOpName };
     if (scenario) payload.scenario = scenario;
     if (prompt) payload.prompt = prompt;
     if (fields.length > 0) payload.fields = fields;
 
-    const r = await fetch('/ai/override', {
+    const r = await fetch('/ai/inject', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     });
@@ -1230,9 +1422,12 @@ async function inlineAIInject() {
       result.textContent = 'AI Error: ' + d.error;
       result.className = 'error';
       timingEl.innerHTML = '<span class="pg-status s4">ERR</span>';
-      srcLabel.textContent = '(AI error)';
+      srcLabel.textContent = '(injection failed)';
       return;
     }
+
+    srcLabel.textContent = '(AI injected into Microcks)';
+    srcLabel.style.color = '#a371f7';
 
     const prefix = currentOpType === 'MUTATION' ? 'mutation ' : '';
     const fieldsBlock = fields.length > 0 ? ' {\\n    ' + fields.join('\\n    ') + '\\n  }' : '';
@@ -1247,17 +1442,33 @@ async function inlineAIInject() {
 
 async function inlineAIClear() {
   if (!currentOpName || !currentService) return;
-  const key = currentService + ':' + currentOpName;
-  await fetch('/ai/overrides', { method: 'DELETE' });
 
+  const result = document.getElementById('editor-result');
+  const timingEl = document.getElementById('editor-timing');
   const srcLabel = document.getElementById('response-source');
-  srcLabel.textContent = '(from Microcks)';
-  srcLabel.style.color = '#30363d';
 
-  document.getElementById('inline-ai-scenario').value = '';
-  document.getElementById('inline-ai-prompt').value = '';
+  result.textContent = 'Restoring original Microcks examples...';
+  timingEl.innerHTML = '<span class="pg-status s206">...</span> restoring';
 
-  selectOp(currentOpName, currentOpType);
+  try {
+    await fetch('/ai/overrides', { method: 'DELETE' });
+    const r = await fetch('/ai/restore', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ service: currentService })
+    });
+    const d = await r.json();
+
+    srcLabel.textContent = '(from Microcks)';
+    srcLabel.style.color = '#30363d';
+
+    document.getElementById('inline-ai-scenario').value = '';
+    document.getElementById('inline-ai-prompt').value = '';
+
+    result.textContent = d.restored ? 'Original examples restored (' + d.file + '). Click Run to verify.' : d.reason || 'Cleared.';
+    timingEl.innerHTML = '';
+  } catch(e) {
+    result.textContent = 'Restore error: ' + e.message;
+  }
 }
 
 function showAI() {
