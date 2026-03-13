@@ -474,7 +474,7 @@ function uploadToMicrocks(collection, isMain = false) {
     const boundary = '----FormBoundary' + Date.now();
     const body = [
       `--${boundary}`,
-      `Content-Disposition: form-data; name="file"; filename="ai-inject.postman.json"`,
+      `Content-Disposition: form-data; name="file"; filename="ai-inject.postman_collection.json"`,
       `Content-Type: application/json`,
       ``,
       collStr,
