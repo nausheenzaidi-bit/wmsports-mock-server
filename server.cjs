@@ -1634,19 +1634,42 @@ function importArtifactToMicrocks(filePath, isMain = true) {
     const mimeTypes = { '.graphql': 'text/plain', '.json': 'application/json', '.yaml': 'text/yaml', '.yml': 'text/yaml' };
     const mime = mimeTypes[ext] || 'application/octet-stream';
     const mainParam = isMain ? 'true' : 'false';
-    const curlCmd = `curl -s -o /dev/null -w "%{http_code}" -X POST "${MICROCKS_URL}/api/artifact/upload?mainArtifact=${mainParam}" -F "file=@${filePath};type=${mime}"`;
 
-    const { execSync } = require('child_process');
-    try {
-      const code = execSync(curlCmd, { encoding: 'utf-8', timeout: 30000 }).trim();
-      if (code === '200' || code === '201') {
-        resolve({ success: true, file: fileName, code });
-      } else {
-        reject(new Error(`Import failed for ${fileName}: HTTP ${code}`));
-      }
-    } catch (err) {
-      reject(new Error(`Import error for ${fileName}: ${err.message}`));
-    }
+    const fileContent = fs.readFileSync(filePath);
+    const boundary = '----FormBoundary' + Date.now().toString(36);
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${mime}\r\n\r\n`),
+      fileContent,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+
+    const url = new URL(`${MICROCKS_URL}/api/artifact/upload?mainArtifact=${mainParam}`);
+    const transport = url.protocol === 'https:' ? https : http;
+    const opts = {
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: url.pathname + url.search,
+      method: 'POST',
+      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length },
+      timeout: 60000,
+    };
+
+    const r = transport.request(opts, (resp) => {
+      let d = '';
+      resp.on('data', c => d += c);
+      resp.on('end', () => {
+        const code = resp.statusCode;
+        if (code === 200 || code === 201) {
+          resolve({ success: true, file: fileName, code });
+        } else {
+          reject(new Error(`Import failed for ${fileName}: HTTP ${code} — ${d.substring(0, 200)}`));
+        }
+      });
+    });
+    r.on('error', (err) => reject(new Error(`Import error for ${fileName}: ${err.message}`)));
+    r.on('timeout', () => { r.destroy(); reject(new Error(`Import timeout for ${fileName}`)); });
+    r.write(body);
+    r.end();
   });
 }
 
