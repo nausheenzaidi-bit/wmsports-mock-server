@@ -1695,13 +1695,13 @@ function clearServiceDispatchers(serviceName) {
 
       let cleared = 0;
       for (const op of (svc.operations || [])) {
-        if (op.dispatcher === 'QUERY_ARGS' || op.dispatcher === 'JSON_BODY') {
+        if (op.dispatcher === 'QUERY_ARGS' || op.dispatcher === 'JSON_BODY' || op.dispatcher === 'FALLBACK') {
           try {
             await new Promise((res2, rej2) => {
               const opName = encodeURIComponent(op.name);
               const url = new URL(`${MICROCKS_URL}/api/services/${svc.id}/operation?operationName=${opName}`);
               const transport = url.protocol === 'https:' ? https : http;
-              const body = JSON.stringify({ dispatcher: 'FALLBACK', dispatcherRules: '' });
+              const body = JSON.stringify({ dispatcher: null, dispatcherRules: null });
               const opts = {
                 hostname: url.hostname, port: url.port || (url.protocol === 'https:' ? 443 : 80),
                 path: url.pathname + url.search, method: 'PUT',
