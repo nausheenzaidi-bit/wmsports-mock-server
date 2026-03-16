@@ -1673,6 +1673,48 @@ function importArtifactToMicrocks(filePath, isMain = true) {
   });
 }
 
+function clearServiceDispatchers(serviceName) {
+  return new Promise(async (resolve) => {
+    try {
+      const data = await httpGet(`${MICROCKS_URL}/api/services?page=0&size=200`);
+      const services = JSON.parse(data);
+      const svc = services.find(s => s.name === serviceName);
+      if (!svc) { resolve({ cleared: 0 }); return; }
+
+      let cleared = 0;
+      for (const op of (svc.operations || [])) {
+        if (op.dispatcher === 'QUERY_ARGS' || op.dispatcher === 'JSON_BODY') {
+          try {
+            await new Promise((res2, rej2) => {
+              const opName = encodeURIComponent(op.name);
+              const url = new URL(`${MICROCKS_URL}/api/services/${svc.id}/operation?operationName=${opName}`);
+              const transport = url.protocol === 'https:' ? https : http;
+              const body = JSON.stringify({ dispatcher: 'FALLBACK', dispatcherRules: '' });
+              const opts = {
+                hostname: url.hostname, port: url.port || (url.protocol === 'https:' ? 443 : 80),
+                path: url.pathname + url.search, method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+                timeout: 15000,
+              };
+              const r = transport.request(opts, (resp) => {
+                let d = ''; resp.on('data', c => d += c);
+                resp.on('end', () => res2(resp.statusCode));
+              });
+              r.on('error', rej2);
+              r.on('timeout', () => { r.destroy(); rej2(new Error('timeout')); });
+              r.write(body); r.end();
+            });
+            cleared++;
+          } catch (_) {}
+        }
+      }
+      resolve({ cleared });
+    } catch (err) {
+      resolve({ cleared: 0, error: err.message });
+    }
+  });
+}
+
 async function callLLMWithHighTokens(systemPrompt, userPrompt, maxTokens = 4000) {
   if (!AI_API_KEY) throw new Error('No AI_API_KEY set.');
   const payload = {
@@ -1824,6 +1866,17 @@ Each object must include ALL the fields listed above with correct types.`;
       steps[steps.length - 1].status = 'done';
     } catch (err) {
       steps[steps.length - 1] = { step: `Examples import: ${err.message}`, status: 'warning' };
+    }
+
+    // Clear QUERY_ARGS dispatchers so Microcks serves examples
+    steps.push({ step: 'Configuring dispatchers...', status: 'running' });
+    try {
+      await new Promise(r => setTimeout(r, 2000));
+      lastFetch = 0;
+      const dispResult = await clearServiceDispatchers(serviceName);
+      steps[steps.length - 1] = { step: `Dispatchers configured (${dispResult.cleared} cleared)`, status: 'done' };
+    } catch (err) {
+      steps[steps.length - 1] = { step: `Dispatcher config: ${err.message}`, status: 'warning' };
     }
 
     // Reload schema cache
