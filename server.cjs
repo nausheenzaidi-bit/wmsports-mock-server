@@ -1565,7 +1565,6 @@ function buildAutoPostmanCollection(serviceName, operations, types, generatedDat
 
   for (const op of operations) {
     const fieldsStr = buildFieldsForType(types, op.returnType);
-    if (!fieldsStr) continue;
 
     const argDefs = op.args.map(a => {
       let gqlType = a.type.name;
@@ -1577,7 +1576,9 @@ function buildAutoPostmanCollection(serviceName, operations, types, generatedDat
     const prefix = op.method === 'MUTATION' ? 'mutation' : 'query';
     const sigPart = argDefs ? `${prefix} ${op.name}(${argDefs})` : `${prefix} ${op.name}`;
     const callPart = argPass ? `${op.name}(${argPass})` : op.name;
-    const queryStr = `${sigPart} { ${callPart} { ${fieldsStr} } }`;
+    const queryStr = fieldsStr
+      ? `${sigPart} { ${callPart} { ${fieldsStr} } }`
+      : `${sigPart} { ${callPart} }`;
     const variables = buildVariablesForArgs(op.args);
 
     const bodyRaw = JSON.stringify({ query: queryStr, variables });
@@ -1817,10 +1818,16 @@ app.post('/ai/setup', async (req, res) => {
     const generatedData = {};
 
     for (const op of operations) {
-      const fieldsStr = buildFieldsForType(types, op.returnType);
-      const typeSchema = types[op.returnType]
-        ? Object.entries(types[op.returnType]).map(([f, t]) => `  ${f}: ${t.name}${t.isList ? '[]' : ''}`).join('\n')
-        : 'Unknown type';
+      const isScalarReturn = SCALAR_TYPES.has(op.returnType) || !types[op.returnType];
+      const fieldsStr = isScalarReturn ? null : buildFieldsForType(types, op.returnType);
+
+      if (isScalarReturn) {
+        const scalarDefaults = { 'Int': 1, 'Float': 1.0, 'Boolean': true, 'String': 'ok', 'ID': 'id-001' };
+        generatedData[op.name] = scalarDefaults[op.returnType] ?? 'ok';
+        continue;
+      }
+
+      const typeSchema = Object.entries(types[op.returnType]).map(([f, t]) => `  ${f}: ${t.name}${t.isList ? '[]' : ''}`).join('\n');
 
       const dataPrompt = `Generate mock data for the GraphQL operation "${op.name}".
 Return type: ${op.returnType}${op.isList ? ' (array)' : ''}
