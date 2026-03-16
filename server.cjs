@@ -938,6 +938,7 @@ const FAILURE_SCENARIOS = {
   'encoding-issues': { name: 'Encoding/Special Chars', prompt: 'Generate data with special characters, unicode, HTML entities, and XSS payloads in string fields. Test consumer input sanitization.' },
   'boundary-values': { name: 'Boundary Values', prompt: 'Generate data with extreme values: very long strings (500+ chars), negative numbers, zero, MAX_INT, empty strings, single character strings.' },
   'partial-response': { name: 'Partial/Truncated', prompt: 'Generate data that looks like a truncated API response — some objects missing, arrays with only 1 item, strings cut off mid-sentence.' },
+  'mixed-good-bad': { name: 'Mixed Good & Bad', prompt: 'Generate data where SOME fields have correct, realistic values and OTHER fields have wrong types, null values, or are missing. Mix it up — roughly half the fields should be correct and half should be broken. This simulates a partial API regression where only some fields are affected.' },
 };
 
 const AI_SYSTEM_PROMPT = `You are a mock data generator for a sports GraphQL/REST API.
@@ -1004,6 +1005,7 @@ app.post('/ai/override', async (req, res) => {
           'boundary-values': `The query has these fields: ${fNames}. Use extreme values: strings with 200+ characters, negative numbers like -99999, MAX_INT (2147483647), empty strings "".`,
           'encoding-issues': `The query has these fields: ${fNames}. Put special characters in string fields: unicode (\\u0000), HTML (<script>alert(1)</script>), emojis, newlines, backslashes.`,
           'partial-response': `The query has these fields: ${fNames}. Only include 1-2 of the ${fieldList.length} fields. The rest must be ABSENT (not null, completely missing).`,
+          'mixed-good-bad': `The query has these fields: ${fNames}. For roughly HALF the fields, return correct realistic values with proper types. For the OTHER HALF, mix in problems: wrong types (number instead of string), null values, missing fields, or empty strings. Make it look like a partial regression where some data is fine and some is broken.`,
         };
         scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
       } else {
@@ -1063,6 +1065,7 @@ app.post('/ai/inject', async (req, res) => {
         'boundary-values': `The response has these fields: ${fNames}. Use extreme values: 200+ char strings, negative numbers like -99999, MAX_INT (2147483647), empty strings "".`,
         'encoding-issues': `The response has these fields: ${fNames}. Put special characters in string fields: unicode (\\u0000), HTML (<script>alert(1)</script>), emojis, newlines, backslashes.`,
         'partial-response': `The response has these fields: ${fNames}. Only include 1-2 of the ${fieldList.length} fields. The rest must be ABSENT (not null, completely missing).`,
+        'mixed-good-bad': `The response has these fields: ${fNames}. For roughly HALF the fields, return correct realistic values with proper types. For the OTHER HALF, mix in problems: wrong types (number instead of string), null values, missing fields, or empty strings. Simulate a partial API regression.`,
       };
       scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
     }
@@ -1146,6 +1149,7 @@ app.post('/ai/inject', async (req, res) => {
         'boundary-values': `The query has these fields: ${fNames}. Use extreme values: 200+ char strings, -99999, MAX_INT, empty strings.`,
         'encoding-issues': `The query has these fields: ${fNames}. Put special chars: unicode, HTML entities, <script> tags, emojis.`,
         'partial-response': `The query has these fields: ${fNames}. Only include 1-2 of the ${fieldList ? fieldList.length : '?'} fields. Rest must be ABSENT.`,
+        'mixed-good-bad': `The query has these fields: ${fNames}. For roughly HALF the fields, return correct realistic values. For the OTHER HALF, mix in wrong types, null values, or missing fields. Simulate a partial regression.`,
       };
       scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
     } else {
@@ -1416,6 +1420,7 @@ app.post('/async/ai-generate', async (req, res) => {
       'boundary-values': `The message has these fields: ${fNames}. Use extreme values: very long strings, negative numbers, MAX_INT.`,
       'encoding-issues': `The message has these fields: ${fNames}. Put special characters in string fields: unicode, HTML, emojis.`,
       'partial-response': `The message has these fields: ${fNames}. Only include 1-2 fields. The rest must be completely ABSENT.`,
+      'mixed-good-bad': `The message has these fields: ${fNames}. For roughly HALF the fields, return correct realistic values. For the OTHER HALF, mix in wrong types, null values, or missing fields. Simulate a partial regression.`,
     };
     scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
   }
@@ -1467,6 +1472,390 @@ app.get('/ai/types', (req, res) => {
     .map(([n, t]) => ({ name: n, fieldCount: t.fields.length }))
     .sort((a, b) => a.name.localeCompare(b.name));
   res.json({ types });
+});
+
+// ── AI-Driven Mock Setup (Schema → LLM Data → Postman → Microcks) ────────
+
+const SETUP_SYSTEM_PROMPT = `You are an API mock data generator. Given a schema and a prompt, generate realistic mock data.
+
+CRITICAL RULES:
+- Return ONLY valid JSON. No markdown, no backticks, no explanations.
+- Your entire response must be parseable by JSON.parse().
+- Use realistic sports data: real team names, player names, dates, scores.
+- If asked for N items, generate exactly N items in the array.
+- Follow the schema types precisely: strings for String, integers for Int, etc.`;
+
+const SCHEMA_GEN_SYSTEM_PROMPT = `You are a GraphQL schema designer. Generate a complete, valid GraphQL SDL schema.
+
+CRITICAL RULES:
+- Return ONLY the raw GraphQL SDL text inside a JSON wrapper: {"schema": "type Query { ... }\\ntype Game { ... }"}
+- The schema MUST include a \`type Query\` with at least one query field.
+- Use realistic field names and types for a sports API.
+- Include the microcksId comment on the first line: # microcksId: ServiceName : 1.0
+- Include custom scalar types if needed (DateTime, JSON, etc.).
+- Keep it focused and practical — 3-8 types, 2-5 query operations.`;
+
+function parseGraphQLSchema(schemaText) {
+  const doc = gqlParse(schemaText);
+  const types = {};
+  const operations = [];
+
+  for (const def of doc.definitions) {
+    if (def.kind === Kind.OBJECT_TYPE_DEFINITION || def.kind === Kind.OBJECT_TYPE_EXTENSION) {
+      const typeName = def.name.value;
+      types[typeName] = {};
+      for (const field of (def.fields || [])) {
+        types[typeName][field.name.value] = unwrapGqlType(field.type);
+      }
+
+      if (typeName === 'Query' || typeName === 'Mutation') {
+        for (const field of (def.fields || [])) {
+          const retType = unwrapGqlType(field.type);
+          const args = (field.arguments || []).map(a => ({
+            name: a.name.value,
+            type: unwrapGqlType(a.type),
+          }));
+          operations.push({
+            name: field.name.value,
+            method: typeName === 'Query' ? 'QUERY' : 'MUTATION',
+            returnType: retType.name,
+            isList: retType.isList,
+            args,
+          });
+        }
+      }
+    }
+  }
+  return { types, operations };
+}
+
+function buildFieldsForType(types, typeName, depth = 0) {
+  if (depth > 2 || !types[typeName]) return null;
+  const fields = types[typeName];
+  const parts = [];
+  for (const [fname, typeInfo] of Object.entries(fields)) {
+    if (SCALAR_TYPES.has(typeInfo.name) || !types[typeInfo.name]) {
+      parts.push(fname);
+    } else {
+      const nested = buildFieldsForType(types, typeInfo.name, depth + 1);
+      if (nested) parts.push(fname + ' { ' + nested + ' }');
+    }
+  }
+  return parts.length > 0 ? parts.join(' ') : null;
+}
+
+function buildVariablesForArgs(args) {
+  const vars = {};
+  for (const arg of args) {
+    const defaults = {
+      'String': 'example', 'Int': 1, 'Float': 1.0, 'Boolean': true, 'ID': 'id-001',
+      'Tenant': 'bleacherReport', 'DateTime': '2026-03-01T00:00:00Z',
+    };
+    if (arg.type.isList) {
+      vars[arg.name] = [defaults[arg.type.name] || 'example'];
+    } else {
+      vars[arg.name] = defaults[arg.type.name] || 'example';
+    }
+  }
+  return vars;
+}
+
+function buildAutoPostmanCollection(serviceName, operations, types, generatedData) {
+  const items = [];
+
+  for (const op of operations) {
+    const fieldsStr = buildFieldsForType(types, op.returnType);
+    if (!fieldsStr) continue;
+
+    const argDefs = op.args.map(a => {
+      let gqlType = a.type.name;
+      if (a.type.isList) gqlType = '[' + gqlType + ']';
+      return '$' + a.name + ': ' + gqlType;
+    }).join(', ');
+    const argPass = op.args.map(a => a.name + ': $' + a.name).join(', ');
+
+    const prefix = op.method === 'MUTATION' ? 'mutation' : 'query';
+    const sigPart = argDefs ? `${prefix} ${op.name}(${argDefs})` : `${prefix} ${op.name}`;
+    const callPart = argPass ? `${op.name}(${argPass})` : op.name;
+    const queryStr = `${sigPart} { ${callPart} { ${fieldsStr} } }`;
+    const variables = buildVariablesForArgs(op.args);
+
+    const bodyRaw = JSON.stringify({ query: queryStr, variables });
+
+    const responseData = generatedData[op.name];
+    let responseBody;
+    if (responseData) {
+      if (responseData.data) {
+        responseBody = JSON.stringify(responseData);
+      } else {
+        responseBody = JSON.stringify({ data: { [op.name]: responseData } });
+      }
+    } else {
+      responseBody = JSON.stringify({ data: { [op.name]: null } });
+    }
+
+    items.push({
+      name: op.name,
+      request: {
+        method: 'POST',
+        url: `http://${op.name}`,
+        header: [{ key: 'Content-Type', value: 'application/json' }],
+        body: { mode: 'raw', raw: bodyRaw },
+      },
+      response: [{
+        name: 'ai-generated',
+        originalRequest: {
+          method: 'POST',
+          url: `http://${op.name}`,
+          body: { mode: 'raw', raw: bodyRaw },
+        },
+        code: 200,
+        header: [{ key: 'Content-Type', value: 'application/json' }],
+        body: responseBody,
+      }],
+    });
+  }
+
+  return {
+    info: {
+      _postman_id: `ai-setup-${serviceName}-${Date.now()}`,
+      name: serviceName,
+      description: `version=1.0 - AI-generated mock examples for ${serviceName}`,
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+    },
+    item: items,
+  };
+}
+
+function importArtifactToMicrocks(filePath, isMain = true) {
+  return new Promise((resolve, reject) => {
+    const fileName = path.basename(filePath);
+    const ext = path.extname(fileName).toLowerCase();
+    const mimeTypes = { '.graphql': 'text/plain', '.json': 'application/json', '.yaml': 'text/yaml', '.yml': 'text/yaml' };
+    const mime = mimeTypes[ext] || 'application/octet-stream';
+    const mainParam = isMain ? 'true' : 'false';
+    const curlCmd = `curl -s -o /dev/null -w "%{http_code}" -X POST "${MICROCKS_URL}/api/artifact/upload?mainArtifact=${mainParam}" -F "file=@${filePath};type=${mime}"`;
+
+    const { execSync } = require('child_process');
+    try {
+      const code = execSync(curlCmd, { encoding: 'utf-8', timeout: 30000 }).trim();
+      if (code === '200' || code === '201') {
+        resolve({ success: true, file: fileName, code });
+      } else {
+        reject(new Error(`Import failed for ${fileName}: HTTP ${code}`));
+      }
+    } catch (err) {
+      reject(new Error(`Import error for ${fileName}: ${err.message}`));
+    }
+  });
+}
+
+async function callLLMWithHighTokens(systemPrompt, userPrompt, maxTokens = 4000) {
+  if (!AI_API_KEY) throw new Error('No AI_API_KEY set.');
+  const payload = {
+    model: AI_MODEL,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.7,
+    max_tokens: maxTokens,
+    response_format: { type: 'json_object' },
+  };
+  return new Promise((resolve, reject) => {
+    const url = new URL(`${AI_BASE_URL}/chat/completions`);
+    const postData = JSON.stringify(payload);
+    const opts = {
+      hostname: url.hostname, port: url.port || 443, path: url.pathname,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AI_API_KEY}`, 'Content-Length': Buffer.byteLength(postData) },
+      timeout: 60000,
+    };
+    const r = https.request(opts, (resp) => {
+      let d = '';
+      resp.on('data', c => d += c);
+      resp.on('end', () => {
+        try {
+          const parsed = JSON.parse(d);
+          if (parsed.error) return reject(new Error(parsed.error.message || 'LLM error'));
+          const content = parsed.choices?.[0]?.message?.content;
+          if (!content) return reject(new Error('Empty LLM response'));
+          resolve(JSON.parse(content));
+        } catch (e) { reject(new Error('LLM parse error: ' + e.message)); }
+      });
+    });
+    r.on('error', reject);
+    r.on('timeout', () => { r.destroy(); reject(new Error('LLM timeout')); });
+    r.write(postData);
+    r.end();
+  });
+}
+
+app.post('/ai/setup', async (req, res) => {
+  const { schema: schemaText, prompt, serviceName: reqServiceName } = req.body;
+
+  if (!prompt && !schemaText) {
+    return res.status(400).json({ error: 'Provide at least "prompt" or "schema"' });
+  }
+
+  const steps = [];
+  let finalSchema = schemaText;
+  let serviceName = reqServiceName;
+
+  try {
+    // Path B: generate schema from prompt if not provided
+    if (!finalSchema) {
+      steps.push({ step: 'Generating schema from prompt...', status: 'running' });
+      const schemaResult = await callLLMWithHighTokens(SCHEMA_GEN_SYSTEM_PROMPT,
+        `Create a GraphQL schema for: ${prompt}\n\nReturn JSON: {"schema": "<full GraphQL SDL>", "serviceName": "<ServiceName>"}`
+      );
+      finalSchema = schemaResult.schema;
+      serviceName = serviceName || schemaResult.serviceName || 'AIGeneratedAPI';
+      steps[steps.length - 1].status = 'done';
+    }
+
+    // Extract microcksId from schema comment if present
+    const microcksMatch = finalSchema.match(/^#\s*microcksId:\s*(.+?)\s*:\s*(.+?)$/m);
+    if (!serviceName && microcksMatch) {
+      serviceName = microcksMatch[1].trim();
+    }
+    if (!serviceName) {
+      serviceName = 'AIGeneratedAPI';
+    }
+
+    // Ensure microcksId comment exists
+    if (!finalSchema.includes('microcksId')) {
+      finalSchema = `# microcksId: ${serviceName} : 1.0\n${finalSchema}`;
+    }
+
+    // Parse schema
+    steps.push({ step: 'Parsing schema...', status: 'running' });
+    const { types, operations } = parseGraphQLSchema(finalSchema);
+    steps[steps.length - 1].status = 'done';
+
+    if (operations.length === 0) {
+      return res.status(400).json({ error: 'No Query or Mutation operations found in schema', steps });
+    }
+
+    // Generate data for each operation via LLM
+    steps.push({ step: `Generating mock data for ${operations.length} operations...`, status: 'running' });
+    const generatedData = {};
+
+    for (const op of operations) {
+      const fieldsStr = buildFieldsForType(types, op.returnType);
+      const typeSchema = types[op.returnType]
+        ? Object.entries(types[op.returnType]).map(([f, t]) => `  ${f}: ${t.name}${t.isList ? '[]' : ''}`).join('\n')
+        : 'Unknown type';
+
+      const dataPrompt = `Generate mock data for the GraphQL operation "${op.name}".
+Return type: ${op.returnType}${op.isList ? ' (array)' : ''}
+Fields: ${fieldsStr || 'unknown'}
+Type structure:
+${typeSchema}
+
+User request: ${prompt || 'Generate realistic mock data'}
+
+Return JSON as: ${op.isList ? `{"${op.name}": [array of objects]}` : `{"${op.name}": {object}}`}
+Each object must include ALL the fields listed above with correct types.`;
+
+      try {
+        const result = await callLLMWithHighTokens(SETUP_SYSTEM_PROMPT, dataPrompt, 4000);
+        generatedData[op.name] = result[op.name] || result;
+      } catch (err) {
+        generatedData[op.name] = null;
+        steps.push({ step: `Warning: failed to generate data for ${op.name}: ${err.message}`, status: 'warning' });
+      }
+    }
+    steps[steps.length - 1].status = 'done';
+
+    // Build Postman collection
+    steps.push({ step: 'Building Postman collection...', status: 'running' });
+    const collection = buildAutoPostmanCollection(serviceName, operations, types, generatedData);
+    steps[steps.length - 1].status = 'done';
+
+    // Write files to artifacts
+    steps.push({ step: 'Writing artifacts...', status: 'running' });
+    const artifactsDir = path.join(__dirname, 'artifacts');
+    const slugName = serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const schemaFile = path.join(artifactsDir, `${slugName}-schema.graphql`);
+    const postmanFile = path.join(artifactsDir, `${slugName}-examples.postman.json`);
+
+    fs.writeFileSync(schemaFile, finalSchema, 'utf-8');
+    fs.writeFileSync(postmanFile, JSON.stringify(collection, null, 2), 'utf-8');
+    steps[steps.length - 1].status = 'done';
+
+    // Import to Microcks
+    steps.push({ step: 'Importing schema to Microcks...', status: 'running' });
+    try {
+      await importArtifactToMicrocks(schemaFile, true);
+      steps[steps.length - 1].status = 'done';
+    } catch (err) {
+      steps[steps.length - 1] = { step: `Schema import: ${err.message}`, status: 'warning' };
+    }
+
+    await new Promise(r => setTimeout(r, 2000));
+
+    steps.push({ step: 'Importing examples to Microcks...', status: 'running' });
+    try {
+      await importArtifactToMicrocks(postmanFile, false);
+      steps[steps.length - 1].status = 'done';
+    } catch (err) {
+      steps[steps.length - 1] = { step: `Examples import: ${err.message}`, status: 'warning' };
+    }
+
+    // Reload schema cache
+    loadSchemaFiles();
+    lastFetch = 0;
+
+    const mockRoutes = operations.map(op => ({
+      operation: op.name,
+      method: op.method,
+      returnType: op.returnType,
+      isList: op.isList,
+      url: `/graphql/${serviceName}`,
+      exampleGenerated: !!generatedData[op.name],
+    }));
+
+    res.json({
+      success: true,
+      serviceName,
+      operationCount: operations.length,
+      steps,
+      mockRoutes,
+      schemaFile: `${slugName}-schema.graphql`,
+      examplesFile: `${slugName}-examples.postman.json`,
+      graphqlEndpoint: `/graphql/${serviceName}`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message, steps });
+  }
+});
+
+app.post('/ai/setup-file', express.raw({ type: '*/*', limit: '10mb' }), async (req, res) => {
+  const contentType = req.headers['content-type'] || '';
+  let schemaText = '';
+  let prompt = '';
+  let serviceName = '';
+
+  if (contentType.includes('multipart')) {
+    return res.status(400).json({ error: 'Use /ai/setup with JSON body { schema, prompt } instead. File upload via multipart coming soon.' });
+  }
+
+  try {
+    const body = JSON.parse(req.body.toString());
+    schemaText = body.schema || '';
+    prompt = body.prompt || '';
+    serviceName = body.serviceName || '';
+  } catch (_) {
+    schemaText = req.body.toString();
+  }
+
+  req.body = { schema: schemaText, prompt, serviceName };
+  const setupHandler = app._router.stack.find(r => r.route && r.route.path === '/ai/setup' && r.route.methods.post);
+  if (setupHandler) {
+    return setupHandler.route.stack[0].handle(req, res);
+  }
+  res.status(500).json({ error: 'Setup handler not found' });
 });
 
 // ── Dashboard ────────────────────────────────────────────────────────────
@@ -1640,6 +2029,10 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
         ⚡ AI Agent
         <span class="cnt" style="background:#8957e522;color:#a371f7">LLM</span>
       </button>
+      <button class="svc-btn" data-type="setup" onclick="showSetup()" style="color:#3fb950;font-weight:600">
+        ⚙ AI Setup
+        <span class="cnt" style="background:#23863622;color:#3fb950">New</span>
+      </button>
     </div>
   </div>
   <div class="main">
@@ -1668,6 +2061,7 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
               <option value="encoding-issues">Encoding/Special Chars</option>
               <option value="boundary-values">Boundary Values</option>
               <option value="partial-response">Partial/Truncated</option>
+              <option value="mixed-good-bad">Mixed Good & Bad</option>
             </select>
             <input id="inline-ai-prompt" placeholder="or describe..." style="background:#21262d;color:#c9d1d9;border:1px solid #8957e544;border-radius:4px;padding:3px 6px;font-size:.72rem;width:180px;display:none">
             <button id="inline-ai-btn" onclick="inlineAIInject()" style="background:#8957e5;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.72rem;font-weight:600;display:none">Inject</button>
@@ -1742,6 +2136,7 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
                 <option value="boundary-values">Boundary Values</option>
                 <option value="encoding-issues">Encoding Issues</option>
                 <option value="partial-response">Partial Data</option>
+                <option value="mixed-good-bad">Mixed Good & Bad</option>
               </select>
               <input id="async-ai-prompt" placeholder="or describe..." style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:5px 8px;font-size:.8rem;flex:1;min-width:150px">
               <button onclick="generateAsyncAI()" style="background:#238636;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:.82rem;font-weight:600">Generate</button>
@@ -1865,6 +2260,53 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
         <div id="ai-overrides" style="color:#8b949e;font-size:.85rem">None</div>
       </div>
     </div>
+
+    <div id="setup-view" class="rest-section">
+      <h2 style="color:#c9d1d9;margin-bottom:.5rem">AI-Driven Mock Setup <span class="badge" style="background:#23863622;color:#3fb950">Auto</span></h2>
+      <p style="color:#8b949e;font-size:.85rem;margin-bottom:1.5rem">Upload a schema or describe what you want — AI generates all mock data and deploys it instantly.</p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem">
+          <h3 style="color:#3fb950;font-size:.85rem;margin-bottom:.5rem">Path A: Upload Schema</h3>
+          <p style="color:#8b949e;font-size:.78rem;margin-bottom:.75rem">Paste a GraphQL SDL schema. AI will generate realistic mock data for every operation.</p>
+          <textarea id="setup-schema" placeholder="# Paste your GraphQL schema here&#10;type Query {&#10;  getGames(league: String!): [Game]&#10;}&#10;type Game {&#10;  id: ID!&#10;  name: String&#10;  score: Score&#10;}" style="width:100%;height:180px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-family:monospace;font-size:.78rem;padding:.5rem;resize:vertical"></textarea>
+        </div>
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem">
+          <h3 style="color:#a371f7;font-size:.85rem;margin-bottom:.5rem">Path B: Natural Language</h3>
+          <p style="color:#8b949e;font-size:.78rem;margin-bottom:.75rem">Describe what you want. AI will generate both the schema and mock data from your prompt.</p>
+          <div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:.75rem;height:180px;display:flex;flex-direction:column;gap:.5rem">
+            <div style="color:#484f58;font-size:.72rem">Examples:</div>
+            <div onclick="document.getElementById('setup-prompt').value=this.innerText" style="color:#8b949e;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:4px;background:#21262d">Create a sports API with 10 NBA games, scores, and player stats</div>
+            <div onclick="document.getElementById('setup-prompt').value=this.innerText" style="color:#8b949e;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:4px;background:#21262d">Build a push notifications API with 5 sample notifications for NFL</div>
+            <div onclick="document.getElementById('setup-prompt').value=this.innerText" style="color:#8b949e;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:4px;background:#21262d">Generate a live scores API with 8 games across MLB and NHL</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem">
+        <div style="display:flex;gap:1rem;align-items:flex-end">
+          <div style="flex:1">
+            <label style="color:#8b949e;font-size:.78rem;display:block;margin-bottom:.35rem">Prompt / Instructions</label>
+            <input id="setup-prompt" type="text" placeholder="e.g. Generate mock data for 10 games with realistic NFL scores and team names" style="width:100%;padding:.5rem;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:.85rem">
+          </div>
+          <div>
+            <label style="color:#8b949e;font-size:.78rem;display:block;margin-bottom:.35rem">Service Name (optional)</label>
+            <input id="setup-service-name" type="text" placeholder="e.g. SportsAPI" style="width:180px;padding:.5rem;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:.85rem">
+          </div>
+          <button onclick="runSetup()" id="setup-deploy-btn" style="background:#238636;color:#fff;border:none;padding:.55rem 1.5rem;border-radius:6px;cursor:pointer;font-size:.85rem;font-weight:600;white-space:nowrap">Generate &amp; Deploy</button>
+        </div>
+      </div>
+
+      <div id="setup-progress" style="display:none;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem">
+        <h4 style="color:#c9d1d9;font-size:.85rem;margin-bottom:.5rem">Progress</h4>
+        <div id="setup-steps" style="font-family:monospace;font-size:.78rem;color:#8b949e"></div>
+      </div>
+
+      <div id="setup-result" style="display:none;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem">
+        <h4 style="color:#3fb950;font-size:.85rem;margin-bottom:.5rem">✓ Mock API Deployed</h4>
+        <div id="setup-result-content" style="font-size:.82rem;color:#c9d1d9"></div>
+      </div>
+    </div>
   </div>
 </div>
 <div class="footer-bar">
@@ -1888,6 +2330,7 @@ function hideAll() {
   document.getElementById('event-view').classList.remove('active');
   document.getElementById('routes-view').classList.remove('active');
   document.getElementById('ai-view').classList.remove('active');
+  document.getElementById('setup-view').classList.remove('active');
   document.querySelectorAll('.svc-btn').forEach(b => b.classList.remove('active'));
 }
 
@@ -2665,6 +3108,89 @@ function showAI() {
   loadAIOverrides();
 }
 
+function showSetup() {
+  hideAll();
+  document.getElementById('setup-view').classList.add('active');
+  document.querySelector('.svc-btn[data-type="setup"]').classList.add('active');
+}
+
+async function runSetup() {
+  const schema = document.getElementById('setup-schema').value.trim();
+  const prompt = document.getElementById('setup-prompt').value.trim();
+  const serviceName = document.getElementById('setup-service-name').value.trim();
+
+  if (!schema && !prompt) {
+    alert('Provide either a schema (Path A) or a prompt (Path B).');
+    return;
+  }
+
+  const btn = document.getElementById('setup-deploy-btn');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  btn.style.opacity = '0.6';
+
+  const progressDiv = document.getElementById('setup-progress');
+  const stepsDiv = document.getElementById('setup-steps');
+  const resultDiv = document.getElementById('setup-result');
+  const resultContent = document.getElementById('setup-result-content');
+  progressDiv.style.display = 'block';
+  resultDiv.style.display = 'none';
+  stepsDiv.innerHTML = '<div style="color:#58a6ff">⏳ Starting AI setup...</div>';
+
+  try {
+    const body = {};
+    if (schema) body.schema = schema;
+    if (prompt) body.prompt = prompt;
+    if (serviceName) body.serviceName = serviceName;
+
+    const r = await fetch('/ai/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+
+    if (!r.ok) {
+      stepsDiv.innerHTML = '<div style="color:#f85149">✗ ' + (data.error || 'Setup failed') + '</div>';
+      if (data.steps) {
+        data.steps.forEach(s => {
+          stepsDiv.innerHTML += '<div style="color:' + (s.status === 'done' ? '#3fb950' : s.status === 'warning' ? '#d29922' : '#f85149') + '">' + (s.status === 'done' ? '✓' : s.status === 'warning' ? '⚠' : '✗') + ' ' + s.step + '</div>';
+        });
+      }
+      return;
+    }
+
+    stepsDiv.innerHTML = '';
+    (data.steps || []).forEach(s => {
+      const icon = s.status === 'done' ? '✓' : s.status === 'warning' ? '⚠' : '○';
+      const color = s.status === 'done' ? '#3fb950' : s.status === 'warning' ? '#d29922' : '#8b949e';
+      stepsDiv.innerHTML += '<div style="color:' + color + '">' + icon + ' ' + s.step + '</div>';
+    });
+
+    resultDiv.style.display = 'block';
+    let html = '<div style="margin-bottom:.75rem"><strong>Service:</strong> ' + data.serviceName + ' &nbsp;|&nbsp; <strong>Operations:</strong> ' + data.operationCount + '</div>';
+    html += '<div style="margin-bottom:.75rem"><strong>GraphQL Endpoint:</strong> <code style="background:#21262d;padding:2px 6px;border-radius:4px;color:#58a6ff">POST ' + data.graphqlEndpoint + '</code></div>';
+    html += '<div style="margin-bottom:.5rem"><strong>Mock Routes:</strong></div>';
+    html += '<div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:.5rem;max-height:200px;overflow:auto">';
+    (data.mockRoutes || []).forEach(route => {
+      const statusDot = route.exampleGenerated ? '<span style="color:#3fb950">●</span>' : '<span style="color:#d29922">●</span>';
+      html += '<div style="font-family:monospace;font-size:.78rem;padding:2px 0;color:#c9d1d9">' + statusDot + ' ' + route.method + ' ' + route.operation + ' → ' + route.returnType + (route.isList ? '[]' : '') + '</div>';
+    });
+    html += '</div>';
+    html += '<div style="margin-top:.75rem;font-size:.78rem;color:#8b949e">Files: <code>' + data.schemaFile + '</code>, <code>' + data.examplesFile + '</code></div>';
+    resultContent.innerHTML = html;
+
+    lastFetch = 0;
+    fetch('/api/services').then(r => r.json()).then(() => {});
+  } catch (err) {
+    stepsDiv.innerHTML = '<div style="color:#f85149">✗ Network error: ' + err.message + '</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generate & Deploy';
+    btn.style.opacity = '1';
+  }
+}
+
 async function loadAIScenarios() {
   try {
     const r = await fetch('/ai/scenarios');
@@ -2807,6 +3333,7 @@ app.listen(PORT, async () => {
   console.log(`  REST:       /rest/:service/:version/...`);
   console.log(`  Health:     GET /health`);
   console.log(`  AI Agent:   POST /ai/generate, /ai/override`);
+  console.log(`  AI Setup:   POST /ai/setup (schema + prompt → auto-deploy)`);
   console.log(`  AI Key:     ${AI_API_KEY ? 'Configured (' + AI_MODEL + ')' : '⚠ Not set (export GROQ_API_KEY)'}\n`);
 
   const services = await fetchMicrocksServices();
