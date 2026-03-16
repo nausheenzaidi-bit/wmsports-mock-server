@@ -1673,10 +1673,21 @@ function importArtifactToMicrocks(filePath, isMain = true) {
   });
 }
 
+function httpGetLong(targetUrl, timeout = 30000) {
+  return new Promise((resolve, reject) => {
+    const mod = targetUrl.startsWith('https') ? https : http;
+    mod.get(targetUrl, { timeout }, (res) => {
+      let data = '';
+      res.on('data', (c) => data += c);
+      res.on('end', () => resolve(data));
+    }).on('error', reject).on('timeout', function() { this.destroy(); reject(new Error('timeout')); });
+  });
+}
+
 function clearServiceDispatchers(serviceName) {
   return new Promise(async (resolve) => {
     try {
-      const data = await httpGet(`${MICROCKS_URL}/api/services?page=0&size=200`);
+      const data = await httpGetLong(`${MICROCKS_URL}/api/services?page=0&size=200`);
       const services = JSON.parse(data);
       const svc = services.find(s => s.name === serviceName);
       if (!svc) { resolve({ cleared: 0 }); return; }
@@ -1779,16 +1790,15 @@ app.post('/ai/setup', async (req, res) => {
       steps[steps.length - 1].status = 'done';
     }
 
-    // Extract microcksId from schema comment if present
+    // Extract microcksId from schema — this MUST match the Postman collection name
     const microcksMatch = finalSchema.match(/^#\s*microcksId:\s*(.+?)\s*:\s*(.+?)$/m);
-    if (!serviceName && microcksMatch) {
+    if (microcksMatch) {
       serviceName = microcksMatch[1].trim();
     }
     if (!serviceName) {
-      serviceName = 'AIGeneratedAPI';
+      serviceName = (reqServiceName || 'AIGeneratedAPI').replace(/\s+/g, '');
     }
 
-    // Ensure microcksId comment exists
     if (!finalSchema.includes('microcksId')) {
       finalSchema = `# microcksId: ${serviceName} : 1.0\n${finalSchema}`;
     }
@@ -1871,7 +1881,7 @@ Each object must include ALL the fields listed above with correct types.`;
     // Clear QUERY_ARGS dispatchers so Microcks serves examples
     steps.push({ step: 'Configuring dispatchers...', status: 'running' });
     try {
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 5000));
       lastFetch = 0;
       const dispResult = await clearServiceDispatchers(serviceName);
       steps[steps.length - 1] = { step: `Dispatchers configured (${dispResult.cleared} cleared)`, status: 'done' };
