@@ -18,6 +18,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { parse: gqlParse, Kind } = require('graphql');
 const yaml = require('js-yaml');
 
@@ -602,9 +603,11 @@ function findExamplesFile(serviceName) {
   return null;
 }
 
-function buildPostmanCollection(serviceName, operationName, responseBody) {
+function buildPostmanCollection(serviceName, operationName, responseBody, fields) {
   const bodyStr = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody);
-  const queryStr = `{ ${operationName} }`;
+  const selSet = (fields && fields.length > 0) ? fields.join(' ') : '';
+  const queryStr = selSet ? `${operationName} { ${selSet} }` : operationName;
+  const fullQuery = `{ ${queryStr} }`;
   return {
     info: {
       _postman_id: `ai-inject-${serviceName}-${operationName}`,
@@ -618,14 +621,14 @@ function buildPostmanCollection(serviceName, operationName, responseBody) {
         method: 'POST',
         url: `http://${operationName}`,
         header: [{ key: 'Content-Type', value: 'application/json' }],
-        body: { mode: 'raw', raw: JSON.stringify({ query: queryStr }) },
+        body: { mode: 'raw', raw: JSON.stringify({ query: fullQuery }) },
       },
       response: [{
         name: 'ai-injected',
         originalRequest: {
           method: 'POST',
           url: `http://${operationName}`,
-          body: { mode: 'raw', raw: JSON.stringify({ query: queryStr }) },
+          body: { mode: 'raw', raw: JSON.stringify({ query: fullQuery }) },
         },
         code: 200,
         header: [{ key: 'Content-Type', value: 'application/json' }],
@@ -649,7 +652,7 @@ function uploadPostmanCollection(collection) {
   }
 }
 
-async function resetAndInjectAI(serviceName, operationName, aiData) {
+async function resetAndInjectAI(serviceName, operationName, aiData, fields) {
   const artifactsDir = path.join(__dirname, 'artifacts');
 
   const serviceId = await getMicrocksServiceId(serviceName);
@@ -663,7 +666,7 @@ async function resetAndInjectAI(serviceName, operationName, aiData) {
   importArtifactToMicrocks(path.join(artifactsDir, mainFile), true);
   await new Promise(r => setTimeout(r, 2000));
 
-  const collection = buildPostmanCollection(serviceName, operationName, aiData);
+  const collection = buildPostmanCollection(serviceName, operationName, aiData, fields);
   return uploadPostmanCollection(collection);
 }
 
@@ -1139,7 +1142,7 @@ app.post('/ai/inject', async (req, res) => {
     const base = FAILURE_SCENARIOS[scenario].prompt;
     if (fieldList) {
       const examples = {
-        'wrong-types': `The query has these fields: ${fNames}. For EACH field, return the WRONG type. Example: if "slug" is String, return a number like 99999. If "gameDate" is String, return a boolean like true. If "sport" is String, return an array like ["wrong"]. EVERY field must have the wrong type.`,
+        'wrong-types': `CRITICAL - WRONG TYPES REQUIRED: The query has these fields: ${fNames}. For EVERY field you MUST return the WRONG type. String fields (e.g. director, title, id) → return a NUMBER like 99999 or a BOOLEAN like true. Number fields (e.g. episodeID, starCount, rating) → return a STRING like "not-a-number" or an ARRAY like [1]. Float fields → return a string. NO field may have its correct type. Example: director (String) → 12345, title (String) → true, id (String) → [0].`,
         'missing-fields': `The query has these fields: ${fNames}. REMOVE at least 2 of these fields entirely from the JSON. The response must have FEWER keys than requested.`,
         'null-values': `The query has these fields: ${fNames}. Set EVERY single one to null.`,
         'empty-arrays': `The query has these fields: ${fNames}. Set every field to an empty value: strings become "", arrays become [], numbers become 0.`,
@@ -1170,7 +1173,7 @@ app.post('/ai/inject', async (req, res) => {
   } catch (err) { return res.status(500).json({ error: 'LLM error: ' + err.message }); }
 
   try {
-    const uploadResult = await resetAndInjectAI(service, operation, aiData);
+    const uploadResult = await resetAndInjectAI(service, operation, aiData, fieldList);
     lastFetch = 0;
     res.json({
       message: `AI data injected into Microcks for ${service}/${operation} (service reset + AI-only example)`,
@@ -1474,6 +1477,38 @@ app.get('/ai/types', (req, res) => {
   res.json({ types });
 });
 
+app.get('/ai/service-schema', (req, res) => {
+  const { service } = req.query;
+  if (!service) return res.status(400).json({ error: 'Provide "service" query param' });
+
+  const artifactsDir = path.join(__dirname, 'artifacts');
+  if (!fs.existsSync(artifactsDir)) return res.status(404).json({ error: 'No artifacts directory' });
+
+  const slug = service.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const allFiles = fs.readdirSync(artifactsDir);
+
+  // Try to find matching schema file (graphql, openapi json, or yaml)
+  const candidates = allFiles.filter(f => {
+    const fl = f.toLowerCase();
+    return (fl.includes(slug) || fl.includes(service.toLowerCase())) &&
+      (fl.endsWith('.graphql') || fl.endsWith('.gql') ||
+       (fl.endsWith('.json') && !fl.includes('postman')) ||
+       fl.endsWith('.yaml') || fl.endsWith('.yml'));
+  });
+
+  // Prefer schema files over example files
+  const schemaFile = candidates.find(f => f.includes('schema') || f.endsWith('.graphql') || f.endsWith('.gql'))
+    || candidates.find(f => f.includes('openapi'))
+    || candidates[0];
+
+  if (!schemaFile) {
+    return res.status(404).json({ error: 'No schema file found for service: ' + service });
+  }
+
+  const content = fs.readFileSync(path.join(artifactsDir, schemaFile), 'utf-8');
+  res.json({ schema: content, file: schemaFile, size: content.length });
+});
+
 // ── AI-Driven Mock Setup (Schema → LLM Data → Postman → Microcks) ────────
 
 const SETUP_SYSTEM_PROMPT = `You are an API mock data generator. Given a schema and a prompt, generate realistic mock data.
@@ -1481,19 +1516,26 @@ const SETUP_SYSTEM_PROMPT = `You are an API mock data generator. Given a schema 
 CRITICAL RULES:
 - Return ONLY valid JSON. No markdown, no backticks, no explanations.
 - Your entire response must be parseable by JSON.parse().
-- Use realistic sports data: real team names, player names, dates, scores.
-- If asked for N items, generate exactly N items in the array.
-- Follow the schema types precisely: strings for String, integers for Int, etc.`;
+- Use realistic data: real team names, player names, dates, scores, etc.
+- If asked for N examples, generate exactly N examples per operation.
+- Follow the schema types precisely: strings for String, integers for Int, etc.
 
-const SCHEMA_GEN_SYSTEM_PROMPT = `You are a GraphQL schema designer. Generate a complete, valid GraphQL SDL schema.
+SCENARIO SUPPORT:
+When the user requests scenarios or failure cases, generate examples that match. Available scenarios:
+- "success" / "happy path": Correct, realistic data with all fields present and valid.
+- "wrong-types": Field values have WRONG types (strings where numbers expected, numbers where strings expected, etc.)
+- "missing-fields": Important fields completely ABSENT from the JSON (not null, just missing keys).
+- "null-values": Fields that should have values are null.
+- "empty-arrays": All array/list fields are empty [].
+- "malformed-dates": Date fields have wrong formats (Unix timestamps, "N/A", epoch 0, "not-a-date").
+- "extra-fields": Valid data but with many extra unexpected fields added.
+- "encoding-issues": Special characters, unicode, HTML entities in string fields.
+- "boundary-values": Extreme values (very long strings, negative numbers, MAX_INT, empty strings).
+- "partial-response": Truncated data, incomplete objects, arrays with only 1 item.
+- "mixed-good-bad": Half the fields correct, half broken (wrong types, nulls, missing).
 
-CRITICAL RULES:
-- Return ONLY the raw GraphQL SDL text inside a JSON wrapper: {"schema": "type Query { ... }\\ntype Game { ... }"}
-- The schema MUST include a \`type Query\` with at least one query field.
-- Use realistic field names and types for a sports API.
-- Include the microcksId comment on the first line: # microcksId: ServiceName : 1.0
-- Include custom scalar types if needed (DateTime, JSON, etc.).
-- Keep it focused and practical — 3-8 types, 2-5 query operations.`;
+When mixing scenarios, LABEL each example clearly by using the requested pattern. For instance, if asked for "3 success, 2 wrong-types, 1 null-values", produce exactly that mix.`;
+
 
 function parseGraphQLSchema(schemaText) {
   const doc = gqlParse(schemaText);
@@ -1501,9 +1543,12 @@ function parseGraphQLSchema(schemaText) {
   const operations = [];
 
   for (const def of doc.definitions) {
-    if (def.kind === Kind.OBJECT_TYPE_DEFINITION || def.kind === Kind.OBJECT_TYPE_EXTENSION) {
+    const isTypelike = def.kind === Kind.OBJECT_TYPE_DEFINITION || def.kind === Kind.OBJECT_TYPE_EXTENSION
+      || def.kind === 'InterfaceTypeDefinition' || def.kind === 'InterfaceTypeExtension';
+
+    if (isTypelike) {
       const typeName = def.name.value;
-      types[typeName] = {};
+      if (!types[typeName]) types[typeName] = {};
       for (const field of (def.fields || [])) {
         types[typeName][field.name.value] = unwrapGqlType(field.type);
       }
@@ -1525,8 +1570,138 @@ function parseGraphQLSchema(schemaText) {
         }
       }
     }
+
+    if (def.kind === 'UnionTypeDefinition') {
+      const typeName = def.name.value;
+      if (!types[typeName]) types[typeName] = {};
+    }
   }
-  return { types, operations };
+
+  // Merge implementing types' fields into interfaces/unions so the full
+  // field set is available for query building and LLM prompts
+  for (const def of doc.definitions) {
+    if ((def.kind === Kind.OBJECT_TYPE_DEFINITION || def.kind === Kind.OBJECT_TYPE_EXTENSION) && def.interfaces) {
+      for (const iface of def.interfaces) {
+        const ifaceName = iface.name.value;
+        if (types[ifaceName] && def.fields) {
+          for (const field of def.fields) {
+            if (!types[ifaceName][field.name.value]) {
+              types[ifaceName][field.name.value] = unwrapGqlType(field.type);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // For union types, merge fields from member types
+  for (const def of doc.definitions) {
+    if (def.kind === 'UnionTypeDefinition' && def.types) {
+      const unionName = def.name.value;
+      if (!types[unionName]) types[unionName] = {};
+      for (const memberRef of def.types) {
+        const memberFields = types[memberRef.name.value];
+        if (memberFields) {
+          for (const [fname, ftype] of Object.entries(memberFields)) {
+            if (!types[unionName][fname]) types[unionName][fname] = ftype;
+          }
+        }
+      }
+    }
+  }
+
+  // Extract enum values
+  const enums = {};
+  for (const def of doc.definitions) {
+    if (def.kind === 'EnumTypeDefinition') {
+      enums[def.name.value] = (def.values || []).map(v => v.name.value);
+    }
+  }
+
+  return { types, operations, enums };
+}
+
+function generateMockValue(fieldName, typeInfo, types, enums, depth = 0) {
+  const tname = typeInfo.name;
+
+  if (enums[tname]) {
+    const vals = enums[tname];
+    return vals[Math.floor(Math.random() * vals.length)];
+  }
+
+  if (SCALAR_TYPES.has(tname) || depth > 3) {
+    const fn = fieldName.toLowerCase();
+    if (tname === 'ID') {
+      return [crypto.randomUUID(), 'id-' + Math.random().toString(36).slice(2, 8),
+        Math.random().toString(36).slice(2, 14)][Math.floor(Math.random() * 3)];
+    }
+    if (tname === 'Int') {
+      if (fn.includes('count')) return Math.floor(Math.random() * 500);
+      if (fn.includes('position') || fn.includes('rank')) return Math.floor(Math.random() * 50) + 1;
+      return Math.floor(Math.random() * 1000);
+    }
+    if (tname === 'Float' || tname === 'BigDecimal') return +(Math.random() * 100).toFixed(2);
+    if (tname === 'Boolean') {
+      if (fn.includes('hidden') || fn.includes('locked') || fn.includes('pinned')) return false;
+      if (fn.includes('enabled') || fn.includes('published')) return true;
+      return Math.random() > 0.4;
+    }
+    if (tname === 'Date' || tname === 'DateTime') {
+      const d = new Date(Date.now() - Math.floor(Math.random() * 365 * 24 * 3600000));
+      return d.toISOString();
+    }
+    // String or other scalar
+    const sportsTitles = ['Arsenal FC', 'Lakers Dominate', 'NFL Draft 2026', 'Champions League Final',
+      'March Madness Update', 'Premier League Recap', 'World Cup Qualifiers', 'NBA Playoffs Preview',
+      'Super Bowl LXII', 'FIFA World Cup 2026'];
+    const descriptions = ['Breaking sports coverage and analysis', 'Live updates from the match',
+      'In-depth analysis of team performance', 'Player spotlight and stats breakdown',
+      'Season preview and predictions', 'Post-game recap and highlights'];
+    const slugs = ['nfl', 'nba', 'mlb', 'premier-league', 'champions-league', 'world-cup',
+      'march-madness', 'formula-1', 'tennis-atp', 'college-football'];
+    const urls = ['https://cdn.bleacherreport.net/images/team-logos/nfl.png',
+      'https://media.bleacherreport.com/content/article-1.jpg',
+      'https://cdn.bleacherreport.net/videos/highlight-reel.mp4'];
+
+    if (fn.includes('title') || fn.includes('headline')) return sportsTitles[Math.floor(Math.random() * sportsTitles.length)];
+    if (fn.includes('description') || fn.includes('commentary')) return descriptions[Math.floor(Math.random() * descriptions.length)];
+    if (fn.includes('slug')) return slugs[Math.floor(Math.random() * slugs.length)];
+    if (fn.includes('url') || fn.includes('link') || fn.includes('thumbnail') || fn.includes('logo')) return urls[Math.floor(Math.random() * urls.length)];
+    if (fn.includes('uuid') || fn.includes('taguuid')) return crypto.randomUUID();
+    if (fn.includes('hash')) return crypto.randomUUID().replace(/-/g, '');
+    if (fn.includes('email')) return 'user@example.com';
+    if (fn.includes('name') || fn.includes('provider')) return ['ESPN', 'Bleacher Report', 'AP Sports', 'Reuters Sports'][Math.floor(Math.random() * 4)];
+    if (fn.includes('language')) return ['en', 'es', 'pt', 'fr'][Math.floor(Math.random() * 4)];
+    if (fn.includes('tag')) return 'tag-' + Math.random().toString(36).slice(2, 8);
+    if (fn.includes('content') && fn.includes('id')) return 'content-' + Math.random().toString(36).slice(2, 10);
+    if (fn.includes('source')) return ['web', 'mobile', 'api', 'cms'][Math.floor(Math.random() * 4)];
+    if (fn === 'cursor' || fn === 'after' || fn === 'before') return Buffer.from('cursor:' + Math.floor(Math.random() * 100)).toString('base64');
+    return fieldName + '-' + Math.random().toString(36).slice(2, 7);
+  }
+
+  if (types[tname]) {
+    return generateMockObject(tname, types, enums, depth + 1);
+  }
+
+  return null;
+}
+
+function generateMockObject(typeName, types, enums, depth = 0) {
+  if (depth > 3 || !types[typeName]) return null;
+  const fields = types[typeName];
+  const obj = {};
+  for (const [fname, typeInfo] of Object.entries(fields)) {
+    if (typeInfo.isList) {
+      const count = depth > 1 ? 1 : Math.floor(Math.random() * 2) + 1;
+      obj[fname] = [];
+      for (let i = 0; i < count; i++) {
+        obj[fname].push(generateMockValue(fname, { ...typeInfo, isList: false }, types, enums, depth));
+      }
+    } else {
+      obj[fname] = generateMockValue(fname, typeInfo, types, enums, depth);
+    }
+  }
+  return obj;
 }
 
 function buildFieldsForType(types, typeName, depth = 0) {
@@ -1560,7 +1735,7 @@ function buildVariablesForArgs(args) {
   return vars;
 }
 
-function buildAutoPostmanCollection(serviceName, operations, types, generatedData) {
+function buildAutoPostmanCollection(serviceName, operations, types, generatedData, version = '1.0') {
   const items = [];
 
   for (const op of operations) {
@@ -1584,15 +1759,46 @@ function buildAutoPostmanCollection(serviceName, operations, types, generatedDat
     const bodyRaw = JSON.stringify({ query: queryStr, variables });
 
     const responseData = generatedData[op.name];
-    let responseBody;
-    if (responseData) {
-      if (responseData.data) {
-        responseBody = JSON.stringify(responseData);
-      } else {
-        responseBody = JSON.stringify({ data: { [op.name]: responseData } });
+    const responses = [];
+
+    if (Array.isArray(responseData) && responseData.length > 0) {
+      for (let i = 0; i < responseData.length; i++) {
+        const example = responseData[i];
+        const exampleBody = example && example.data
+          ? JSON.stringify(example)
+          : JSON.stringify({ data: { [op.name]: example } });
+        responses.push({
+          name: `example-${i + 1}`,
+          originalRequest: {
+            method: 'POST',
+            url: `http://${op.name}`,
+            body: { mode: 'raw', raw: bodyRaw },
+          },
+          code: 200,
+          header: [{ key: 'Content-Type', value: 'application/json' }],
+          body: exampleBody,
+        });
       }
     } else {
-      responseBody = JSON.stringify({ data: { [op.name]: null } });
+      let responseBody;
+      if (responseData) {
+        responseBody = responseData.data
+          ? JSON.stringify(responseData)
+          : JSON.stringify({ data: { [op.name]: responseData } });
+      } else {
+        responseBody = JSON.stringify({ data: { [op.name]: null } });
+      }
+      responses.push({
+        name: 'ai-generated',
+        originalRequest: {
+          method: 'POST',
+          url: `http://${op.name}`,
+          body: { mode: 'raw', raw: bodyRaw },
+        },
+        code: 200,
+        header: [{ key: 'Content-Type', value: 'application/json' }],
+        body: responseBody,
+      });
     }
 
     items.push({
@@ -1603,17 +1809,7 @@ function buildAutoPostmanCollection(serviceName, operations, types, generatedDat
         header: [{ key: 'Content-Type', value: 'application/json' }],
         body: { mode: 'raw', raw: bodyRaw },
       },
-      response: [{
-        name: 'ai-generated',
-        originalRequest: {
-          method: 'POST',
-          url: `http://${op.name}`,
-          body: { mode: 'raw', raw: bodyRaw },
-        },
-        code: 200,
-        header: [{ key: 'Content-Type', value: 'application/json' }],
-        body: responseBody,
-      }],
+      response: responses,
     });
   }
 
@@ -1621,7 +1817,7 @@ function buildAutoPostmanCollection(serviceName, operations, types, generatedDat
     info: {
       _postman_id: `ai-setup-${serviceName}-${Date.now()}`,
       name: serviceName,
-      description: `version=1.0 - AI-generated mock examples for ${serviceName}`,
+      description: `version=${version} - AI-generated mock examples for ${serviceName}`,
       schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
     },
     item: items,
@@ -1746,7 +1942,7 @@ async function callLLMWithHighTokens(systemPrompt, userPrompt, maxTokens = 4000)
       hostname: url.hostname, port: url.port || 443, path: url.pathname,
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AI_API_KEY}`, 'Content-Length': Buffer.byteLength(postData) },
-      timeout: 60000,
+      timeout: maxTokens > 8000 ? 120000 : 60000,
     };
     const r = https.request(opts, (resp) => {
       let d = '';
@@ -1768,11 +1964,410 @@ async function callLLMWithHighTokens(systemPrompt, userPrompt, maxTokens = 4000)
   });
 }
 
+// ── OpenAPI schema parser ──────────────────────────────────────────────────
+function parseOpenAPISpec(specText) {
+  let spec;
+  try {
+    spec = JSON.parse(specText);
+  } catch (_) {
+    spec = yaml.load(specText);
+  }
+  if (!spec || !spec.paths) throw new Error('Invalid OpenAPI spec: no paths found');
+
+  const serviceName = spec.info?.title || 'RESTService';
+  const serviceVersion = spec.info?.version || '1.0';
+  const operations = [];
+
+  for (const [pathKey, methods] of Object.entries(spec.paths)) {
+    for (const [method, opDef] of Object.entries(methods)) {
+      if (['get', 'post', 'put', 'patch', 'delete'].indexOf(method) === -1) continue;
+      const opName = `${method.toUpperCase()} ${pathKey}`;
+      const successCode = Object.keys(opDef.responses || {}).find(c => c.startsWith('2')) || '200';
+      const successResp = (opDef.responses || {})[successCode] || {};
+      const contentType = successResp.content ? Object.keys(successResp.content)[0] : 'application/json';
+      const respSchema = successResp.content?.[contentType]?.schema || {};
+
+      const reqBody = opDef.requestBody?.content?.['application/json']?.schema || null;
+
+      operations.push({
+        name: opName,
+        operationId: opDef.operationId || opName,
+        method: method.toUpperCase(),
+        path: pathKey,
+        responseCode: parseInt(successCode),
+        responseSchema: respSchema,
+        requestSchema: reqBody,
+        parameters: opDef.parameters || [],
+        summary: opDef.summary || '',
+      });
+    }
+  }
+  return { spec, serviceName, serviceVersion, operations };
+}
+
+function resolveSchemaRef(ref, spec) {
+  if (!ref || !ref.startsWith('#/')) return {};
+  const parts = ref.replace('#/', '').split('/');
+  let result = spec;
+  for (const p of parts) { result = result?.[p]; }
+  return result || {};
+}
+
+function describeSchema(schema, spec, depth = 0) {
+  if (depth > 3) return '...';
+  if (schema.$ref) schema = resolveSchemaRef(schema.$ref, spec);
+  if (schema.type === 'object' || schema.properties) {
+    const fields = Object.entries(schema.properties || {}).map(([k, v]) => {
+      if (v.$ref) v = resolveSchemaRef(v.$ref, spec);
+      return `${k}: ${v.type || 'object'}${v.items ? '[]' : ''}`;
+    });
+    return `{ ${fields.join(', ')} }`;
+  }
+  if (schema.type === 'array' && schema.items) {
+    return `[${describeSchema(schema.items, spec, depth + 1)}]`;
+  }
+  return schema.type || 'any';
+}
+
+function generateMockFromOpenAPISchema(schema, spec, depth = 0) {
+  if (depth > 3) return null;
+  if (schema.$ref) schema = resolveSchemaRef(schema.$ref, spec);
+
+  if (schema.type === 'object' || schema.properties) {
+    const obj = {};
+    for (const [key, prop] of Object.entries(schema.properties || {})) {
+      const resolved = prop.$ref ? resolveSchemaRef(prop.$ref, spec) : prop;
+      const fn = key.toLowerCase();
+
+      if (resolved.type === 'string') {
+        if (resolved.format === 'uuid' || fn === 'id' || fn.endsWith('id'))
+          obj[key] = crypto.randomUUID();
+        else if (resolved.format === 'date-time' || fn.includes('date') || fn.includes('time'))
+          obj[key] = new Date(Date.now() - Math.floor(Math.random() * 365 * 86400000)).toISOString();
+        else if (fn.includes('email')) obj[key] = ['john@example.com', 'jane@test.com', 'alice@demo.org'][Math.floor(Math.random() * 3)];
+        else if (fn.includes('name')) obj[key] = ['John Doe', 'Jane Smith', 'Alice Johnson', 'Bob Wilson', 'Charlie Brown'][Math.floor(Math.random() * 5)];
+        else if (fn.includes('url') || fn.includes('link')) obj[key] = 'https://example.com/' + key;
+        else if (fn.includes('description')) obj[key] = 'Sample ' + key + ' description';
+        else if (fn.includes('title')) obj[key] = 'Sample ' + key;
+        else if (resolved.enum) obj[key] = resolved.enum[Math.floor(Math.random() * resolved.enum.length)];
+        else obj[key] = key + '-' + Math.random().toString(36).slice(2, 7);
+      } else if (resolved.type === 'integer') {
+        obj[key] = fn.includes('age') ? Math.floor(Math.random() * 60) + 18 : Math.floor(Math.random() * 1000);
+      } else if (resolved.type === 'number') {
+        obj[key] = +(Math.random() * 100).toFixed(2);
+      } else if (resolved.type === 'boolean') {
+        obj[key] = Math.random() > 0.5;
+      } else if (resolved.type === 'array') {
+        obj[key] = [generateMockFromOpenAPISchema(resolved.items || {}, spec, depth + 1)];
+      } else if (resolved.type === 'object' || resolved.properties) {
+        obj[key] = generateMockFromOpenAPISchema(resolved, spec, depth + 1);
+      } else {
+        obj[key] = null;
+      }
+    }
+    return obj;
+  }
+
+  if (schema.type === 'array' && schema.items) {
+    return [generateMockFromOpenAPISchema(schema.items, spec, depth + 1),
+            generateMockFromOpenAPISchema(schema.items, spec, depth + 1)];
+  }
+
+  if (schema.type === 'string') return 'sample-value';
+  if (schema.type === 'integer') return Math.floor(Math.random() * 100);
+  if (schema.type === 'number') return +(Math.random() * 100).toFixed(2);
+  if (schema.type === 'boolean') return true;
+  return null;
+}
+
+function buildRestPostmanCollection(serviceName, version, operations, generatedData) {
+  const items = [];
+  for (const op of operations) {
+    const responses = [];
+    const data = generatedData[op.name];
+
+    // Extract path parameter names (e.g. {id}, {userId})
+    const pathParams = [];
+    op.path.replace(/\{(\w+)\}/g, (_, name) => { pathParams.push(name); });
+
+    if (Array.isArray(data) && data.length > 0) {
+      for (let i = 0; i < data.length; i++) {
+        let exampleUrl = op.path;
+        for (const param of pathParams) {
+          const val = (data[i] && data[i][param]) || `val-${i + 1}`;
+          exampleUrl = exampleUrl.replace(`{${param}}`, val);
+        }
+        responses.push({
+          name: `example-${i + 1}`,
+          originalRequest: { method: op.method, url: exampleUrl },
+          code: op.responseCode,
+          header: [{ key: 'Content-Type', value: 'application/json' }],
+          body: JSON.stringify(data[i]),
+        });
+      }
+    } else {
+      let exampleUrl = op.path;
+      for (const param of pathParams) {
+        exampleUrl = exampleUrl.replace(`{${param}}`, 'default');
+      }
+      responses.push({
+        name: 'ai-generated',
+        originalRequest: { method: op.method, url: exampleUrl },
+        code: op.responseCode,
+        header: [{ key: 'Content-Type', value: 'application/json' }],
+        body: JSON.stringify(data || {}),
+      });
+    }
+
+    items.push({
+      name: op.name,
+      request: {
+        method: op.method,
+        header: [{ key: 'Content-Type', value: 'application/json' }],
+        url: op.path,
+      },
+      response: responses,
+    });
+  }
+
+  return {
+    info: {
+      _postman_id: `ai-setup-rest-${serviceName}-${Date.now()}`,
+      name: serviceName,
+      description: `version=${version} - AI-generated REST mock examples for ${serviceName}`,
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+    },
+    item: items,
+  };
+}
+
+function injectExamplesIntoOpenAPI(spec, operations, generatedData) {
+  const updated = JSON.parse(JSON.stringify(spec));
+  for (const op of operations) {
+    const methodDef = updated.paths?.[op.path]?.[op.method.toLowerCase()];
+    if (!methodDef) continue;
+
+    const data = generatedData[op.name];
+    if (!data) continue;
+
+    // Add FALLBACK dispatcher for operations with path params
+    const pathParams = [];
+    op.path.replace(/\{(\w+)\}/g, (_, name) => { pathParams.push(name); });
+    if (pathParams.length > 0) {
+      methodDef['x-microcks-operation'] = {
+        dispatcher: 'FALLBACK',
+        dispatcherRules: JSON.stringify({
+          dispatcher: 'URI_PARTS',
+          dispatcherRules: pathParams.join(' && '),
+          fallback: 'example-1',
+        }),
+      };
+    }
+
+    const successCode = String(op.responseCode);
+    if (!methodDef.responses) methodDef.responses = {};
+    if (!methodDef.responses[successCode]) methodDef.responses[successCode] = { description: 'OK' };
+    const resp = methodDef.responses[successCode];
+    if (!resp.content) resp.content = { 'application/json': {} };
+    const ct = resp.content['application/json'] || (resp.content[Object.keys(resp.content)[0]]);
+
+    const examples = {};
+    if (Array.isArray(data)) {
+      data.forEach((d, i) => { examples[`example-${i + 1}`] = { summary: `AI generated example ${i + 1}`, value: d }; });
+    } else {
+      examples['ai-generated'] = { summary: 'AI generated example', value: data };
+    }
+    ct.examples = examples;
+  }
+  return updated;
+}
+
+function parseSamplesFromPrompt(prompt) {
+  if (!prompt) return { total: 3, scenarioInstructions: '' };
+
+  const numMatch = prompt.match(/(\d+)\s*(?:different|sample|example|mock|value|scenario|response)/i);
+  const total = numMatch ? Math.max(1, parseInt(numMatch[1])) : 3;
+
+  const scenarioNames = Object.keys(FAILURE_SCENARIOS);
+  const mentionedScenarios = scenarioNames.filter(s =>
+    prompt.toLowerCase().includes(s.replace(/-/g, ' ')) || prompt.toLowerCase().includes(s)
+  );
+
+  const hasSuccess = /success|happy|valid|correct|good/i.test(prompt);
+  const hasMix = /mix|combin|variety|different\s*scenario|failure|error|bad/i.test(prompt);
+
+  let scenarioInstructions = '';
+  if (mentionedScenarios.length > 0 || hasMix) {
+    if (mentionedScenarios.length > 0 && hasSuccess) {
+      const successCount = Math.max(1, Math.floor(total / 2));
+      const failCount = total - successCount;
+      const perScenario = Math.max(1, Math.floor(failCount / mentionedScenarios.length));
+      scenarioInstructions = `\n\nSCENARIO MIX REQUIRED:\nGenerate ${successCount} success/happy-path examples with fully correct data.\nThen generate ${failCount} failure examples split across: ${mentionedScenarios.join(', ')} (${perScenario} each).\nLabel each example by prefixing a "_scenario" field with its type (e.g. "_scenario": "success", "_scenario": "wrong-types").`;
+    } else if (mentionedScenarios.length > 0) {
+      const perScenario = Math.max(1, Math.floor(total / mentionedScenarios.length));
+      scenarioInstructions = `\n\nSCENARIO MIX REQUIRED:\nGenerate examples split across: ${mentionedScenarios.join(', ')} (${perScenario} each).\nLabel each with a "_scenario" field.`;
+    } else if (hasMix) {
+      const successCount = Math.max(1, Math.floor(total / 3));
+      const failCount = total - successCount;
+      scenarioInstructions = `\n\nSCENARIO MIX REQUIRED:\nGenerate ${successCount} success examples with correct data, and ${failCount} failure examples using a variety of failure scenarios: wrong-types, missing-fields, null-values, empty-arrays, boundary-values, mixed-good-bad.\nLabel each with a "_scenario" field (e.g. "_scenario": "success", "_scenario": "wrong-types").`;
+    }
+  }
+
+  return { total, scenarioInstructions };
+}
+
+// ── Plain type → OpenAPI CRUD auto-generator ──────────────────────────────
+function detectAndConvertPlainType(input, fallbackServiceName) {
+  const trimmed = input.trim();
+
+  // Pattern 1: Simple "key: type" lines (e.g. "name: string\nage: INT")
+  const simpleLines = trimmed.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#') && !l.startsWith('//'));
+  const simpleKV = /^(\w+)\s*:\s*(string|int|integer|float|number|boolean|bool|date|datetime|id|uuid)$/i;
+  const isSimpleKV = simpleLines.length > 0 && simpleLines.every(l => simpleKV.test(l));
+
+  // Pattern 2: JSON object with simple type values {"name": "string", "age": "integer"}
+  let jsonObj = null;
+  if (trimmed.startsWith('{') && !/"openapi"|"swagger"|"paths"|"type"\s*:\s*"object"/.test(trimmed)) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      const vals = Object.values(parsed);
+      if (vals.length > 0 && vals.every(v => typeof v === 'string' && /^(string|int|integer|float|number|boolean|bool|date|datetime|id|uuid)$/i.test(v))) {
+        jsonObj = parsed;
+      }
+    } catch (e) {
+      // Try lenient parsing: { name: string, age: INT } (no quotes)
+      const lenient = trimmed.replace(/(\w+)\s*:/g, '"$1":').replace(/:\s*(\w+)/g, ':"$1"');
+      try {
+        const parsed = JSON.parse(lenient);
+        const vals = Object.values(parsed);
+        if (vals.length > 0 && vals.every(v => typeof v === 'string' && /^(string|int|integer|float|number|boolean|bool|date|datetime|id|uuid)$/i.test(v))) {
+          jsonObj = parsed;
+        }
+      } catch (e2) { /* not plain type */ }
+    }
+  }
+
+  // Pattern 3: Simple GraphQL-like type (no directives, no enums, no interfaces)
+  // Do NOT match real GraphQL schemas that have @key, @cacheControl, enum, interface, union, input, scalar, extends, etc.
+  const hasGraphQLFeatures = /@\w+|^enum\s|^interface\s|^union\s|^input\s|^scalar\s|^extend\s|^schema\s|^directive\s/m.test(trimmed);
+  const isGraphQLType = !hasGraphQLFeatures && /^type\s+\w+\s*\{/m.test(trimmed) && !/type\s+(Query|Mutation)\s*\{/m.test(trimmed);
+
+  if (!isSimpleKV && !jsonObj && !isGraphQLType) return null;
+
+  // Extract fields from whichever format matched
+  let fields = {};
+  let typeName = fallbackServiceName.replace(/API$/i, '') || 'Item';
+
+  const typeMap = {
+    'string': 'string', 'int': 'integer', 'integer': 'integer',
+    'float': 'number', 'number': 'number', 'boolean': 'boolean', 'bool': 'boolean',
+    'date': 'string', 'datetime': 'string', 'id': 'string', 'uuid': 'string',
+  };
+  const formatMap = {
+    'date': 'date', 'datetime': 'date-time', 'id': 'uuid', 'uuid': 'uuid',
+  };
+
+  if (isSimpleKV) {
+    for (const line of simpleLines) {
+      const m = line.match(simpleKV);
+      if (m) {
+        const key = m[1], rawType = m[2].toLowerCase();
+        fields[key] = { type: typeMap[rawType] || 'string' };
+        if (formatMap[rawType]) fields[key].format = formatMap[rawType];
+      }
+    }
+  } else if (jsonObj) {
+    for (const [key, rawType] of Object.entries(jsonObj)) {
+      const rt = rawType.toLowerCase();
+      fields[key] = { type: typeMap[rt] || 'string' };
+      if (formatMap[rt]) fields[key].format = formatMap[rt];
+    }
+  } else if (isGraphQLType) {
+    const typeMatch = trimmed.match(/type\s+(\w+)\s*\{([^}]+)\}/);
+    if (typeMatch) {
+      typeName = typeMatch[1];
+      const body = typeMatch[2];
+      const fieldRe = /(\w+)\s*:\s*(\[?\w+!?\]?)/g;
+      let fm;
+      while ((fm = fieldRe.exec(body)) !== null) {
+        const fname = fm[1];
+        let gqlType = fm[2].replace(/[!\[\]]/g, '').toLowerCase();
+        const gqlMap = { 'string': 'string', 'int': 'integer', 'float': 'number', 'boolean': 'boolean', 'id': 'string', 'date': 'string', 'datetime': 'string' };
+        fields[fname] = { type: gqlMap[gqlType] || 'string' };
+        if (gqlType === 'id') fields[fname].format = 'uuid';
+        if (gqlType === 'date' || gqlType === 'datetime') fields[fname].format = 'date-time';
+        if (fm[2].startsWith('[')) {
+          fields[fname] = { type: 'array', items: { type: gqlMap[gqlType] || 'string' } };
+        }
+      }
+    }
+  }
+
+  if (Object.keys(fields).length === 0) return null;
+
+  // Add an 'id' field if not present
+  if (!fields.id) {
+    fields = { id: { type: 'string', format: 'uuid' }, ...fields };
+  }
+
+  const svcName = fallbackServiceName || typeName + 'API';
+  const pathBase = '/' + typeName.toLowerCase();
+  const refSchema = typeName;
+
+  const openApiSpec = {
+    openapi: '3.0.0',
+    info: { title: svcName, version: '1.0', description: `Auto-generated CRUD API for ${typeName}` },
+    paths: {
+      [pathBase]: {
+        get: {
+          operationId: `getAll${typeName}s`,
+          summary: `List all ${typeName}s`,
+          responses: { '200': { description: 'OK', content: { 'application/json': { schema: { type: 'array', items: { $ref: `#/components/schemas/${refSchema}` } } } } } },
+        },
+        post: {
+          operationId: `create${typeName}`,
+          summary: `Create a new ${typeName}`,
+          requestBody: { content: { 'application/json': { schema: { $ref: `#/components/schemas/${refSchema}` } } } },
+          responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: `#/components/schemas/${refSchema}` } } } } },
+        },
+      },
+      [`${pathBase}/{id}`]: {
+        get: {
+          operationId: `get${typeName}ById`,
+          summary: `Get ${typeName} by ID`,
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { '200': { description: 'OK', content: { 'application/json': { schema: { $ref: `#/components/schemas/${refSchema}` } } } } },
+        },
+        put: {
+          operationId: `update${typeName}`,
+          summary: `Update ${typeName}`,
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: { content: { 'application/json': { schema: { $ref: `#/components/schemas/${refSchema}` } } } },
+          responses: { '200': { description: 'OK', content: { 'application/json': { schema: { $ref: `#/components/schemas/${refSchema}` } } } } },
+        },
+        delete: {
+          operationId: `delete${typeName}`,
+          summary: `Delete ${typeName}`,
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { '204': { description: 'Deleted' } },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        [refSchema]: { type: 'object', properties: fields },
+      },
+    },
+  };
+
+  return { openApiSpec, typeName, serviceName: svcName };
+}
+
 app.post('/ai/setup', async (req, res) => {
   const { schema: schemaText, prompt, serviceName: reqServiceName } = req.body;
 
-  if (!prompt && !schemaText) {
-    return res.status(400).json({ error: 'Provide at least "prompt" or "schema"' });
+  if (!schemaText) {
+    return res.status(400).json({ error: 'Paste a GraphQL SDL or OpenAPI/JSON spec.' });
   }
 
   const steps = [];
@@ -1780,79 +2375,328 @@ app.post('/ai/setup', async (req, res) => {
   let serviceName = reqServiceName;
 
   try {
-    // Path B: generate schema from prompt if not provided
-    if (!finalSchema) {
-      steps.push({ step: 'Generating schema from prompt...', status: 'running' });
-      const schemaResult = await callLLMWithHighTokens(SCHEMA_GEN_SYSTEM_PROMPT,
-        `Create a GraphQL schema for: ${prompt}\n\nReturn JSON: {"schema": "<full GraphQL SDL>", "serviceName": "<ServiceName>"}`
-      );
-      finalSchema = schemaResult.schema;
-      serviceName = serviceName || schemaResult.serviceName || 'AIGeneratedAPI';
-      steps[steps.length - 1].status = 'done';
+
+    // Auto-detect schema type: plain type → OpenAPI → GraphQL
+    const trimmed = schemaText.trim();
+
+    // ── Plain type detection (auto-CRUD generation) ──────────────────
+    const plainTypeResult = detectAndConvertPlainType(trimmed, serviceName || reqServiceName || 'GeneratedAPI');
+    if (plainTypeResult) {
+      steps.push({ step: `Detected plain type definition, generating CRUD endpoints for "${plainTypeResult.typeName}"...`, status: 'done' });
+      finalSchema = JSON.stringify(plainTypeResult.openApiSpec, null, 2);
+      if (!serviceName) serviceName = plainTypeResult.serviceName;
     }
+
+    const isOpenAPI = (() => {
+      const t = finalSchema.trim();
+      if (t.startsWith('{')) return /"openapi"|"swagger"/.test(t);
+      return /^openapi:|^swagger:/m.test(t);
+    })();
+
+    if (isOpenAPI) {
+      // ── OpenAPI / REST flow ──────────────────────────────────────────
+      steps.push({ step: 'Detected OpenAPI spec, parsing...', status: 'running' });
+      const { spec, serviceName: parsedName, serviceVersion, operations } = parseOpenAPISpec(finalSchema);
+      if (!serviceName) serviceName = parsedName;
+      steps[steps.length - 1].status = 'done';
+
+      if (operations.length === 0) {
+        return res.status(400).json({ error: 'No REST operations found in OpenAPI spec', steps });
+      }
+
+      steps.push({ step: `Generating mock data for ${operations.length} REST operations...`, status: 'running' });
+      const generatedData = {};
+      const { total: samplesPerOp, scenarioInstructions } = parseSamplesFromPrompt(prompt);
+
+      const opDescriptions = operations.map(op => {
+        const schemaDesc = describeSchema(op.responseSchema, spec);
+        return `"${op.name}" (${op.summary || 'no summary'}):
+  Response schema: ${schemaDesc}`;
+      }).join('\n\n');
+
+      const batchPrompt = `Generate ${samplesPerOp} DISTINCT mock data examples for each of the following REST API operations.
+
+${opDescriptions}
+
+User request: ${prompt || 'Generate realistic mock data'}
+${scenarioInstructions}
+
+Return a JSON object where each key is the operation name (e.g. "GET /path"), and its value is an ARRAY of exactly ${samplesPerOp} examples.
+
+Format:
+{
+  "GET /path1": [example1, example2, ...],
+  "POST /path2": [example1, example2, ...]
+}`;
+
+      const maxRetries = 3;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const maxTokens = Math.min(32000, Math.max(4000, samplesPerOp * operations.length * 500));
+          const batchResult = await callLLMWithHighTokens(SETUP_SYSTEM_PROMPT, batchPrompt, maxTokens);
+          for (const op of operations) {
+            const opData = batchResult[op.name];
+            if (Array.isArray(opData) && opData.length > 0) {
+              generatedData[op.name] = opData;
+            } else if (opData) {
+              generatedData[op.name] = [opData];
+            } else {
+              generatedData[op.name] = null;
+            }
+          }
+          break;
+        } catch (err) {
+          const isRateLimit = err.message && err.message.includes('Rate limit');
+          if (isRateLimit && attempt < maxRetries) {
+            const waitMs = attempt * 15000;
+            steps.push({ step: `Rate limited, retrying in ${waitMs / 1000}s (attempt ${attempt}/${maxRetries})...`, status: 'warning' });
+            await new Promise(r => setTimeout(r, waitMs));
+          } else {
+            steps.push({ step: `Warning: batch generation failed: ${err.message}`, status: 'warning' });
+            for (const op of operations) { generatedData[op.name] = null; }
+          }
+        }
+      }
+      steps[steps.length - 1].status = 'done';
+
+      // Smart fallback for any REST ops the LLM missed
+      for (const op of operations) {
+        if (!generatedData[op.name]) {
+          const respSchema = op.responseSchema || {};
+          const examples = [];
+          for (let i = 0; i < samplesPerOp; i++) {
+            examples.push(generateMockFromOpenAPISchema(respSchema, spec, 0));
+          }
+          generatedData[op.name] = examples;
+          steps.push({ step: `Smart fallback for ${op.name}`, status: 'warning' });
+        }
+      }
+
+      steps.push({ step: 'Building Postman collection...', status: 'running' });
+      const collection = buildRestPostmanCollection(serviceName, serviceVersion, operations, generatedData);
+      steps[steps.length - 1].status = 'done';
+
+      steps.push({ step: 'Injecting examples into OpenAPI spec...', status: 'running' });
+      const updatedSpec = injectExamplesIntoOpenAPI(spec, operations, generatedData);
+      steps[steps.length - 1].status = 'done';
+
+      steps.push({ step: 'Writing artifacts...', status: 'running' });
+      const artifactsDir = path.join(__dirname, 'artifacts');
+      const slugName = serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const openapiFile = path.join(artifactsDir, `${slugName}-openapi.json`);
+      const postmanFile = path.join(artifactsDir, `${slugName}-examples.postman.json`);
+      fs.writeFileSync(openapiFile, JSON.stringify(updatedSpec, null, 2), 'utf-8');
+      fs.writeFileSync(postmanFile, JSON.stringify(collection, null, 2), 'utf-8');
+      steps[steps.length - 1].status = 'done';
+
+      steps.push({ step: 'Importing OpenAPI spec to Microcks...', status: 'running' });
+      try {
+        await importArtifactToMicrocks(openapiFile, true);
+        steps[steps.length - 1].status = 'done';
+      } catch (err) {
+        steps[steps.length - 1] = { step: `OpenAPI import: ${err.message}`, status: 'warning' };
+      }
+
+      await new Promise(r => setTimeout(r, 2000));
+
+      steps.push({ step: 'Importing examples to Microcks...', status: 'running' });
+      try {
+        await importArtifactToMicrocks(postmanFile, false);
+        steps[steps.length - 1].status = 'done';
+      } catch (err) {
+        steps[steps.length - 1] = { step: `Examples import: ${err.message}`, status: 'warning' };
+      }
+
+      lastFetch = 0;
+
+      // Dispatcher config is handled via x-microcks-operation in the OpenAPI spec
+
+      const mockRoutes = operations.map(op => ({
+        operation: op.name,
+        method: op.method,
+        path: op.path,
+        url: `/rest/${serviceName}/${serviceVersion}${op.path}`,
+        exampleGenerated: !!generatedData[op.name],
+      }));
+
+      return res.json({
+        success: true,
+        serviceName,
+        schemaType: 'openapi',
+        operationCount: operations.length,
+        steps,
+        mockRoutes,
+        openapiFile: `${slugName}-openapi.json`,
+        examplesFile: `${slugName}-examples.postman.json`,
+        restEndpoint: `/rest/${serviceName}/${serviceVersion}`,
+      });
+    }
+
+    // ── GraphQL flow ──────────────────────────────────────────────────
 
     // Extract microcksId from schema — this MUST match the Postman collection name
     const microcksMatch = finalSchema.match(/^#\s*microcksId:\s*(.+?)\s*:\s*(.+?)$/m);
+    let serviceVersion = '1.0';
     if (microcksMatch) {
       serviceName = microcksMatch[1].trim();
+      serviceVersion = microcksMatch[2].trim();
     }
     if (!serviceName) {
       serviceName = (reqServiceName || 'AIGeneratedAPI').replace(/\s+/g, '');
     }
 
     if (!finalSchema.includes('microcksId')) {
-      finalSchema = `# microcksId: ${serviceName} : 1.0\n${finalSchema}`;
+      finalSchema = `# microcksId: ${serviceName} : ${serviceVersion}\n${finalSchema}`;
     }
 
     // Parse schema
     steps.push({ step: 'Parsing schema...', status: 'running' });
-    const { types, operations } = parseGraphQLSchema(finalSchema);
+    const { types, operations, enums } = parseGraphQLSchema(finalSchema);
     steps[steps.length - 1].status = 'done';
 
     if (operations.length === 0) {
-      return res.status(400).json({ error: 'No Query or Mutation operations found in schema', steps });
+      // Auto-generate Query/Mutation for GraphQL types without them
+      const userTypes = Object.keys(types).filter(t => t !== 'Query' && t !== 'Mutation' && t !== 'Subscription');
+      if (userTypes.length === 0) {
+        return res.status(400).json({ error: 'No types, queries, or mutations found in schema', steps });
+      }
+      steps.push({ step: `Auto-generating CRUD operations for ${userTypes.join(', ')}...`, status: 'done' });
+      const queryFields = [];
+      const mutationFields = [];
+      for (const tName of userTypes) {
+        const fields = types[tName];
+        if (!fields || Object.keys(fields).length === 0) continue;
+        const hasId = fields.id;
+        queryFields.push(`  get${tName}${hasId ? '(id: ID!)' : ''}: ${tName}`);
+        queryFields.push(`  getAll${tName}s: [${tName}]`);
+        mutationFields.push(`  create${tName}(input: ${tName}Input): ${tName}`);
+        if (hasId) mutationFields.push(`  delete${tName}(id: ID!): Boolean`);
+      }
+      const crudSchema = `\ntype Query {\n${queryFields.join('\n')}\n}\n\ntype Mutation {\n${mutationFields.join('\n')}\n}\n`;
+      finalSchema = finalSchema + crudSchema;
+      if (!finalSchema.includes('microcksId')) {
+        finalSchema = `# microcksId: ${serviceName} : ${serviceVersion}\n${finalSchema}`;
+      }
+      const reparsed = parseGraphQLSchema(finalSchema);
+      Object.assign(types, reparsed.types);
+      operations.push(...reparsed.operations);
+      Object.assign(enums, reparsed.enums);
+      if (operations.length === 0) {
+        return res.status(400).json({ error: 'Could not generate operations from schema', steps });
+      }
     }
 
-    // Generate data for each operation via LLM
+    // Generate data for ALL operations in a single batched LLM call
     steps.push({ step: `Generating mock data for ${operations.length} operations...`, status: 'running' });
     const generatedData = {};
+    const { total: samplesPerOp, scenarioInstructions } = parseSamplesFromPrompt(prompt);
 
+    const nonScalarOps = [];
     for (const op of operations) {
       const isScalarReturn = SCALAR_TYPES.has(op.returnType) || !types[op.returnType];
-      const fieldsStr = isScalarReturn ? null : buildFieldsForType(types, op.returnType);
-
       if (isScalarReturn) {
-        const scalarDefaults = { 'Int': 1, 'Float': 1.0, 'Boolean': true, 'String': 'ok', 'ID': 'id-001' };
-        generatedData[op.name] = scalarDefaults[op.returnType] ?? 'ok';
-        continue;
+        const scalarVariants = {
+          'Int': [1, 42, 100, 0, -1, 999999, 7, 0, 50, 12345],
+          'Float': [1.0, 3.14, 99.9, 0.5, -7.77, 0.0, 42.42, 100.01, 0.001, 999.99],
+          'Boolean': [true, false, true, false, true, false, true, false, true, false],
+          'String': ['ok', 'success', 'done', 'completed', 'active', 'pending', 'error', 'cancelled', 'ready', 'paused'],
+          'ID': ['id-001', 'id-002', 'id-003', 'id-004', 'id-005', 'id-006', 'id-007', 'id-008', 'id-009', 'id-010'],
+        };
+        const variants = scalarVariants[op.returnType] || ['ok'];
+        const result = [];
+        for (let i = 0; i < samplesPerOp; i++) { result.push(variants[i % variants.length]); }
+        generatedData[op.name] = result;
+      } else {
+        nonScalarOps.push(op);
+      }
+    }
+
+    if (nonScalarOps.length > 0) {
+      const BATCH_SIZE = 5;
+      const batches = [];
+      for (let i = 0; i < nonScalarOps.length; i += BATCH_SIZE) {
+        batches.push(nonScalarOps.slice(i, i + BATCH_SIZE));
       }
 
-      const typeSchema = Object.entries(types[op.returnType]).map(([f, t]) => `  ${f}: ${t.name}${t.isList ? '[]' : ''}`).join('\n');
+      for (let bIdx = 0; bIdx < batches.length; bIdx++) {
+        const batch = batches[bIdx];
+        steps.push({ step: `Generating batch ${bIdx + 1}/${batches.length} (${batch.map(o => o.name).join(', ')})...`, status: 'running' });
 
-      const dataPrompt = `Generate mock data for the GraphQL operation "${op.name}".
-Return type: ${op.returnType}${op.isList ? ' (array)' : ''}
-Fields: ${fieldsStr || 'unknown'}
-Type structure:
-${typeSchema}
+        const opDescriptions = batch.map(op => {
+          const topFields = Object.entries(types[op.returnType] || {}).slice(0, 20)
+            .map(([f, t]) => `    ${f}: ${t.name}${t.isList ? '[]' : ''}`).join('\n');
+          return `Operation "${op.name}":
+  Return type: ${op.returnType}${op.isList ? ' (array — return 2-3 items per example)' : ''}
+  Type structure (top-level fields):
+${topFields}`;
+        }).join('\n\n');
+
+        const batchPrompt = `Generate ${samplesPerOp} DISTINCT mock data examples for each of the following GraphQL operations.
+
+${opDescriptions}
 
 User request: ${prompt || 'Generate realistic mock data'}
+${scenarioInstructions}
 
-Return JSON as: ${op.isList ? `{"${op.name}": [array of objects]}` : `{"${op.name}": {object}}`}
-Each object must include ALL the fields listed above with correct types.`;
+Return a JSON object where each key is an operation name, and its value is an ARRAY of exactly ${samplesPerOp} examples.
+For operations returning a single object, each example is one object with ALL fields populated with realistic data.
+For operations returning a list, each example is an array of 2-3 items.
+Use realistic values: real-looking UUIDs for IDs, real dates, meaningful strings, proper enums.
 
-      try {
-        const result = await callLLMWithHighTokens(SETUP_SYSTEM_PROMPT, dataPrompt, 4000);
-        generatedData[op.name] = result[op.name] || result;
-      } catch (err) {
-        generatedData[op.name] = null;
-        steps.push({ step: `Warning: failed to generate data for ${op.name}: ${err.message}`, status: 'warning' });
+Format:
+{
+  "operationName1": [example1, example2, ...],
+  "operationName2": [example1, example2, ...]
+}`;
+
+        const maxRetries = 3;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            const maxTokens = Math.min(32000, Math.max(4000, samplesPerOp * batch.length * 800));
+            const batchResult = await callLLMWithHighTokens(SETUP_SYSTEM_PROMPT, batchPrompt, maxTokens);
+            for (const op of batch) {
+              const opData = batchResult[op.name];
+              if (Array.isArray(opData) && opData.length > 0) {
+                generatedData[op.name] = opData;
+              } else if (opData) {
+                generatedData[op.name] = [opData];
+              }
+            }
+            steps[steps.length - 1] = { step: `Batch ${bIdx + 1}/${batches.length} done`, status: 'done' };
+            break;
+          } catch (err) {
+            const isRateLimit = err.message && err.message.includes('Rate limit');
+            if (isRateLimit && attempt < maxRetries) {
+              const waitMs = attempt * 15000;
+              steps.push({ step: `Rate limited, retrying in ${waitMs / 1000}s...`, status: 'warning' });
+              await new Promise(r => setTimeout(r, waitMs));
+            } else {
+              steps[steps.length - 1] = { step: `Batch ${bIdx + 1} warning: ${err.message}`, status: 'warning' };
+            }
+          }
+        }
+
+        if (bIdx < batches.length - 1) await new Promise(r => setTimeout(r, 2000));
+      }
+
+      // Smart fallback: generate realistic local mock data for any ops the LLM missed
+      for (const op of nonScalarOps) {
+        if (!generatedData[op.name]) {
+          const examples = [];
+          for (let i = 0; i < samplesPerOp; i++) {
+            const mockObj = generateMockObject(op.returnType, types, enums, 0);
+            examples.push(op.isList ? [mockObj, generateMockObject(op.returnType, types, enums, 0)] : mockObj);
+          }
+          generatedData[op.name] = examples;
+          steps.push({ step: `Smart fallback for ${op.name}`, status: 'warning' });
+        }
       }
     }
     steps[steps.length - 1].status = 'done';
 
     // Build Postman collection
     steps.push({ step: 'Building Postman collection...', status: 'running' });
-    const collection = buildAutoPostmanCollection(serviceName, operations, types, generatedData);
+    const collection = buildAutoPostmanCollection(serviceName, operations, types, generatedData, serviceVersion);
     steps[steps.length - 1].status = 'done';
 
     // Write files to artifacts
@@ -1885,13 +2729,18 @@ Each object must include ALL the fields listed above with correct types.`;
       steps[steps.length - 1] = { step: `Examples import: ${err.message}`, status: 'warning' };
     }
 
-    // Clear QUERY_ARGS dispatchers so Microcks serves examples
+    // Clear QUERY_ARGS dispatchers so Microcks serves examples (retry up to 3 times)
     steps.push({ step: 'Configuring dispatchers...', status: 'running' });
     try {
-      await new Promise(r => setTimeout(r, 5000));
-      lastFetch = 0;
-      const dispResult = await clearServiceDispatchers(serviceName);
-      steps[steps.length - 1] = { step: `Dispatchers configured (${dispResult.cleared} cleared)`, status: 'done' };
+      let totalCleared = 0;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        await new Promise(r => setTimeout(r, 5000));
+        lastFetch = 0;
+        const dispResult = await clearServiceDispatchers(serviceName);
+        totalCleared += dispResult.cleared || 0;
+        if (totalCleared > 0) break;
+      }
+      steps[steps.length - 1] = { step: `Dispatchers configured (${totalCleared} cleared)`, status: 'done' };
     } catch (err) {
       steps[steps.length - 1] = { step: `Dispatcher config: ${err.message}`, status: 'warning' };
     }
@@ -2012,6 +2861,7 @@ app.get('/', async (req, res) => {
     return `<tr><td><strong>${s.name}</strong></td><td><span class="badge event">Event</span></td><td><span class="ops-count">${s.operations?.length || 0}</span></td><td>${ops}</td></tr>`;
   }).join('\n');
 
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2082,6 +2932,17 @@ th{background:#1c2128;text-align:left;padding:.5rem .8rem;color:#8b949e;font-siz
 td{padding:.5rem .8rem;border-top:1px solid #21262d;font-size:.85rem}
 a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
 .footer-bar{background:#161b22;border-top:1px solid #21262d;padding:.4rem 1rem;font-size:.72rem;color:#484f58;display:flex;gap:1rem;align-items:center}
+.svc-btn{display:flex;align-items:center;justify-content:space-between}
+.svc-btn .svc-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:left}
+.svc-btn .svc-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.regen-icon{display:none;width:18px;height:18px;line-height:18px;text-align:center;border-radius:4px;font-size:12px;color:#8b949e;cursor:pointer;transition:all .15s}
+.svc-btn:hover .regen-icon{display:inline-block}
+.regen-icon:hover{background:#23863644;color:#3fb950}
+.regen-icon.spinning{display:inline-block;animation:spin .8s linear infinite;color:#3fb950}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+#setup-dropzone.drag-active{border-color:#3fb950 !important;background:#23863611 !important}
+.regen-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:1000;display:flex;align-items:center;justify-content:center}
+.regen-modal{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:1.5rem;width:460px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,.4)}
 </style>
 </head>
 <body>
@@ -2102,12 +2963,12 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
       ${graphqlSvcs.map(s => {
         const qc = (s.operations||[]).filter(o=>o.method==='QUERY').length;
         const mc = (s.operations||[]).filter(o=>o.method==='MUTATION').length;
-        return `<button class="svc-btn" data-svc="${s.name}" data-type="graphql" onclick="selectService('${s.name}')">${s.name}<span class="cnt">${qc}Q${mc?'/'+mc+'M':''}</span></button>`;
+        return `<button class="svc-btn" data-svc="${s.name}" data-type="graphql" onclick="selectService('${s.name}')"><span class="svc-name">${s.name}</span><span class="svc-actions"><span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService('${s.name}','graphql')">↻</span><span class="cnt">${qc}Q${mc?'/'+mc+'M':''}</span></span></button>`;
       }).join('\n')}
     </div>
     <div class="sidebar-section">
       <h3>REST APIs</h3>
-      ${restSvcs.map(s => `<button class="svc-btn" data-type="rest" onclick="showRest()">${s.name}<span class="cnt">${s.operations?.length||0}</span></button>`).join('\n')}
+      ${restSvcs.map(s => `<button class="svc-btn" data-type="rest" onclick="showRest()"><span class="svc-name">${s.name}</span><span class="svc-actions"><span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService('${s.name}','rest')">↻</span><span class="cnt">${s.operations?.length||0}</span></span></button>`).join('\n')}
     </div>
     <div class="sidebar-section">
       <h3>Event / Async</h3>
@@ -2356,34 +3217,43 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
 
     <div id="setup-view" class="rest-section">
       <h2 style="color:#c9d1d9;margin-bottom:.5rem">AI-Driven Mock Setup <span class="badge" style="background:#23863622;color:#3fb950">Auto</span></h2>
-      <p style="color:#8b949e;font-size:.85rem;margin-bottom:1.5rem">Upload a schema or describe what you want — AI generates all mock data and deploys it instantly.</p>
+      <p style="color:#8b949e;font-size:.85rem;margin-bottom:1.5rem">Upload or drop a schema file — AI generates all mock data and deploys it to Microcks instantly.</p>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
-        <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem">
-          <h3 style="color:#3fb950;font-size:.85rem;margin-bottom:.5rem">Path A: Upload Schema</h3>
-          <p style="color:#8b949e;font-size:.78rem;margin-bottom:.75rem">Paste a GraphQL SDL schema. AI will generate realistic mock data for every operation.</p>
-          <textarea id="setup-schema" placeholder="# Paste your GraphQL schema here&#10;type Query {&#10;  getGames(league: String!): [Game]&#10;}&#10;type Game {&#10;  id: ID!&#10;  name: String&#10;  score: Score&#10;}" style="width:100%;height:180px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-family:monospace;font-size:.78rem;padding:.5rem;resize:vertical"></textarea>
-        </div>
-        <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem">
-          <h3 style="color:#a371f7;font-size:.85rem;margin-bottom:.5rem">Path B: Natural Language</h3>
-          <p style="color:#8b949e;font-size:.78rem;margin-bottom:.75rem">Describe what you want. AI will generate both the schema and mock data from your prompt.</p>
-          <div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:.75rem;height:180px;display:flex;flex-direction:column;gap:.5rem">
-            <div style="color:#484f58;font-size:.72rem">Examples:</div>
-            <div onclick="document.getElementById('setup-prompt').value=this.innerText" style="color:#8b949e;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:4px;background:#21262d">Create a sports API with 10 NBA games, scores, and player stats</div>
-            <div onclick="document.getElementById('setup-prompt').value=this.innerText" style="color:#8b949e;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:4px;background:#21262d">Build a push notifications API with 5 sample notifications for NFL</div>
-            <div onclick="document.getElementById('setup-prompt').value=this.innerText" style="color:#8b949e;font-size:.78rem;cursor:pointer;padding:.25rem .5rem;border-radius:4px;background:#21262d">Generate a live scores API with 8 games across MLB and NHL</div>
-          </div>
-        </div>
+      <!-- Drag-and-drop zone -->
+      <div id="setup-dropzone" style="background:#161b22;border:2px dashed #30363d;border-radius:8px;padding:2rem;margin-bottom:1rem;text-align:center;cursor:pointer;transition:all .2s"
+        ondragover="event.preventDefault();this.style.borderColor='#3fb950';this.style.background='#23863611'"
+        ondragleave="this.style.borderColor='#30363d';this.style.background='#161b22'"
+        ondrop="handleFileDrop(event)"
+        onclick="document.getElementById('setup-file-input').click()">
+        <div style="font-size:2rem;margin-bottom:.5rem;opacity:.5">📂</div>
+        <div style="color:#c9d1d9;font-size:.85rem;font-weight:600;margin-bottom:.25rem">Drop a schema file here or click to browse</div>
+        <div style="color:#484f58;font-size:.75rem">.graphql, .gql, .json, .yaml, .yml, .txt</div>
+        <div id="setup-file-name" style="display:none;color:#3fb950;font-size:.78rem;margin-top:.5rem;font-weight:600"></div>
+        <input type="file" id="setup-file-input" accept=".graphql,.gql,.json,.yaml,.yml,.txt" style="display:none" onchange="handleFileSelect(this)">
+      </div>
+
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem">
+        <div style="flex:1;height:1px;background:#30363d"></div>
+        <span style="color:#484f58;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">or paste directly</span>
+        <div style="flex:1;height:1px;background:#30363d"></div>
       </div>
 
       <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem">
-        <div style="display:flex;gap:1rem;align-items:flex-end">
-          <div style="flex:1">
-            <label style="color:#8b949e;font-size:.78rem;display:block;margin-bottom:.35rem">Prompt / Instructions</label>
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem">
+          <h3 style="color:#3fb950;font-size:.85rem">Schema</h3>
+          <span style="color:#484f58;font-size:.72rem">Plain types, JSON, GraphQL SDL, or OpenAPI 3.x</span>
+        </div>
+        <textarea id="setup-schema" placeholder="Paste a schema here, or use the drop zone above&#10;&#10;1. Plain types:  name: string, age: int&#10;2. JSON types:   { &quot;name&quot;: &quot;string&quot; }&#10;3. GraphQL SDL:  type Query { ... }&#10;4. OpenAPI 3.x JSON/YAML" style="width:100%;height:180px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-family:monospace;font-size:.78rem;padding:.5rem;resize:vertical"></textarea>
+      </div>
+
+      <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem">
+        <div style="display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px">
+            <label style="color:#8b949e;font-size:.78rem;display:block;margin-bottom:.35rem">Prompt / Instructions <span style="color:#484f58">(optional)</span></label>
             <input id="setup-prompt" type="text" placeholder="e.g. Generate mock data for 10 games with realistic NFL scores and team names" style="width:100%;padding:.5rem;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:.85rem">
           </div>
           <div>
-            <label style="color:#8b949e;font-size:.78rem;display:block;margin-bottom:.35rem">Service Name (optional)</label>
+            <label style="color:#8b949e;font-size:.78rem;display:block;margin-bottom:.35rem">Service Name <span style="color:#484f58">(optional)</span></label>
             <input id="setup-service-name" type="text" placeholder="e.g. SportsAPI" style="width:180px;padding:.5rem;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:.85rem">
           </div>
           <button onclick="runSetup()" id="setup-deploy-btn" style="background:#238636;color:#fff;border:none;padding:.55rem 1.5rem;border-radius:6px;cursor:pointer;font-size:.85rem;font-weight:600;white-space:nowrap">Generate &amp; Deploy</button>
@@ -2477,7 +3347,7 @@ async function fetchSchema(svc) {
   try {
     const r = await fetch('/graphql/' + svc, {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({query: '{ __schema { types { name kind fields { name args { name type { name kind ofType { name kind ofType { name } } } } type { name kind ofType { name kind ofType { name kind ofType { name kind } } } } } } queryType { name } mutationType { name } } }'})
+      body: JSON.stringify({query: '{ __schema { types { name kind fields { name args { name type { name kind ofType { name kind ofType { name kind ofType { name kind } } } } } } type { name kind ofType { name kind ofType { name kind ofType { name kind ofType { name kind } } } } } } } queryType { name } mutationType { name } } }'})
     });
     const d = await r.json();
     if (d.data) { schemaCache[svc] = d.data.__schema; return d.data.__schema; }
@@ -2511,17 +3381,23 @@ function buildFieldsQuery(schema, typeName, depth = 0) {
   const parts = [];
   for (const f of t.fields.slice(0, 20)) {
     let inner = f.type;
-    while (inner.ofType) inner = inner.ofType;
+    while (inner && inner.ofType) inner = inner.ofType;
+    if (!inner || !inner.name) {
+      parts.push(f.name);
+      continue;
+    }
 
     if (inner.kind === 'SCALAR' || inner.kind === 'ENUM') {
       parts.push(f.name);
-    } else if (inner.kind === 'OBJECT' && depth < 3) {
+    } else if ((inner.kind === 'OBJECT' || inner.kind === 'INTERFACE' || inner.kind === 'UNION') && depth < 3) {
       const nested = buildFieldsQuery(schema, inner.name, depth + 1);
       if (nested) {
         parts.push(f.name + ' { ' + nested + ' }');
       } else {
         parts.push(f.name + ' { __typename }');
       }
+    } else {
+      parts.push(f.name);
     }
   }
 
@@ -2582,18 +3458,18 @@ async function selectOp(name, type) {
   const schema = await fetchSchema(currentService);
   const prefix = type === 'MUTATION' ? 'mutation ' : '';
 
+  // Fetch fields from server-side (most reliable — uses parsed .graphql files)
   let fieldsStr = null;
-  if (schema) {
+  try {
+    const fb = await fetch('/schema/query-fields?operation=' + encodeURIComponent(name));
+    const fbData = await fb.json();
+    if (fbData.fields) fieldsStr = fbData.fields;
+  } catch (_) {}
+
+  // Fallback: try client-side introspection
+  if (!fieldsStr && schema) {
     const retType = getReturnTypeName(schema, name, type);
     fieldsStr = retType ? buildFieldsQuery(schema, retType) : null;
-  }
-
-  if (!fieldsStr) {
-    try {
-      const fb = await fetch('/schema/query-fields?operation=' + encodeURIComponent(name));
-      const fbData = await fb.json();
-      if (fbData.fields) fieldsStr = fbData.fields;
-    } catch (_) {}
   }
 
   function formatFieldsStr(str) {
@@ -2602,18 +3478,29 @@ async function selectOp(name, type) {
     const tokens = str.split(/([{}])/);
     for (const tok of tokens) {
       const trimmed = tok.trim();
-      if (trimmed === '{') { result += '{\\n' + '  '.repeat(++indent); }
+      if (!trimmed) continue;
+      if (trimmed === '{') { result += ' {\\n' + '  '.repeat(++indent); }
       else if (trimmed === '}') { result += '\\n' + '  '.repeat(--indent) + '}'; }
-      else if (trimmed) { result += trimmed.split(' ').join('\\n' + '  '.repeat(indent)); }
+      else {
+        const fields = trimmed.split(/\\s+/).filter(f => f);
+        result += fields.join('\\n' + '  '.repeat(indent));
+      }
     }
     return result;
   }
 
+  // Build args string
+  let argStr = '';
+  if (schema) {
+    const a = getArgStr(schema, name, type);
+    if (a) argStr = a;
+  }
+
   if (fieldsStr) {
-    const formatted = fieldsStr.includes('{') ? formatFieldsStr(fieldsStr) : fieldsStr.split(' ').join('\\n    ');
-    editor.value = prefix + '{\\n  ' + name + ' {\\n    ' + formatted + '\\n  }\\n}';
+    const formatted = fieldsStr.includes('{') ? formatFieldsStr(fieldsStr) : fieldsStr.split(/\\s+/).filter(f=>f).join('\\n    ');
+    editor.value = prefix + '{\\n  ' + name + argStr + ' {\\n    ' + formatted + '\\n  }\\n}';
   } else {
-    editor.value = prefix + '{\\n  ' + name + '\\n}';
+    editor.value = prefix + '{\\n  ' + name + argStr + '\\n}';
   }
 
   result.textContent = 'Click Run (Cmd+Enter) to execute, or select an AI scenario and click Inject.';
@@ -3147,10 +4034,6 @@ async function inlineAIInject() {
     srcLabel.textContent = '(AI injected into Microcks)';
     srcLabel.style.color = '#a371f7';
 
-    const prefix = currentOpType === 'MUTATION' ? 'mutation ' : '';
-    const fieldsBlock = fields.length > 0 ? ' {\\n    ' + fields.join('\\n    ') + '\\n  }' : '';
-    editor.value = prefix + '{\\n  ' + currentOpName + fieldsBlock + '\\n}';
-
     await runQuery();
   } catch(e) {
     result.textContent = 'Error: ' + e.message;
@@ -3212,8 +4095,8 @@ async function runSetup() {
   const prompt = document.getElementById('setup-prompt').value.trim();
   const serviceName = document.getElementById('setup-service-name').value.trim();
 
-  if (!schema && !prompt) {
-    alert('Provide either a schema (Path A) or a prompt (Path B).');
+  if (!schema) {
+    alert('Please paste a GraphQL SDL or OpenAPI spec.');
     return;
   }
 
@@ -3261,16 +4144,26 @@ async function runSetup() {
     });
 
     resultDiv.style.display = 'block';
-    let html = '<div style="margin-bottom:.75rem"><strong>Service:</strong> ' + data.serviceName + ' &nbsp;|&nbsp; <strong>Operations:</strong> ' + data.operationCount + '</div>';
-    html += '<div style="margin-bottom:.75rem"><strong>GraphQL Endpoint:</strong> <code style="background:#21262d;padding:2px 6px;border-radius:4px;color:#58a6ff">POST ' + data.graphqlEndpoint + '</code></div>';
+    const isRest = data.schemaType === 'openapi';
+    let html = '<div style="margin-bottom:.75rem"><strong>Service:</strong> ' + data.serviceName + ' &nbsp;|&nbsp; <strong>Operations:</strong> ' + data.operationCount + ' &nbsp;|&nbsp; <strong>Type:</strong> ' + (isRest ? 'REST (OpenAPI)' : 'GraphQL') + '</div>';
+    if (isRest) {
+      html += '<div style="margin-bottom:.75rem"><strong>REST Base:</strong> <code style="background:#21262d;padding:2px 6px;border-radius:4px;color:#58a6ff">' + data.restEndpoint + '</code></div>';
+    } else {
+      html += '<div style="margin-bottom:.75rem"><strong>GraphQL Endpoint:</strong> <code style="background:#21262d;padding:2px 6px;border-radius:4px;color:#58a6ff">POST ' + data.graphqlEndpoint + '</code></div>';
+    }
     html += '<div style="margin-bottom:.5rem"><strong>Mock Routes:</strong></div>';
     html += '<div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:.5rem;max-height:200px;overflow:auto">';
     (data.mockRoutes || []).forEach(route => {
       const statusDot = route.exampleGenerated ? '<span style="color:#3fb950">●</span>' : '<span style="color:#d29922">●</span>';
-      html += '<div style="font-family:monospace;font-size:.78rem;padding:2px 0;color:#c9d1d9">' + statusDot + ' ' + route.method + ' ' + route.operation + ' → ' + route.returnType + (route.isList ? '[]' : '') + '</div>';
+      if (isRest) {
+        html += '<div style="font-family:monospace;font-size:.78rem;padding:2px 0;color:#c9d1d9">' + statusDot + ' ' + route.method + ' ' + route.path + '</div>';
+      } else {
+        html += '<div style="font-family:monospace;font-size:.78rem;padding:2px 0;color:#c9d1d9">' + statusDot + ' ' + route.method + ' ' + route.operation + ' → ' + (route.returnType || '') + (route.isList ? '[]' : '') + '</div>';
+      }
     });
     html += '</div>';
-    html += '<div style="margin-top:.75rem;font-size:.78rem;color:#8b949e">Files: <code>' + data.schemaFile + '</code>, <code>' + data.examplesFile + '</code></div>';
+    const filesArr = [data.schemaFile || data.openapiFile, data.examplesFile].filter(Boolean);
+    html += '<div style="margin-top:.75rem;font-size:.78rem;color:#8b949e">Files: ' + filesArr.map(f => '<code>' + f + '</code>').join(', ') + '</div>';
     resultContent.innerHTML = html;
 
     lastFetch = 0;
@@ -3409,6 +4302,137 @@ function aiCopyResult() {
   const text = document.getElementById('ai-result').textContent;
   navigator.clipboard.writeText(text);
   document.getElementById('ai-status').textContent = 'Copied!';
+}
+
+// ── File drag-and-drop / upload handling ──────────────────────
+
+function handleFileDrop(e) {
+  e.preventDefault();
+  const dz = document.getElementById('setup-dropzone');
+  dz.style.borderColor = '#30363d';
+  dz.style.background = '#161b22';
+  const file = e.dataTransfer.files[0];
+  if (file) readSchemaFile(file);
+}
+
+function handleFileSelect(input) {
+  const file = input.files[0];
+  if (file) readSchemaFile(file);
+}
+
+function readSchemaFile(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const content = e.target.result;
+    document.getElementById('setup-schema').value = content;
+    const fnLabel = document.getElementById('setup-file-name');
+    fnLabel.textContent = '✓ ' + file.name + ' (' + (content.length / 1024).toFixed(1) + ' KB)';
+    fnLabel.style.display = 'block';
+
+    // Auto-detect service name from filename
+    const nameInput = document.getElementById('setup-service-name');
+    if (!nameInput.value.trim()) {
+      const baseName = file.name.replace(/\\.(graphql|gql|json|yaml|yml|txt)$/i, '')
+        .replace(/[-_]+/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase()).replace(/\\s+/g, '');
+      if (baseName) nameInput.value = baseName;
+    }
+
+    // Auto-trigger generation
+    runSetup();
+  };
+  reader.readAsText(file);
+}
+
+// ── Re-generate service mock data ──────────────────────
+
+function regenService(serviceName, type) {
+  const overlay = document.createElement('div');
+  overlay.className = 'regen-modal-overlay';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = '<div class="regen-modal">'
+    + '<h3 style="color:#c9d1d9;margin:0 0 .75rem;font-size:.95rem">Re-generate: ' + serviceName + '</h3>'
+    + '<p style="color:#8b949e;font-size:.78rem;margin-bottom:1rem">AI will regenerate all mock data for this service. Optionally provide a prompt to customize the data.</p>'
+    + '<div style="margin-bottom:.75rem"><label style="color:#8b949e;font-size:.78rem;display:block;margin-bottom:.25rem">Prompt (optional)</label>'
+    + '<input id="regen-prompt" type="text" placeholder="e.g. Use NFL teams, realistic scores, 2025 season data" style="width:100%;padding:.5rem;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:.85rem;box-sizing:border-box"></div>'
+    + '<div id="regen-status" style="display:none;margin-bottom:.75rem;font-family:monospace;font-size:.78rem;color:#8b949e"></div>'
+    + '<div style="display:flex;gap:.5rem;justify-content:flex-end">'
+    + '<button onclick="this.closest(\\'.regen-modal-overlay\\').remove()" style="background:#21262d;color:#c9d1d9;border:1px solid #30363d;padding:.4rem 1rem;border-radius:6px;cursor:pointer;font-size:.82rem">Cancel</button>'
+    + '<button id="regen-go-btn" onclick="doRegen(\\'' + serviceName + '\\',\\'' + type + '\\')" style="background:#238636;color:#fff;border:none;padding:.4rem 1rem;border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:600">Re-generate</button>'
+    + '</div></div>';
+
+  document.body.appendChild(overlay);
+  setTimeout(function() { document.getElementById('regen-prompt').focus(); }, 100);
+}
+
+async function doRegen(serviceName, type) {
+  const prompt = document.getElementById('regen-prompt').value.trim();
+  const statusEl = document.getElementById('regen-status');
+  const btn = document.getElementById('regen-go-btn');
+
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  btn.style.opacity = '0.6';
+  statusEl.style.display = 'block';
+  statusEl.innerHTML = '<div style="color:#58a6ff">⏳ Finding schema for ' + serviceName + '...</div>';
+
+  // Spin the sidebar icon
+  const allIcons = document.querySelectorAll('.regen-icon');
+  let spinIcon = null;
+  allIcons.forEach(function(icon) {
+    if (icon.closest('.svc-btn') && icon.closest('.svc-btn').textContent.includes(serviceName)) {
+      icon.classList.add('spinning');
+      spinIcon = icon;
+    }
+  });
+
+  try {
+    // Find the schema file in artifacts
+    const schemaR = await fetch('/ai/service-schema?service=' + encodeURIComponent(serviceName));
+    const schemaData = await schemaR.json();
+    if (schemaData.error) throw new Error(schemaData.error);
+
+    statusEl.innerHTML += '<div style="color:#3fb950">✓ Schema loaded (' + (schemaData.schema.length/1024).toFixed(1) + ' KB)</div>';
+    statusEl.innerHTML += '<div style="color:#58a6ff">⏳ Running AI setup...</div>';
+
+    const body = { schema: schemaData.schema, serviceName: serviceName };
+    if (prompt) body.prompt = prompt;
+
+    const r = await fetch('/ai/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+
+    if (!r.ok) throw new Error(data.error || 'Setup failed');
+
+    statusEl.innerHTML = '';
+    (data.steps || []).forEach(function(s) {
+      const icon = s.status === 'done' ? '✓' : s.status === 'warning' ? '⚠' : '○';
+      const color = s.status === 'done' ? '#3fb950' : s.status === 'warning' ? '#d29922' : '#8b949e';
+      statusEl.innerHTML += '<div style="color:' + color + '">' + icon + ' ' + s.step + '</div>';
+    });
+    statusEl.innerHTML += '<div style="color:#3fb950;font-weight:600;margin-top:.5rem">✓ Done — ' + (data.operationCount || 0) + ' operations regenerated</div>';
+
+    btn.textContent = 'Done!';
+    btn.style.background = '#23863688';
+    setTimeout(function() {
+      const modal = document.querySelector('.regen-modal-overlay');
+      if (modal) modal.remove();
+    }, 2000);
+
+    // Refresh page to pick up new data
+    lastFetch = 0;
+    schemaCache = {};
+  } catch (err) {
+    statusEl.innerHTML += '<div style="color:#f85149">✗ ' + err.message + '</div>';
+    btn.disabled = false;
+    btn.textContent = 'Re-generate';
+    btn.style.opacity = '1';
+  } finally {
+    if (spinIcon) spinIcon.classList.remove('spinning');
+  }
 }
 </script>
 </body>
