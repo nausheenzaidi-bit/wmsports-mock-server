@@ -5,7 +5,6 @@ services:
     plan: free
     buildCommand: npm install --production
     startCommand: node server.cjs
-    rootDir: mock-server
     envVars:
       - key: PORT
         value: 4010
