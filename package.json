@@ -11,6 +11,8 @@
     "docker:import": "docker compose run --rm import"
   },
   "dependencies": {
+    "@faker-js/faker": "^8.4.1",
+    "@graphql-tools/mock": "^9.1.5",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "graphql": "^16.13.1",
