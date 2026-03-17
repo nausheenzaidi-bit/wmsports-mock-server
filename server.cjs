@@ -35,11 +35,21 @@ const queryFieldMap = {};
 
 function unwrapGqlType(typeNode) {
   if (!typeNode) return { name: 'Unknown', isList: false };
-  if (typeNode.kind === 'NonNullType') return unwrapGqlType(typeNode.type);
+  if (typeNode.kind === 'NonNullType') { const r = unwrapGqlType(typeNode.type); r.required = true; return r; }
   if (typeNode.kind === 'ListType') { const inner = unwrapGqlType(typeNode.type); inner.isList = true; return inner; }
   if (typeNode.kind === 'NamedType') return { name: typeNode.name.value, isList: false };
   return { name: 'Unknown', isList: false };
 }
+
+function gqlTypeStr(typeNode) {
+  if (!typeNode) return 'String';
+  if (typeNode.kind === 'NonNullType') return gqlTypeStr(typeNode.type) + '!';
+  if (typeNode.kind === 'ListType') return '[' + gqlTypeStr(typeNode.type) + ']';
+  if (typeNode.kind === 'NamedType') return typeNode.name.value;
+  return 'String';
+}
+
+const queryArgsMap = {};
 
 function loadSchemaFiles() {
   const artifactsDir = path.join(__dirname, 'artifacts');
@@ -72,6 +82,12 @@ function loadSchemaFiles() {
             for (const field of (def.fields || [])) {
               const unwrapped = unwrapGqlType(field.type);
               queryFieldMap[field.name.value] = { returnType: unwrapped.name, method: typeName === 'Query' ? 'QUERY' : 'MUTATION' };
+              const args = [];
+              for (const arg of (field.arguments || [])) {
+                const aType = unwrapGqlType(arg.type);
+                args.push({ name: arg.name.value, typeName: aType.name, isList: aType.isList, typeStr: gqlTypeStr(arg.type) });
+              }
+              if (args.length > 0) queryArgsMap[field.name.value] = args;
             }
           }
         }
@@ -1246,9 +1262,9 @@ app.post('/ai/validate', (req, res) => {
               origData = origParsed?.data?.[opName] || origParsed;
             }
           }
-        }
-      } catch (_) {}
-    }
+      }
+    } catch (_) {}
+  }
 
     // Only validate fields that were in the query (not the full schema)
     const fieldsToCheck = (queryFields && queryFields.length > 0) ? queryFields : Object.keys(respData);
@@ -1467,6 +1483,34 @@ app.get('/schema/query-fields', (req, res) => {
 
   const fieldsStr = serverBuildFieldsQuery(opInfo.returnType);
   res.json({ fields: fieldsStr, returnType: opInfo.returnType, method: opInfo.method });
+});
+
+app.get('/schema/query-variables', (req, res) => {
+  const { operation } = req.query;
+  if (!operation) return res.status(400).json({ error: 'Provide "operation" query param' });
+
+  const args = queryArgsMap[operation];
+  if (!args || args.length === 0) return res.json({ variables: {}, variableDefs: '', argumentRefs: '' });
+
+  const variables = {};
+  const listDefaults = { String: ['example'], Int: [1], Float: [1.0], ID: ['id-001'] };
+  const variableDefs = [];
+  const argumentRefs = [];
+  for (const a of args) {
+    variableDefs.push('$' + a.name + ': ' + (a.typeStr || (a.isList ? '[' + a.typeName + ']!' : a.typeName)));
+    argumentRefs.push(a.name + ': $' + a.name);
+    if (a.isList) {
+      variables[a.name] = (listDefaults[a.typeName] || ['example']);
+    } else {
+      const scalarDefaults = { String: 'example', Int: 1, Float: 1.0, Boolean: true, ID: 'id-001', Tenant: 'bleacherReport', DateTime: '2026-03-01T00:00:00Z', Date: '2026-03-01' };
+      variables[a.name] = scalarDefaults[a.typeName] ?? 'example';
+    }
+  }
+  res.json({
+    variables,
+    variableDefs: '(' + variableDefs.join(', ') + ')',
+    argumentRefs: '(' + argumentRefs.join(', ') + ')',
+  });
 });
 
 app.get('/ai/types', (req, res) => {
@@ -1843,9 +1887,9 @@ function importArtifactToMicrocks(filePath, isMain = true) {
     const url = new URL(`${MICROCKS_URL}/api/artifact/upload?mainArtifact=${mainParam}`);
     const transport = url.protocol === 'https:' ? https : http;
     const opts = {
-      hostname: url.hostname,
+    hostname: url.hostname,
       port: url.port || (url.protocol === 'https:' ? 443 : 80),
-      path: url.pathname + url.search,
+    path: url.pathname + url.search,
       method: 'POST',
       headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length },
       timeout: 60000,
@@ -3489,18 +3533,42 @@ async function selectOp(name, type) {
     return result;
   }
 
-  // Build args string
+  // Build args string — prefer variable syntax when operation has args (for Microcks dispatch matching)
   let argStr = '';
-  if (schema) {
-    const a = getArgStr(schema, name, type);
-    if (a) argStr = a;
+  let vars = {};
+  let variableDefs = '';
+  try {
+    const vRes = await fetch('/schema/query-variables?operation=' + encodeURIComponent(name));
+    const vData = await vRes.json();
+    if (vData.variableDefs && vData.argumentRefs && Object.keys(vData.variables || {}).length > 0) {
+      argStr = vData.argumentRefs;
+      vars = vData.variables;
+      variableDefs = vData.variableDefs;
+      window.__graphqlVariables = vars;
+    } else {
+      window.__graphqlVariables = null;
+      if (schema) {
+        const a = getArgStr(schema, name, type);
+        if (a) argStr = a;
+      }
+    }
+  } catch (_) {
+    window.__graphqlVariables = null;
+    if (schema) {
+      const a = getArgStr(schema, name, type);
+      if (a) argStr = a;
+    }
   }
+
+  const opPart = prefix ? prefix.trim() : 'query';
+  const queryOp = (opPart === 'mutation' ? 'mutation ' : 'query ') + name + (variableDefs ? ' ' + variableDefs : '');
+  const callPart = name + argStr;
 
   if (fieldsStr) {
     const formatted = fieldsStr.includes('{') ? formatFieldsStr(fieldsStr) : fieldsStr.split(/\\s+/).filter(f=>f).join('\\n    ');
-    editor.value = prefix + '{\\n  ' + name + argStr + ' {\\n    ' + formatted + '\\n  }\\n}';
+    editor.value = queryOp + ' {\\n  ' + callPart + ' {\\n    ' + formatted + '\\n  }\\n}';
   } else {
-    editor.value = prefix + '{\\n  ' + name + argStr + '\\n}';
+    editor.value = queryOp + ' {\\n  ' + callPart + '\\n}';
   }
 
   result.textContent = 'Click Run (Cmd+Enter) to execute, or select an AI scenario and click Inject.';
@@ -3843,10 +3911,14 @@ async function runQuery() {
 
   const query = document.getElementById('editor-query').value;
   const cleanQuery = query.replace(/^#.*\\n/gm, '').trim();
+  const body = { query: cleanQuery };
+  if (window.__graphqlVariables && Object.keys(window.__graphqlVariables).length > 0) {
+    body.variables = window.__graphqlVariables;
+  }
   try {
     const r = await fetch('/graphql/' + currentService, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({query: cleanQuery})
+      body: JSON.stringify(body)
     });
     const ms = Math.round(performance.now() - start);
     const isAI = r.headers.get('X-Source') === 'ai-override';
