@@ -1875,27 +1875,60 @@ function generateMockValue(fieldName, typeInfo, types, enums, depth = 0) {
     if (tname === 'Date' || tname === 'DateTime') {
       return faker.date.recent().toISOString();
     }
-    // String or other scalar
-    if (fn.includes('slug')) return faker.helpers.slugify(faker.lorem.word()).toLowerCase();
+    // String or other scalar — sports-aware value generation
+    if (fn.includes('date') || fn.includes('createdat') || fn.includes('updatedat') || fn.includes('startat') || fn.includes('endat') || fn.includes('startdate') || fn.includes('enddate') || fn.includes('gamedate') || fn.includes('gameenddate')) return faker.date.recent().toISOString().slice(0, -5) + 'Z';
+    if (fn.includes('slug')) return ['nfl-patriots-vs-chiefs', 'nba-lakers-vs-celtics', 'mlb-yankees-vs-dodgers', 'nfl-eagles-vs-cowboys', 'nba-warriors-vs-suns'][Math.floor(Math.random() * 5)];
     if (fn.includes('uuid') || fn.includes('taguuid')) return crypto.randomUUID();
     if (fn.includes('hash')) return crypto.randomUUID().replace(/-/g, '');
     if (fn.includes('email')) return faker.internet.email();
-    if (fn.includes('url') || fn.includes('link') || fn.includes('thumbnail')) return faker.internet.url();
-    if (fn.includes('logo') || fn.includes('image')) return faker.image.avatar();
-    if (fn.includes('name') || fn.includes('title') || fn.includes('headline')) return faker.person.fullName();
-    if (fn.includes('description') || fn.includes('commentary')) return faker.lorem.sentence();
-    if (fn.includes('team')) return generateSportsTeamName();
+    if (fn.includes('url') || fn.includes('link') || fn.includes('thumbnail') || fn.includes('permalink')) return 'https://sports.example.com/' + faker.lorem.slug();
+    if (fn.includes('logo') || fn.includes('image') || fn.includes('avatar')) return 'https://sports.example.com/logos/' + faker.lorem.slug() + '.png';
+    if (fn === 'name' || fn === 'shortname') return generateSportsTeamName();
+    if (fn.includes('title') || fn.includes('headline')) return ['NFL Week 12', 'NBA Playoffs Round 1', 'MLB World Series Game 5', 'Premier League Matchday 15'][Math.floor(Math.random() * 4)];
+    if (fn.includes('subname')) return ['Game 1 of 7', 'Conference Finals', 'Divisional Round', 'Wild Card'][Math.floor(Math.random() * 4)];
+    if (fn.includes('description') || fn.includes('commentary') || fn.includes('about')) return faker.lorem.sentence();
+    if (fn.includes('team') || fn === 'hometeam' || fn === 'awayteam') return generateSportsTeamName();
+    if (fn.includes('player') || fn === 'batter' || fn === 'pitcher') return faker.person.fullName();
     if (fn.includes('league')) return generateSportsLeague();
-    if (fn.includes('stadium') || fn.includes('venue')) return generateStadiumName();
+    if (fn.includes('stadium')) return generateStadiumName();
+    if (fn.includes('location') || fn.includes('city')) return faker.location.city();
+    if (fn.includes('state')) return faker.location.state();
+    if (fn.includes('country')) return faker.location.country();
+    if (fn.includes('zip')) return faker.location.zipCode();
+    if (fn.includes('venue')) return generateStadiumName();
     if (fn.includes('abbrev')) return ['LAL', 'GSW', 'BOS', 'MIA', 'MEM', 'PHX', 'DAL', 'DEN', 'CHI', 'NYK'][Math.floor(Math.random() * 10)];
     if (fn.includes('color')) return faker.color.rgb();
     if (fn.includes('record')) return `${faker.number.int({min:0,max:82})}-${faker.number.int({min:0,max:82})}`;
+    if (fn.includes('score') || fn.includes('mainscore') || fn.includes('secondaryscore') || fn.includes('subscore')) return String(faker.number.int({ min: 0, max: 45 }));
     if (fn.includes('market')) return faker.location.city();
     if (fn.includes('mascot')) return faker.word.adjective() + ' ' + faker.word.noun();
     if (fn.includes('status')) return generateGameStatus();
+    if (fn.includes('sport')) return ['Football', 'Basketball', 'Baseball', 'Hockey', 'Soccer'][Math.floor(Math.random() * 5)];
+    if (fn.includes('network')) return ['ESPN', 'CBS', 'FOX', 'NBC', 'TNT', 'ABC'][Math.floor(Math.random() * 6)];
+    if (fn.includes('playperiodcondensed')) return ['1st', '2nd', '3rd', '4th', 'OT', 'Half'][Math.floor(Math.random() * 6)];
+    if (fn.includes('playperiod')) return ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter', 'Halftime', 'Overtime'][Math.floor(Math.random() * 6)];
+    if (fn.includes('clock')) return `${faker.number.int({min:0,max:15})}:${String(faker.number.int({min:0,max:59})).padStart(2,'0')}`;
+    if (fn.includes('inningphase')) return ['Top', 'Bottom', 'Mid'][Math.floor(Math.random() * 3)];
+    if (fn.includes('round')) return ['Round 1', 'Round 2', 'Quarterfinals', 'Semifinals', 'Finals'][Math.floor(Math.random() * 5)];
+    if (fn.includes('weather')) return ['Sunny', 'Cloudy', 'Rainy', 'Clear', 'Partly Cloudy', 'Windy'][Math.floor(Math.random() * 6)];
+    if (fn.includes('weatheremoji')) return ['☀️', '🌤', '🌧', '🌬', '❄️', '⛅'][Math.floor(Math.random() * 6)];
+    if (fn.includes('distance')) return String(faker.number.int({min:100, max:5000}));
+    if (fn.includes('distanceunit')) return ['meters', 'miles', 'km', 'yards'][Math.floor(Math.random() * 4)];
+    if (fn.includes('laps')) return String(faker.number.int({min:1, max:200}));
+    if (fn.includes('type')) return ['Regular', 'Playoff', 'Championship', 'Exhibition'][Math.floor(Math.random() * 4)];
+    if (fn.includes('place') || fn.includes('result') || fn.includes('subresult')) return String(faker.number.int({min:1, max:20}));
+    if (fn.includes('odds')) return ['-3.5', '+7', '-110', '+150', 'EVEN'][Math.floor(Math.random() * 5)];
+    if (fn.includes('site')) return ['Home', 'Away', 'Neutral'][Math.floor(Math.random() * 3)];
+    if (fn.includes('text') || fn.includes('value')) return faker.lorem.words(3);
     if (fn.includes('language')) return ['en', 'es', 'pt', 'fr'][Math.floor(Math.random() * 4)];
+    if (fn.includes('number')) return String(faker.number.int({min:1, max:99}));
+    if (fn.includes('jsonresponse')) return JSON.stringify({ key: 'value' });
+    if (fn.includes('mediatype')) return ['image/jpeg', 'image/png', 'video/mp4'][Math.floor(Math.random() * 3)];
+    if (fn.includes('mediaurl')) return 'https://media.example.com/' + faker.lorem.slug() + '.jpg';
     if (fn === 'cursor' || fn === 'after' || fn === 'before') return Buffer.from('cursor:' + Math.floor(Math.random() * 100)).toString('base64');
-    return faker.lorem.word();
+    if (fn.includes('id') || fn.includes('foreignid') || fn.includes('cmsid') || fn.includes('editid')) return 'id-' + faker.string.alphanumeric(8);
+    if (fn.includes('code')) return faker.string.alphanumeric(6).toUpperCase();
+    return faker.lorem.words(2);
   }
 
   if (types[tname]) {
@@ -3304,6 +3337,9 @@ Format:
     fs.writeFileSync(schemaFile, finalSchema, 'utf-8');
     fs.writeFileSync(postmanFile, JSON.stringify(collection, null, 2), 'utf-8');
     steps[steps.length - 1].status = 'done';
+
+    // Reload type maps so the new service is immediately available for scoped queries
+    loadSchemaFiles();
 
     // Import to Microcks
     steps.push({ step: 'Importing schema to Microcks...', status: 'running' });
