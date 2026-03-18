@@ -43,6 +43,8 @@ function isValidJSON(str) {
 const fullTypeMap = {};
 const richTypeMap = {};
 const queryFieldMap = {};
+const serviceRichTypeMap = {};
+const queryServiceMap = {};
 
 function detectSchemaType(schema) {
   if (!schema) return 'unknown';
@@ -99,6 +101,11 @@ function loadSchemaFiles() {
   for (const file of schemaFiles) {
     try {
       const content = fs.readFileSync(path.join(artifactsDir, file), 'utf-8');
+
+      const svcMatch = content.match(/^#\s*microcksId:\s*(.+?)\s*:\s*/m);
+      const svcName = svcMatch ? svcMatch[1].trim() : null;
+      if (svcName && !serviceRichTypeMap[svcName]) serviceRichTypeMap[svcName] = {};
+
       const doc = gqlParse(content);
       for (const def of doc.definitions) {
         if (def.kind === Kind.OBJECT_TYPE_DEFINITION || def.kind === Kind.OBJECT_TYPE_EXTENSION) {
@@ -116,12 +123,18 @@ function loadSchemaFiles() {
             }
             const unwrapped = unwrapGqlType(field.type);
             richTypeMap[typeName][fname] = unwrapped;
+
+            if (svcName) {
+              if (!serviceRichTypeMap[svcName][typeName]) serviceRichTypeMap[svcName][typeName] = {};
+              serviceRichTypeMap[svcName][typeName][fname] = unwrapped;
+            }
           }
 
           if (typeName === 'Query' || typeName === 'Mutation') {
             for (const field of (def.fields || [])) {
               const unwrapped = unwrapGqlType(field.type);
               queryFieldMap[field.name.value] = { returnType: unwrapped.name, method: typeName === 'Query' ? 'QUERY' : 'MUTATION' };
+              if (svcName) queryServiceMap[field.name.value] = svcName;
               const args = [];
               for (const arg of (field.arguments || [])) {
                 const aType = unwrapGqlType(arg.type);
@@ -135,20 +148,26 @@ function loadSchemaFiles() {
     } catch (_) {}
   }
   console.log(`  Schema: ${Object.keys(fullTypeMap).length} types loaded from ${schemaFiles.length} files`);
+  console.log(`  Per-service maps: ${Object.keys(serviceRichTypeMap).length} services`);
 }
 
 const SCALAR_TYPES = new Set(['String', 'Int', 'Float', 'Boolean', 'ID', 'DateTime', 'Date', 'JSON', 'Long', 'BigDecimal', 'URL', 'URI']);
 
-function serverBuildFieldsQuery(typeName, depth = 0) {
-  if (depth > 3 || !richTypeMap[typeName]) return null;
-  const fields = richTypeMap[typeName];
+function serverBuildFieldsQuery(typeName, depth = 0, visited = new Set(), svcTypeMap = null) {
+  const typeMap = svcTypeMap || richTypeMap;
+  if (depth > 2 || !typeMap[typeName] || visited.has(typeName)) return null;
+  visited.add(typeName);
+  const fields = typeMap[typeName];
   const parts = [];
-  const entries = Object.entries(fields).slice(0, 20);
+  const maxFields = depth === 0 ? 25 : 10;
+  const entries = Object.entries(fields).slice(0, maxFields);
+  
   for (const [fname, typeInfo] of entries) {
-    if (SCALAR_TYPES.has(typeInfo.name) || !richTypeMap[typeInfo.name]) {
+    if (fname.startsWith('_')) continue;
+    if (SCALAR_TYPES.has(typeInfo.name) || !typeMap[typeInfo.name]) {
       parts.push(fname);
-    } else {
-      const nested = serverBuildFieldsQuery(typeInfo.name, depth + 1);
+    } else if (depth < 1) {
+      const nested = serverBuildFieldsQuery(typeInfo.name, depth + 1, new Set(visited), svcTypeMap);
       if (nested) {
         parts.push(fname + ' { ' + nested + ' }');
       }
@@ -315,22 +334,25 @@ function buildSelectionMap(selectionSet) {
   return Object.keys(map).length > 0 ? map : null;
 }
 
-function filterResponseBySelection(data, selectionMap) {
+function filterResponseBySelection(data, selectionMap, removedFields = []) {
   if (!selectionMap || data === null || data === undefined) return data;
   if (Array.isArray(data)) {
-    return data.map(item => filterResponseBySelection(item, selectionMap));
+    return data.map(item => filterResponseBySelection(item, selectionMap, removedFields));
   }
   if (typeof data !== 'object') return data;
 
   const filtered = {};
   for (const key of Object.keys(selectionMap)) {
+    if (removedFields.some(rf => rf.toLowerCase() === key.toLowerCase())) {
+      continue;
+    }
     const subSel = selectionMap[key];
     if (!(key in data)) {
       filtered[key] = subSel === true ? null : {};
     } else if (subSel === true) {
       filtered[key] = data[key];
     } else {
-      filtered[key] = filterResponseBySelection(data[key], subSel);
+      filtered[key] = filterResponseBySelection(data[key], subSel, removedFields);
     }
   }
   return filtered;
@@ -503,7 +525,9 @@ app.post('/graphql/:service', async (req, res) => {
 
     const parsed = JSON.parse(resp.body);
     if (parsed.data) {
-      parsed.data = filterResponseBySelection(parsed.data, selectionMap);
+      const removedKey = opName ? `${service}:${opName}` : null;
+      const removedFields = removedKey ? (aiRemovedFields[removedKey] || []) : [];
+      parsed.data = filterResponseBySelection(parsed.data, selectionMap, removedFields);
     }
     res.json(parsed);
   } catch (err) {
@@ -587,6 +611,7 @@ const AI_BASE_URL = process.env.AI_BASE_URL || 'https://api.groq.com/openai/v1';
 const AI_MODEL = process.env.AI_MODEL || 'llama-3.3-70b-versatile';
 
 const responseOverrides = {};
+const aiRemovedFields = {};
 
 async function getMicrocksServiceId(serviceName) {
   lastFetch = 0;
@@ -1153,13 +1178,33 @@ app.post('/ai/inject', async (req, res) => {
       scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
     }
 
-    const userPrompt = scenarioPrompt || prompt || '';
-    const opMsg = userPrompt + `\n\nOriginal response structure:\n${structureDesc}\n\nExample body:\n${JSON.stringify(exampleBody, null, 2).slice(0, 1500)}\n\nReturn ONLY valid JSON matching this REST response structure. Do NOT wrap in {"data": ...}.`;
+    const isCustomRestPrompt = !!prompt && !scenario;
+    const userPrompt = prompt || scenarioPrompt || '';
+    let opMsg;
+    if (isCustomRestPrompt) {
+      opMsg = `USER INSTRUCTION (follow this EXACTLY): ${userPrompt}\n\nThe response has these fields: ${fNames}.\nFollow the user instruction above precisely. If they say to remove/delete fields, those fields must be COMPLETELY ABSENT from the JSON (not null, not empty — the key itself must not exist). If they say to set fields to null, set them to null. Do exactly what is asked.\n\nOriginal response structure:\n${structureDesc}\n\nExample body:\n${JSON.stringify(exampleBody, null, 2).slice(0, 1500)}\n\nReturn ONLY valid JSON matching this REST response structure. Do NOT wrap in {"data": ...}.`;
+    } else {
+      opMsg = userPrompt + `\n\nOriginal response structure:\n${structureDesc}\n\nExample body:\n${JSON.stringify(exampleBody, null, 2).slice(0, 1500)}\n\nReturn ONLY valid JSON matching this REST response structure. Do NOT wrap in {"data": ...}.`;
+    }
 
     let aiData;
     try {
       aiData = await callLLM(REST_AI_SYSTEM_PROMPT, opMsg);
     } catch (err) { return res.status(500).json({ error: 'LLM error: ' + err.message }); }
+
+    // POST-PROCESS: If custom prompt asks to remove/delete fields, actually remove them from aiData
+    if (isCustomRestPrompt && /remove|delete|omit/i.test(userPrompt) && fieldList) {
+      const words = userPrompt.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/);
+      const toRemove = fieldList.filter(f => {
+        const fn = f.toLowerCase();
+        return words.some(w => fn.includes(w) || w.includes(fn)) || userPrompt.toLowerCase().includes(fn);
+      });
+      if (toRemove.length > 0 && typeof aiData === 'object') {
+        toRemove.forEach(field => {
+          delete aiData[field];
+        });
+      }
+    }
 
     if (!details) {
       return res.status(400).json({ error: `Could not find operation "${operation}" in ${service} examples`, preview: aiData });
@@ -1232,7 +1277,7 @@ app.post('/ai/inject', async (req, res) => {
         'boundary-values': `The query has these fields: ${fNames}. Use extreme values: 200+ char strings, -99999, MAX_INT, empty strings.`,
         'encoding-issues': `The query has these fields: ${fNames}. Put special chars: unicode, HTML entities, <script> tags, emojis.`,
         'partial-response': `The query has these fields: ${fNames}. Only include 1-2 of the ${fieldList ? fieldList.length : '?'} fields. Rest must be ABSENT.`,
-        'mixed-good-bad': `The query has these fields: ${fNames}. For roughly HALF the fields, return correct realistic values. For the OTHER HALF, mix in wrong types, null values, or missing fields. Simulate a partial regression.`,
+        'mixed-good-bad': `CRITICAL REQUIREMENT - MIXED GOOD AND BAD DATA: The query has these fields: ${fNames}. DO THIS: (1) For roughly 50% of the fields, return CORRECT, REALISTIC values that match the schema type. (2) For the OTHER 50%, intentionally introduce problems - some fields null, some empty objects {}, some WRONG types, some omitted. EXAMPLE: slug "nfl-patriots-vs-steelers" (CORRECT), status null (BROKEN), gameDate "2022-09-18" (CORRECT), scoreboard with partial data (MOSTLY CORRECT), venue {} (BROKEN), linescore null (BROKEN). Make it look like a real partial regression.`,
       };
       scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
     } else {
@@ -1240,17 +1285,55 @@ app.post('/ai/inject', async (req, res) => {
     }
   }
 
-  const userPrompt = scenarioPrompt || prompt || '';
+  const isCustomPrompt = !!(prompt && String(prompt).trim());
+  const userPrompt = prompt || scenarioPrompt || '';
   let fieldsConstraint = '';
-  if (fieldList && !['missing-fields', 'extra-fields', 'deprecated-fields', 'partial-response'].includes(scenario)) {
+  if (!isCustomPrompt && fieldList && !['missing-fields', 'extra-fields', 'deprecated-fields', 'partial-response'].includes(scenario)) {
     fieldsConstraint = `\nThe response object MUST contain ONLY these fields: ${fNames}.`;
   }
-  const opMsg = userPrompt + `\n\nSchema:\n${schemaCtx}${fieldsConstraint}\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
+
+  // Extract field names from prompt when user says "remove X and Y" / "delete X and Y"
+  let explicitNullFields = '';
+  if (isCustomPrompt && fieldList && /remove|delete|omit/i.test(userPrompt)) {
+    const words = userPrompt.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/);
+    const toNull = fieldList.filter(f => {
+      const fn = f.toLowerCase();
+      return words.some(w => fn.includes(w) || w.includes(fn)) || userPrompt.toLowerCase().includes(fn);
+    });
+    if (toNull.length > 0) {
+      explicitNullFields = `\n\nSET THESE FIELDS TO null (not empty object, not omitted): ${toNull.join(', ')}. For nested scoreboard.gameDate, set scoreboard.gameDate to null.`;
+    }
+  }
+
+  let opMsg;
+  if (isCustomPrompt) {
+    opMsg = `USER INSTRUCTION (follow this EXACTLY): ${userPrompt}\n\nThe query has these fields: ${fNames}.\nCRITICAL: Follow the user instruction above precisely. When they say "remove", "delete", or "omit" specific fields (e.g. venue, gameDate), set those fields to null — do NOT use empty objects {} or omit the keys (GraphQL requires all requested fields present). For nested fields (e.g. scoreboard.gameDate), set that nested property to null too. All other fields: return realistic values.${explicitNullFields}\n\nSchema for reference:\n${schemaCtx}\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
+  } else {
+    opMsg = userPrompt + `\n\nSchema:\n${schemaCtx}${fieldsConstraint}\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
+  }
 
   let aiData;
   try {
     aiData = await callLLM(AI_SYSTEM_PROMPT, opMsg);
   } catch (err) { return res.status(500).json({ error: 'LLM error: ' + err.message }); }
+
+  // POST-PROCESS: If custom prompt asks to remove/delete fields, actually remove them from aiData
+  if (isCustomPrompt && /remove|delete|omit/i.test(userPrompt) && fieldList) {
+    const words = userPrompt.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/);
+    const toRemove = fieldList.filter(f => {
+      const fn = f.toLowerCase();
+      return words.some(w => fn.includes(w) || w.includes(fn)) || userPrompt.toLowerCase().includes(fn);
+    });
+    console.log(`🧹 POST-PROCESS: fieldList=${JSON.stringify(fieldList)}, words=${JSON.stringify(words)}, toRemove=${JSON.stringify(toRemove)}`);
+    if (toRemove.length > 0 && aiData && aiData.data && aiData.data[operation]) {
+      toRemove.forEach(field => {
+        delete aiData.data[operation][field];
+        console.log(`  ✓ Deleted field: ${field}`);
+      });
+      aiRemovedFields[`${service}:${operation}`] = toRemove;
+      console.log(`  📝 Stored removed fields for ${service}:${operation}: ${toRemove.join(', ')}`);
+    }
+  }
 
   try {
     const uploadResult = await resetAndInjectAI(service, operation, aiData, fieldList);
@@ -1274,6 +1357,10 @@ app.post('/ai/restore', async (req, res) => {
   try {
     const result = await restoreOriginalExamples(service);
     lastFetch = 0;
+    // Clear any AI-removed fields for this service
+    for (const key of Object.keys(aiRemovedFields)) {
+      if (key.startsWith(service + ':')) delete aiRemovedFields[key];
+    }
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Restore failed: ' + err.message });
@@ -1330,13 +1417,16 @@ app.post('/ai/validate', (req, res) => {
     } catch (_) {}
   }
 
-    // Only validate fields that were in the query (not the full schema)
-    const fieldsToCheck = (queryFields && queryFields.length > 0) ? queryFields : Object.keys(respData);
+    // Unwrap arrays: compare the first item for field-level validation
+    const origItem = Array.isArray(origData) ? origData[0] : origData;
+    const respItem = Array.isArray(respData) ? respData[0] : respData;
 
-    if (origData && typeof origData === 'object') {
+    const fieldsToCheck = (queryFields && queryFields.length > 0) ? queryFields : (respItem ? Object.keys(respItem) : []);
+
+    if (origItem && typeof origItem === 'object' && respItem && typeof respItem === 'object') {
       for (const field of fieldsToCheck) {
-        const expected = origData[field];
-        const actual = respData[field];
+        const expected = origItem[field];
+        const actual = respItem[field];
 
         if (actual === undefined || actual === null) {
           if (expected !== undefined && expected !== null) {
@@ -1353,10 +1443,9 @@ app.post('/ai/validate', (req, res) => {
         }
       }
 
-      // Check for unexpected extra fields not in original
-      for (const key of Object.keys(respData)) {
-        if (!(key in origData)) {
-          violations.push({ field: key, expected: 'absent', got: describeType(respData[key]), message: `"${key}" is unexpected (not in original schema)` });
+      for (const key of Object.keys(respItem)) {
+        if (!(key in origItem)) {
+          violations.push({ field: key, expected: 'absent', got: describeType(respItem[key]), message: `"${key}" is unexpected (not in original schema)` });
         }
       }
     }
@@ -1539,14 +1628,16 @@ app.post('/async/validate', (req, res) => {
 });
 
 app.get('/schema/query-fields', (req, res) => {
-  const { operation } = req.query;
+  const { operation, service } = req.query;
   if (!operation) return res.status(400).json({ error: 'Provide "operation" query param' });
 
   const opInfo = queryFieldMap[operation];
   if (!opInfo) return res.json({ fields: null, returnType: null });
 
-  const fieldsStr = serverBuildFieldsQuery(opInfo.returnType);
-  res.json({ fields: fieldsStr, returnType: opInfo.returnType, method: opInfo.method });
+  const svcName = service || queryServiceMap[operation] || null;
+  const svcTypeMap = svcName ? serviceRichTypeMap[svcName] : null;
+  const fieldsStr = serverBuildFieldsQuery(opInfo.returnType, 0, new Set(), svcTypeMap);
+  res.json({ fields: fieldsStr, returnType: opInfo.returnType, method: opInfo.method, service: svcName });
 });
 
 app.get('/schema/query-variables', (req, res) => {
@@ -3922,7 +4013,7 @@ async function selectOp(name, type) {
   // Fetch fields from server-side (most reliable — uses parsed .graphql files)
   let fieldsStr = null;
   try {
-    const fb = await fetch('/schema/query-fields?operation=' + encodeURIComponent(name));
+    const fb = await fetch('/schema/query-fields?operation=' + encodeURIComponent(name) + '&service=' + encodeURIComponent(currentService));
     const fbData = await fb.json();
     if (fbData.fields) fieldsStr = fbData.fields;
   } catch (_) {}
