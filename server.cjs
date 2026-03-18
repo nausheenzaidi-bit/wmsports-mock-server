@@ -1938,6 +1938,25 @@ function buildFieldsForType(types, typeName, depth = 0) {
   return parts.length > 0 ? parts.join(' ') : null;
 }
 
+function buildFullTypeDesc(typeName, types, depth = 0, visited = new Set()) {
+  if (depth > 3 || !types[typeName] || visited.has(typeName)) return '';
+  visited.add(typeName);
+  const fields = types[typeName];
+  const lines = [];
+  const nested = [];
+  for (const [fname, typeInfo] of Object.entries(fields)) {
+    const typeStr = typeInfo.isList ? `[${typeInfo.name}]` : typeInfo.name;
+    lines.push(`  ${fname}: ${typeStr}`);
+    if (!SCALAR_TYPES.has(typeInfo.name) && types[typeInfo.name] && !visited.has(typeInfo.name)) {
+      const sub = buildFullTypeDesc(typeInfo.name, types, depth + 1, new Set(visited));
+      if (sub) nested.push(sub);
+    }
+  }
+  let result = `type ${typeName} {\n${lines.join('\n')}\n}`;
+  if (nested.length > 0) result += '\n' + nested.join('\n');
+  return result;
+}
+
 function buildVariablesForArgs(args) {
   const vars = {};
   for (const arg of args) {
@@ -3195,12 +3214,11 @@ Format:
         steps.push({ step: `Generating batch ${bIdx + 1}/${batches.length} (${batch.map(o => o.name).join(', ')})...`, status: 'running' });
 
         const opDescriptions = batch.map(op => {
-          const topFields = Object.entries(types[op.returnType] || {}).slice(0, 20)
-            .map(([f, t]) => `    ${f}: ${t.name}${t.isList ? '[]' : ''}`).join('\n');
+          const typeSchema = buildFullTypeDesc(op.returnType, types, 0, new Set());
           return `Operation "${op.name}":
   Return type: ${op.returnType}${op.isList ? ' (array — return 2-3 items per example)' : ''}
-  Type structure (top-level fields):
-${topFields}`;
+  Type definitions (use EXACT field names):
+${typeSchema}`;
         }).join('\n\n');
 
         const batchPrompt = `Generate ${samplesPerOp} DISTINCT mock data examples for each of the following GraphQL operations.
@@ -3209,6 +3227,11 @@ ${opDescriptions}
 
 User request: ${prompt || 'Generate realistic mock data'}
 ${scenarioInstructions}
+
+CRITICAL RULES:
+- You MUST use the EXACT field names from the type definitions above. Do NOT rename, abbreviate, or invent field names.
+- For nested types (e.g. StatsVenue, StatsScoreboard), include ALL sub-fields with realistic values — NOT null.
+- Every field in every nested object must have a realistic non-null value unless it is explicitly optional.
 
 Return a JSON object where each key is an operation name, and its value is an ARRAY of exactly ${samplesPerOp} examples.
 For operations returning a single object, each example is one object with ALL fields populated with realistic data.
