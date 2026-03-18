@@ -979,10 +979,26 @@ function extractReturnType(typeNode) {
   return null;
 }
 
-function buildTypeSchema(typeName, depth = 0) {
-  if (depth > 1 || !fullTypeMap[typeName]) return typeName;
-  const t = fullTypeMap[typeName];
-  return `type ${typeName} {\n${t.fields.map(f => '  ' + f).join('\n')}\n}`;
+function buildTypeSchema(typeName, depth = 0, visited = new Set(), svcName = null) {
+  const typeMap = (svcName && serviceRichTypeMap[svcName]) || richTypeMap;
+  if (depth > 3 || !typeMap[typeName] || visited.has(typeName)) return '';
+  visited.add(typeName);
+
+  const fields = typeMap[typeName];
+  const lines = [];
+  const nested = [];
+  for (const [fname, typeInfo] of Object.entries(fields)) {
+    if (fname.startsWith('_')) continue;
+    const typeStr = typeInfo.isList ? `[${typeInfo.name}]` : typeInfo.name;
+    lines.push(`  ${fname}: ${typeStr}`);
+    if (!SCALAR_TYPES.has(typeInfo.name) && typeMap[typeInfo.name] && !visited.has(typeInfo.name)) {
+      const sub = buildTypeSchema(typeInfo.name, depth + 1, new Set(visited), svcName);
+      if (sub) nested.push(sub);
+    }
+  }
+  let result = `type ${typeName} {\n${lines.join('\n')}\n}`;
+  if (nested.length > 0) result += '\n\n' + nested.join('\n\n');
+  return result;
 }
 
 async function callLLM(systemPrompt, userPrompt) {
@@ -999,7 +1015,7 @@ async function callLLM(systemPrompt, userPrompt) {
       { role: 'user', content: userPrompt },
     ],
     temperature: 0.7,
-    max_tokens: 2000,
+    max_tokens: 4096,
     response_format: { type: 'json_object' },
   };
   return new Promise((resolve, reject) => {
@@ -1053,6 +1069,8 @@ const AI_SYSTEM_PROMPT = `You are a mock data generator for a sports GraphQL/RES
 
 CRITICAL RULES — FOLLOW EXACTLY:
 - Return ONLY valid JSON in format: {"data": {"operationName": {fields...}}}
+- You MUST use the EXACT field names from the schema provided. Do NOT rename, abbreviate, or invent field names. If the schema says "name", use "name" — not "team", "player", "title", or any other synonym.
+- For nested types, include ALL the sub-fields defined in the schema with their correct names and types. If the schema defines "type ScoreLeaderboard { name: String, subName: String, id: String }", you MUST use those exact field names.
 - You MUST follow the scenario instructions LITERALLY. If told "wrong types", EVERY field must have the wrong type. If told "missing fields", fields must be ABSENT from the JSON. If told "null values", fields must be null. If told "empty arrays", array fields must be [].
 - Do NOT generate correct/valid data when asked for bad data. The ENTIRE POINT is to produce broken data that will cause consumer tests to fail.
 - WRONG TYPES means: use integers where strings are expected, use strings where numbers are expected, use booleans where objects are expected, use arrays where scalars are expected.
@@ -1072,7 +1090,7 @@ app.post('/ai/generate', async (req, res) => {
     const ret = getOperationReturnType(operation);
     if (ret) { targetType = ret; schemaCtx += `Operation: ${operation} → ${ret}\n`; }
   }
-  if (targetType && fullTypeMap[targetType]) schemaCtx += buildTypeSchema(targetType) + '\n';
+  if (targetType && fullTypeMap[targetType]) schemaCtx += buildTypeSchema(targetType, 0, new Set()) + '\n';
 
   const scenarioDef = scenario ? FAILURE_SCENARIOS[scenario] : null;
   const opLabel = operation || targetType || 'result';
@@ -1094,7 +1112,8 @@ app.post('/ai/override', async (req, res) => {
   let overrideData = data;
   if (!overrideData && (prompt || scenario)) {
     const retType = getOperationReturnType(operation);
-    let schemaCtx = retType ? buildTypeSchema(retType) : '';
+    const svcForSchema = queryServiceMap[operation] || service || null;
+    let schemaCtx = retType ? buildTypeSchema(retType, 0, new Set(), svcForSchema) : '';
     const fieldList = (fields && fields.length > 0) ? fields : null;
     const fNames = fieldList ? fieldList.join(', ') : 'all fields';
 
@@ -1258,7 +1277,8 @@ app.post('/ai/inject', async (req, res) => {
 
   // GraphQL inject (existing logic)
   const retType = getOperationReturnType(operation);
-  let schemaCtx = retType ? buildTypeSchema(retType) : '';
+  const svcForSchema = queryServiceMap[operation] || service || null;
+  let schemaCtx = retType ? buildTypeSchema(retType, 0, new Set(), svcForSchema) : '';
   const fieldList = (fields && fields.length > 0) ? fields : null;
   const fNames = fieldList ? fieldList.join(', ') : 'all fields';
 
@@ -1309,7 +1329,7 @@ app.post('/ai/inject', async (req, res) => {
   if (isCustomPrompt) {
     opMsg = `USER INSTRUCTION (follow this EXACTLY): ${userPrompt}\n\nThe query has these fields: ${fNames}.\nCRITICAL: Follow the user instruction above precisely. When they say "remove", "delete", or "omit" specific fields (e.g. venue, gameDate), set those fields to null — do NOT use empty objects {} or omit the keys (GraphQL requires all requested fields present). For nested fields (e.g. scoreboard.gameDate), set that nested property to null too. All other fields: return realistic values.${explicitNullFields}\n\nSchema for reference:\n${schemaCtx}\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
   } else {
-    opMsg = userPrompt + `\n\nSchema:\n${schemaCtx}${fieldsConstraint}\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
+    opMsg = userPrompt + `\n\nSchema (use EXACT field names and types below):\n${schemaCtx}${fieldsConstraint}\nCRITICAL: Every nested object must use the EXACT sub-field names from the schema above. Do NOT invent field names.\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
   }
 
   let aiData;
