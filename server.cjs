@@ -19,10 +19,11 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { parse: gqlParse, Kind } = require('graphql');
+const { parse: gqlParse, Kind, graphql: executeGraphQL } = require('graphql');
 const yaml = require('js-yaml');
 const { faker } = require('@faker-js/faker');
-const { addMocksToSchema, IMocks } = require('@graphql-tools/mock');
+const { addMocksToSchema } = require('@graphql-tools/mock');
+const { makeExecutableSchema } = require('@graphql-tools/schema');
 
 const app = express();
 app.use(cors());
@@ -1956,6 +1957,261 @@ function generateMockObject(typeName, types, enums, depth = 0) {
   return obj;
 }
 
+function nearestEnumValue(input, enumValues) {
+  if (enumValues.includes(input)) return input;
+  const lower = String(input).toLowerCase();
+  const exact = enumValues.find(v => v.toLowerCase() === lower);
+  if (exact) return exact;
+  const substring = enumValues.find(v => lower.includes(v.toLowerCase()) || v.toLowerCase().includes(lower));
+  if (substring) return substring;
+  let best = enumValues[0], bestDist = Infinity;
+  for (const v of enumValues) {
+    const a = lower, b = v.toLowerCase();
+    const m = a.length, n = b.length;
+    if (Math.abs(m - n) >= bestDist) continue;
+    const dp = Array.from({ length: m + 1 }, (_, i) => {
+      const row = new Array(n + 1);
+      row[0] = i;
+      return row;
+    });
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++)
+      for (let j = 1; j <= n; j++)
+        dp[i][j] = Math.min(dp[i-1][j] + 1, dp[i][j-1] + 1, dp[i-1][j-1] + (a[i-1] !== b[j-1] ? 1 : 0));
+    if (dp[m][n] < bestDist) { bestDist = dp[m][n]; best = v; }
+  }
+  return best;
+}
+
+function validateMockData(data, typeName, types, enums, depth = 0) {
+  if (data == null || depth > 10) return data;
+
+  if (Array.isArray(data)) {
+    return data.map(item => validateMockData(item, typeName, types, enums, depth));
+  }
+
+  if (typeof data !== 'object') {
+    if (enums[typeName]) {
+      return nearestEnumValue(data, enums[typeName]);
+    }
+    return data;
+  }
+
+  const fields = types[typeName];
+  if (!fields) return data;
+
+  const validated = {};
+  for (const [fieldName, typeInfo] of Object.entries(fields)) {
+    if (!(fieldName in data)) continue;
+    const val = data[fieldName];
+
+    if (val == null) {
+      validated[fieldName] = null;
+      continue;
+    }
+
+    if (enums[typeInfo.name]) {
+      const enumVals = enums[typeInfo.name];
+      if (typeInfo.isList && Array.isArray(val)) {
+        validated[fieldName] = val.map(v => nearestEnumValue(v, enumVals));
+      } else {
+        validated[fieldName] = nearestEnumValue(val, enumVals);
+      }
+      continue;
+    }
+
+    if (SCALAR_TYPES.has(typeInfo.name)) {
+      validated[fieldName] = typeInfo.isList ? (Array.isArray(val) ? val : [val]) : val;
+      continue;
+    }
+
+    if (types[typeInfo.name]) {
+      if (typeInfo.isList && Array.isArray(val)) {
+        validated[fieldName] = val.map(item => validateMockData(item, typeInfo.name, types, enums, depth + 1));
+      } else {
+        validated[fieldName] = validateMockData(val, typeInfo.name, types, enums, depth + 1);
+      }
+      continue;
+    }
+
+    validated[fieldName] = val;
+  }
+
+  return validated;
+}
+
+function cleanSchemaForMocking(schemaText) {
+  let s = schemaText;
+
+  s = s.replace(/^#\s*microcksId:.*$/m, '');
+
+  s = s.replace(/extend\s+schema[\s\S]*?(?=\n(?:directive|type|enum|union|interface|input|scalar)\b)/m, '');
+  s = s.replace(/^schema\s+@link[\s\S]*?\}\s*/m, '');
+
+  const fedNames = 'key|external|requires|provides|extends|inaccessible|shareable|override|tag|link|cacheControl';
+
+  s = s.replace(new RegExp('directive\\s+@(?:' + fedNames + ')\\s*\\([\\s\\S]*?\\)\\s*(?:repeatable\\s+)?on\\s+[A-Z_|\\s]+', 'g'), '');
+  s = s.replace(new RegExp('directive\\s+@(?:' + fedNames + ')\\s+(?:repeatable\\s+)?on\\s+[A-Z_|\\s]+', 'g'), '');
+
+  function stripDirectiveUsage(text) {
+    let result = '';
+    let i = 0;
+    while (i < text.length) {
+      const atIdx = text.indexOf('@', i);
+      if (atIdx === -1) { result += text.slice(i); break; }
+      result += text.slice(i, atIdx);
+      const rest = text.slice(atIdx);
+      const nameMatch = rest.match(new RegExp('^@(?:' + fedNames + ')(?=\\s|\\(|$)'));
+      if (!nameMatch) { result += '@'; i = atIdx + 1; continue; }
+      let j = nameMatch[0].length;
+      let afterName = rest.slice(j);
+      const parenStart = afterName.search(/\S/);
+      if (parenStart >= 0 && afterName[parenStart] === '(') {
+        j += parenStart + 1;
+        let depth = 1;
+        let inStr = false;
+        let pos = j;
+        while (pos < rest.length && depth > 0) {
+          const ch = rest[pos];
+          if (inStr) { if (ch === '"' && rest[pos - 1] !== '\\\\') inStr = false; }
+          else if (ch === '"') inStr = true;
+          else if (ch === '(') depth++;
+          else if (ch === ')') depth--;
+          pos++;
+        }
+        j = pos;
+      }
+      i = atIdx + j;
+    }
+    return result;
+  }
+
+  s = stripDirectiveUsage(s);
+
+  s = s.replace(/^\s*scalar\s+_FieldSet\b.*$/gm, '');
+  s = s.replace(/^\s*scalar\s+_Any\b.*$/gm, '');
+
+  s = s.replace(/^extend\s+type\b/gm, 'type');
+
+  const customScalars = new Set();
+  const builtins = new Set(['String', 'Int', 'Float', 'Boolean', 'ID', 'Query', 'Mutation', 'Subscription']);
+  const scalarRe = /(?::\s*\[?\s*)(\w+)/g;
+  let m;
+  while ((m = scalarRe.exec(s)) !== null) {
+    if (SCALAR_TYPES.has(m[1]) && !builtins.has(m[1])) customScalars.add(m[1]);
+  }
+
+  const existingScalars = new Set();
+  const existingRe = /^\s*scalar\s+(\w+)/gm;
+  while ((m = existingRe.exec(s)) !== null) existingScalars.add(m[1]);
+
+  let scalarBlock = '';
+  for (const sc of customScalars) {
+    if (!existingScalars.has(sc)) scalarBlock += `scalar ${sc}\n`;
+  }
+
+  if (!s.includes('enum CacheControlScope')) {
+    s = s.replace(/\bCacheControlScope\b/g, 'String');
+  }
+
+  s = s.replace(/\n{3,}/g, '\n\n');
+
+  return scalarBlock + s;
+}
+
+async function generateMockViaGraphQLTools(schemaText, ops, types, samplesPerOp) {
+  const cleaned = cleanSchemaForMocking(schemaText);
+  const schema = makeExecutableSchema({ typeDefs: cleaned });
+
+  const { types: parsedTypes, enums: parsedEnums } = parseGraphQLSchema(schemaText);
+
+  const mocks = {
+    Date: () => faker.date.recent().toISOString().split('T')[0],
+    DateTime: () => faker.date.recent().toISOString(),
+    JSON: () => ({ key: 'value' }),
+    Long: () => Math.floor(Math.random() * 1000000),
+    BigDecimal: () => +(Math.random() * 1000).toFixed(2),
+    URL: () => 'https://sports.example.com/' + faker.lorem.slug(),
+    URI: () => 'https://sports.example.com/' + faker.lorem.slug(),
+    _FieldSet: () => 'id',
+    _Any: () => ({ __typename: 'Mock', id: '1' }),
+    ID: () => crypto.randomUUID(),
+    Int: () => faker.number.int({ min: 0, max: 1000 }),
+    Float: () => +(Math.random() * 100).toFixed(2),
+    Boolean: () => Math.random() > 0.5,
+    String: () => faker.lorem.words(2),
+  };
+
+  for (const [typeName, fields] of Object.entries(parsedTypes)) {
+    if (typeName === 'Query' || typeName === 'Mutation' || typeName === 'Subscription') continue;
+    const scalarFields = {};
+    for (const [fieldName, typeInfo] of Object.entries(fields)) {
+      if (SCALAR_TYPES.has(typeInfo.name) || parsedEnums[typeInfo.name]) {
+        scalarFields[fieldName] = typeInfo;
+      }
+    }
+    if (Object.keys(scalarFields).length > 0) {
+      mocks[typeName] = () => {
+        const obj = {};
+        for (const [fieldName, typeInfo] of Object.entries(scalarFields)) {
+          obj[fieldName] = generateMockValue(fieldName, typeInfo, parsedTypes, parsedEnums, 3);
+        }
+        return obj;
+      };
+    }
+  }
+
+  const mockedSchema = addMocksToSchema({ schema, mocks });
+  const results = {};
+
+  function dummyArgValue(argType, depth = 0) {
+    const t = argType.name;
+    if (t === 'String') return '"mock"';
+    if (t === 'Int') return '1';
+    if (t === 'Float' || t === 'BigDecimal') return '1.0';
+    if (t === 'Boolean') return 'true';
+    if (t === 'ID') return '"mock-id"';
+    if (parsedEnums[t]) return parsedEnums[t][0];
+    if (types[t] && depth < 2) {
+      const fields = types[t];
+      const parts = Object.entries(fields).map(([fname, ftype]) => {
+        const v = ftype.isList ? `[${dummyArgValue(ftype, depth + 1)}]` : dummyArgValue(ftype, depth + 1);
+        return `${fname}: ${v}`;
+      });
+      return `{${parts.join(', ')}}`;
+    }
+    return '"mock"';
+  }
+
+  for (const op of ops) {
+    const fieldSelection = buildFieldsForType(types, op.returnType, 0);
+    if (!fieldSelection) continue;
+
+    let argStr = '';
+    if (op.args && op.args.length > 0) {
+      const argParts = op.args.map(a => {
+        const val = a.type.isList ? `[${dummyArgValue(a.type)}]` : dummyArgValue(a.type);
+        return `${a.name}: ${val}`;
+      });
+      argStr = `(${argParts.join(', ')})`;
+    }
+
+    const keyword = op.method === 'MUTATION' ? 'mutation' : 'query';
+    const queryStr = `${keyword} { ${op.name}${argStr} { ${fieldSelection} } }`;
+
+    const examples = [];
+    for (let i = 0; i < samplesPerOp; i++) {
+      const result = await executeGraphQL({ schema: mockedSchema, source: queryStr });
+      if (result.data && result.data[op.name] != null) {
+        examples.push(result.data[op.name]);
+      }
+    }
+    if (examples.length > 0) results[op.name] = examples;
+  }
+
+  return results;
+}
+
 function buildFieldsForType(types, typeName, depth = 0) {
   if (depth > 2 || !types[typeName]) return null;
   const fields = types[typeName];
@@ -3307,18 +3563,47 @@ Format:
         if (bIdx < batches.length - 1) await new Promise(r => setTimeout(r, 2000));
       }
 
-      // Smart fallback: generate realistic local mock data for any ops the LLM missed
-      for (const op of nonScalarOps) {
-        if (!generatedData[op.name]) {
-          const examples = [];
-          for (let i = 0; i < samplesPerOp; i++) {
-            const mockObj = generateMockObject(op.returnType, types, enums, 0);
-            examples.push(op.isList ? [mockObj, generateMockObject(op.returnType, types, enums, 0)] : mockObj);
+      // Smart fallback: use @graphql-tools/mock for any ops the LLM missed
+      const missingOps = nonScalarOps.filter(op => !generatedData[op.name]);
+      if (missingOps.length > 0) {
+        try {
+          const toolsMockData = await generateMockViaGraphQLTools(finalSchema, missingOps, types, samplesPerOp);
+          for (const op of missingOps) {
+            if (toolsMockData[op.name] && toolsMockData[op.name].length > 0) {
+              generatedData[op.name] = toolsMockData[op.name];
+              steps.push({ step: `graphql-tools mock for ${op.name}`, status: 'warning' });
+            }
           }
-          generatedData[op.name] = examples;
-          steps.push({ step: `Smart fallback for ${op.name}`, status: 'warning' });
+        } catch (toolsErr) {
+          steps.push({ step: `graphql-tools mock failed: ${toolsErr.message}, using faker fallback`, status: 'warning' });
+        }
+
+        // Last-resort faker fallback for any ops still missing
+        for (const op of missingOps) {
+          if (!generatedData[op.name]) {
+            const examples = [];
+            for (let i = 0; i < samplesPerOp; i++) {
+              const mockObj = generateMockObject(op.returnType, types, enums, 0);
+              examples.push(op.isList ? [mockObj, generateMockObject(op.returnType, types, enums, 0)] : mockObj);
+            }
+            generatedData[op.name] = examples;
+            steps.push({ step: `Faker fallback for ${op.name}`, status: 'warning' });
+          }
         }
       }
+    }
+    steps[steps.length - 1].status = 'done';
+
+    // Validate all generated data against the schema (strips unknown fields, fixes enums)
+    steps.push({ step: 'Validating mock data against schema...', status: 'running' });
+    for (const op of operations) {
+      if (!generatedData[op.name]) continue;
+      generatedData[op.name] = generatedData[op.name].map(sample => {
+        if (op.isList && Array.isArray(sample)) {
+          return sample.map(item => validateMockData(item, op.returnType, types, enums, 0));
+        }
+        return validateMockData(sample, op.returnType, types, enums, 0);
+      });
     }
     steps[steps.length - 1].status = 'done';
 
