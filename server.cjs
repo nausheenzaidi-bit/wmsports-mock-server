@@ -2227,22 +2227,25 @@ function buildFieldsForType(types, typeName, depth = 0) {
   return parts.length > 0 ? parts.join(' ') : null;
 }
 
-function buildFullTypeDesc(typeName, types, depth = 0, visited = new Set()) {
-  if (depth > 3 || !types[typeName] || visited.has(typeName)) return '';
+function buildFullTypeDesc(typeName, types, depth = 0, visited = null) {
+  if (!visited) visited = new Set();
+  if (depth > 2 || !types[typeName] || visited.has(typeName)) return '';
   visited.add(typeName);
   const fields = types[typeName];
   const lines = [];
-  const nested = [];
+  const queue = [];
   for (const [fname, typeInfo] of Object.entries(fields)) {
     const typeStr = typeInfo.isList ? `[${typeInfo.name}]` : typeInfo.name;
     lines.push(`  ${fname}: ${typeStr}`);
     if (!SCALAR_TYPES.has(typeInfo.name) && types[typeInfo.name] && !visited.has(typeInfo.name)) {
-      const sub = buildFullTypeDesc(typeInfo.name, types, depth + 1, new Set(visited));
-      if (sub) nested.push(sub);
+      queue.push(typeInfo.name);
     }
   }
   let result = `type ${typeName} {\n${lines.join('\n')}\n}`;
-  if (nested.length > 0) result += '\n' + nested.join('\n');
+  for (const t of queue) {
+    const sub = buildFullTypeDesc(t, types, depth + 1, visited);
+    if (sub) result += '\n' + sub;
+  }
   return result;
 }
 
@@ -3492,7 +3495,7 @@ Format:
     }
 
     if (nonScalarOps.length > 0) {
-      const BATCH_SIZE = 5;
+      const BATCH_SIZE = 8;
       const batches = [];
       for (let i = 0; i < nonScalarOps.length; i += BATCH_SIZE) {
         batches.push(nonScalarOps.slice(i, i + BATCH_SIZE));
@@ -3518,25 +3521,20 @@ User request: ${prompt || 'Generate realistic mock data'}
 ${scenarioInstructions}
 
 CRITICAL RULES:
-- You MUST use the EXACT field names from the type definitions above. Do NOT rename, abbreviate, or invent field names.
-- For nested types (e.g. StatsVenue, StatsScoreboard), include ALL sub-fields with realistic values — NOT null.
-- Every field in every nested object must have a realistic non-null value unless it is explicitly optional.
+- Use ONLY the EXACT field names from the type definitions above. Do NOT rename, abbreviate, or invent fields.
+- For circular/recursive references (e.g. Sport has leagues → League has sport → Sport), nest at most 1 level deep. Use null for deeper cycles.
+- Keep nested objects concise — include all scalar fields but limit list fields to 1 item max.
+- For operations returning a list, each example should be an array of 2 items (not more).
 
 Return a JSON object where each key is an operation name, and its value is an ARRAY of exactly ${samplesPerOp} examples.
-For operations returning a single object, each example is one object with ALL fields populated with realistic data.
-For operations returning a list, each example is an array of 2-3 items.
-Use realistic values: real-looking UUIDs for IDs, real dates, meaningful strings, proper enums.
+Use realistic sports-related values: real-looking IDs, real dates, meaningful team/league names.
 
-Format:
-{
-  "operationName1": [example1, example2, ...],
-  "operationName2": [example1, example2, ...]
-}`;
+Format: { "opName1": [example1, ...], "opName2": [example1, ...] }`;
 
         const maxRetries = 3;
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
           try {
-            const maxTokens = Math.min(32000, Math.max(4000, samplesPerOp * batch.length * 800));
+            const maxTokens = Math.min(16000, Math.max(4000, samplesPerOp * batch.length * 500));
             const batchResult = await callLLMWithHighTokens(SETUP_SYSTEM_PROMPT, batchPrompt, maxTokens);
             for (const op of batch) {
               const opData = batchResult[op.name];
