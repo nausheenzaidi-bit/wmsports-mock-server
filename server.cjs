@@ -1726,7 +1726,7 @@ app.get('/ai/types', (req, res) => {
   res.json({ types });
 });
 
-app.get('/ai/service-schema', (req, res) => {
+app.get('/ai/service-schema', async (req, res) => {
   const { service } = req.query;
   if (!service) return res.status(400).json({ error: 'Provide "service" query param' });
 
@@ -1750,12 +1750,30 @@ app.get('/ai/service-schema', (req, res) => {
     || candidates.find(f => f.includes('openapi'))
     || candidates[0];
 
-  if (!schemaFile) {
-    return res.status(404).json({ error: 'No schema file found for service: ' + service });
+  if (schemaFile) {
+    const content = fs.readFileSync(path.join(artifactsDir, schemaFile), 'utf-8');
+    return res.json({ schema: content, file: schemaFile, size: content.length });
   }
 
-  const content = fs.readFileSync(path.join(artifactsDir, schemaFile), 'utf-8');
-  res.json({ schema: content, file: schemaFile, size: content.length });
+  // Fallback: fetch schema from Microcks if no local file
+  try {
+    const svcData = await httpGet(`${MICROCKS_URL}/api/services?page=0&size=200`);
+    const services = JSON.parse(svcData);
+    const norm = service.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const svc = services.find(s => s.name === service)
+      || services.find(s => s.name.toLowerCase() === service.toLowerCase())
+      || services.find(s => s.name.toLowerCase().replace(/[^a-z0-9]/g, '') === norm);
+    if (svc) {
+      const resData = await httpGet(`${MICROCKS_URL}/api/resources/service/${svc.id}`);
+      const resources = JSON.parse(resData);
+      const gqlSchema = resources.find(r => r.type === 'GRAPHQL_SCHEMA');
+      if (gqlSchema && gqlSchema.content) {
+        return res.json({ schema: gqlSchema.content, file: `${svc.name}-schema.graphql (from Microcks)`, size: gqlSchema.content.length });
+      }
+    }
+  } catch (_) {}
+
+  return res.status(404).json({ error: 'No schema file found for service: ' + service });
 });
 
 // ── AI-Driven Mock Setup (Schema → LLM Data → Postman → Microcks) ────────
