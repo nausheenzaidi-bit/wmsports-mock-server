@@ -617,7 +617,10 @@ const aiRemovedFields = {};
 async function getMicrocksServiceId(serviceName) {
   lastFetch = 0;
   const services = await fetchMicrocksServices();
-  const svc = services.find(s => s.name === serviceName);
+  const norm = serviceName.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const svc = services.find(s => s.name === serviceName)
+    || services.find(s => s.name.toLowerCase() === serviceName.toLowerCase())
+    || services.find(s => s.name.toLowerCase().replace(/[^a-z0-9]/g, '') === norm);
   return svc ? svc.id : null;
 }
 
@@ -1238,25 +1241,51 @@ app.post('/ai/inject', async (req, res) => {
         await new Promise(r => setTimeout(r, 1000));
       }
       const mainFile = findMainArtifact(service);
-      if (!mainFile) throw new Error(`No main artifact found for ${service}`);
-
-      // Inject AI data directly into the OpenAPI spec's inline examples
-      const mainPath = path.join(artifactsDir, mainFile);
-      const ext = path.extname(mainFile).toLowerCase();
       const os = require('os');
-      let uploadPath = mainPath;
+      let uploadPath;
 
-      if (ext === '.json') {
-        const spec = JSON.parse(fs.readFileSync(mainPath, 'utf-8'));
-        const injected = injectIntoOpenApiSpec(spec, operation, aiData);
-        if (injected) {
-          uploadPath = path.join(os.tmpdir(), `ai-inject-${Date.now()}-${mainFile}`);
-          fs.writeFileSync(uploadPath, JSON.stringify(spec, null, 2));
+      if (mainFile) {
+        const mainPath = path.join(artifactsDir, mainFile);
+        const ext = path.extname(mainFile).toLowerCase();
+        uploadPath = mainPath;
+
+        if (ext === '.json') {
+          const spec = JSON.parse(fs.readFileSync(mainPath, 'utf-8'));
+          const injected = injectIntoOpenApiSpec(spec, operation, aiData);
+          if (injected) {
+            uploadPath = path.join(os.tmpdir(), `ai-inject-${Date.now()}-${mainFile}`);
+            fs.writeFileSync(uploadPath, JSON.stringify(spec, null, 2));
+          }
         }
+      } else {
+        const parts = operation.split(' ');
+        const method = (parts[0] || 'GET').toLowerCase();
+        const opPath = parts.slice(1).join(' ') || '/';
+        const spec = {
+          openapi: '3.0.0',
+          info: { title: service, version: '1.0' },
+          paths: {
+            [opPath]: {
+              [method]: {
+                operationId: operation,
+                'x-microcks-operation': { dispatcher: 'FALLBACK', dispatcherRules: '' },
+                responses: {
+                  '200': {
+                    description: 'AI-injected response',
+                    content: { 'application/json': { examples: { 'ai-injected': { value: aiData } } } }
+                  }
+                }
+              }
+            }
+          }
+        };
+        uploadPath = path.join(os.tmpdir(), `ai-inject-${Date.now()}-${service}-openapi.json`);
+        fs.writeFileSync(uploadPath, JSON.stringify(spec, null, 2));
       }
 
       importArtifactToMicrocks(uploadPath, true);
-      if (uploadPath !== mainPath) try { fs.unlinkSync(uploadPath); } catch(_) {}
+      if (mainFile && uploadPath !== path.join(artifactsDir, mainFile)) try { fs.unlinkSync(uploadPath); } catch(_) {}
+      if (!mainFile) try { fs.unlinkSync(uploadPath); } catch(_) {}
       await new Promise(r => setTimeout(r, 2000));
 
       const uploadResult = { status: 201 };
@@ -2416,7 +2445,10 @@ function clearServiceDispatchers(serviceName) {
     try {
       const data = await httpGetLong(`${MICROCKS_URL}/api/services?page=0&size=200`);
       const services = JSON.parse(data);
-      const svc = services.find(s => s.name === serviceName);
+      const norm = serviceName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const svc = services.find(s => s.name === serviceName)
+        || services.find(s => s.name.toLowerCase() === serviceName.toLowerCase())
+        || services.find(s => s.name.toLowerCase().replace(/[^a-z0-9]/g, '') === norm);
       if (!svc) { resolve({ cleared: 0 }); return; }
 
       let cleared = 0;
