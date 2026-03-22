@@ -3344,11 +3344,13 @@ if (trimmed.startsWith('{')) {
   }
 }
     // ── Plain type detection (auto-CRUD generation) ──────────────────
-    const plainTypeResult = detectAndConvertPlainType(trimmed, serviceName || reqServiceName || 'GeneratedAPI');
-    if (plainTypeResult) {
-      steps.push({ step: `Detected plain type definition, generating CRUD endpoints for "${plainTypeResult.typeName}"...`, status: 'done' });
-      finalSchema = JSON.stringify(plainTypeResult.openApiSpec, null, 2);
-      if (!serviceName) serviceName = plainTypeResult.serviceName;
+    if (schemaType !== 'graphql') {
+      const plainTypeResult = detectAndConvertPlainType(trimmed, serviceName || reqServiceName || 'GeneratedAPI');
+      if (plainTypeResult) {
+        steps.push({ step: `Detected plain type definition, generating CRUD endpoints for "${plainTypeResult.typeName}"...`, status: 'done' });
+        finalSchema = JSON.stringify(plainTypeResult.openApiSpec, null, 2);
+        if (!serviceName) serviceName = plainTypeResult.serviceName;
+      }
     }
 
     const isOpenAPI = (() => {
