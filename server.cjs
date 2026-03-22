@@ -739,17 +739,50 @@ function uploadPostmanCollection(collection) {
 
 async function resetAndInjectAI(serviceName, operationName, aiData, fields) {
   const artifactsDir = path.join(__dirname, 'artifacts');
+  const os = require('os');
 
-  // Build the Postman collection with AI data
+  // Resolve schema source before deleting
+  let schemaPath = null;
+  const mainFile = findMainArtifact(serviceName);
+  if (mainFile) {
+    schemaPath = path.join(artifactsDir, mainFile);
+  } else {
+    // Fetch schema from Microcks before we delete the service
+    try {
+      const serviceId = await getMicrocksServiceId(serviceName);
+      if (serviceId) {
+        const resData = await httpGet(`${MICROCKS_URL}/api/resources/service/${serviceId}`);
+        const resources = JSON.parse(resData);
+        const gqlSchema = resources.find(r => r.type === 'GRAPHQL_SCHEMA');
+        if (gqlSchema && gqlSchema.content) {
+          schemaPath = path.join(os.tmpdir(), `inject-schema-${Date.now()}.graphql`);
+          fs.writeFileSync(schemaPath, gqlSchema.content, 'utf-8');
+        }
+      }
+    } catch (_) {}
+  }
+
+  // Delete existing service so old examples are removed
+  const serviceId = await getMicrocksServiceId(serviceName);
+  if (serviceId) {
+    await deleteServiceFromMicrocks(serviceId);
+    await new Promise(r => setTimeout(r, 1500));
+  }
+
+  // Re-import the schema
+  if (schemaPath) {
+    importArtifactToMicrocks(schemaPath, true);
+    if (!mainFile) try { fs.unlinkSync(schemaPath); } catch(_) {}
+    await new Promise(r => setTimeout(r, 1500));
+  }
+
+  // Build and upload the Postman collection with AI-only data
   const collection = buildPostmanCollection(serviceName, operationName, aiData, fields);
-  
-  // Upload the collection directly without re-importing schema
   const uploadResult = await uploadPostmanCollection(collection);
-  
-  // Wait for Microcks to process
+
   await new Promise(r => setTimeout(r, 2000));
-  
-  // Clear dispatchers to make Microcks serve the examples
+
+  // Clear dispatchers
   lastFetch = 0;
   try {
     for (let i = 0; i < 3; i++) {
@@ -757,10 +790,8 @@ async function resetAndInjectAI(serviceName, operationName, aiData, fields) {
       const result = await clearServiceDispatchers(serviceName);
       if (result.cleared > 0) break;
     }
-  } catch (e) {
-    // Continue even if dispatcher clear fails
-  }
-  
+  } catch (e) {}
+
   return uploadResult;
 }
 
