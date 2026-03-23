@@ -602,7 +602,12 @@ app.all('/statmilk/*', (req, res) => {
 
 app.all('/api/*', (req, res) => {
   const search = req._parsedUrl.search || '';
-  proxyToMicrocks(req, res, `/api/${req.params[0]}${search}`);
+  const subPath = req.params[0] || '';
+  const statmilkPaths = ['gamecast/', 'scores/', 'standings/', 'schedules/', 'leagues', 'events/', 'games/'];
+  if (statmilkPaths.some(p => subPath.startsWith(p))) {
+    return proxyToMicrocks(req, res, `/rest/StatMilk/1.0/api/${subPath}${search}`);
+  }
+  proxyToMicrocks(req, res, `/api/${subPath}${search}`);
 });
 
 // ── AI Agent — LLM-powered mock data generation ─────────────────────────
