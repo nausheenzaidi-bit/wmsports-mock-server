@@ -311,6 +311,33 @@ function proxyToMicrocks(req, res, targetPath) {
   proxyReq.end();
 }
 
+function proxyToMicrocksAsText(req, res, targetPath) {
+  const url = new URL(targetPath, MICROCKS_URL);
+  const mod = url.protocol === 'https:' ? https : http;
+  const headers = { ...req.headers, host: url.host };
+  delete headers['content-length'];
+  const options = {
+    hostname: url.hostname, port: url.port,
+    path: url.pathname + url.search,
+    method: req.method, headers, timeout: 10000,
+  };
+  const proxyReq = mod.request(options, (proxyRes) => {
+    const chunks = [];
+    proxyRes.on('data', c => chunks.push(c));
+    proxyRes.on('end', () => {
+      const body = Buffer.concat(chunks).toString();
+      res.status(proxyRes.statusCode);
+      res.setHeader('content-type', 'text/plain');
+      res.send(body);
+    });
+  });
+  proxyReq.on('error', (err) => {
+    res.status(502).json({ error: 'Microcks proxy error', detail: err.message });
+  });
+  proxyReq.on('timeout', () => { proxyReq.destroy(); res.status(504).json({ error: 'Timeout' }); });
+  proxyReq.end();
+}
+
 // ── GraphQL field-selection filter ───────────────────────────────────────
 
 function extractSelectionSet(queryStr) {
@@ -605,6 +632,9 @@ app.all('/api/*', (req, res) => {
   const subPath = req.params[0] || '';
   const statmilkPaths = ['gamecast/', 'scores/', 'standings/', 'schedules/', 'leagues', 'events/', 'games/'];
   if (statmilkPaths.some(p => subPath.startsWith(p))) {
+    if (subPath.startsWith('scores/')) {
+      return proxyToMicrocksAsText(req, res, `/rest/StatMilk/1.0/api/${subPath}${search}`);
+    }
     return proxyToMicrocks(req, res, `/rest/StatMilk/1.0/api/${subPath}${search}`);
   }
   proxyToMicrocks(req, res, `/api/${subPath}${search}`);
