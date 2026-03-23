@@ -1341,11 +1341,6 @@ app.post('/ai/inject', async (req, res) => {
 
     try {
       const artifactsDir = path.join(__dirname, 'artifacts');
-      const serviceId = await getMicrocksServiceId(service);
-      if (serviceId) {
-        await deleteServiceFromMicrocks(serviceId);
-        await new Promise(r => setTimeout(r, 1000));
-      }
       const mainFile = findMainArtifact(service);
       const os = require('os');
       let uploadPath;
@@ -1363,30 +1358,97 @@ app.post('/ai/inject', async (req, res) => {
             fs.writeFileSync(uploadPath, JSON.stringify(spec, null, 2));
           }
         }
+
+        const serviceId = await getMicrocksServiceId(service);
+        if (serviceId) {
+          await deleteServiceFromMicrocks(serviceId);
+          await new Promise(r => setTimeout(r, 1000));
+        }
       } else {
-        const parts = operation.split(' ');
-        const method = (parts[0] || 'GET').toLowerCase();
-        const opPath = parts.slice(1).join(' ') || '/';
-        const spec = {
-          openapi: '3.0.0',
-          info: { title: service, version: '1.0' },
-          paths: {
-            [opPath]: {
-              [method]: {
-                operationId: operation,
-                'x-microcks-operation': { dispatcher: 'FALLBACK', dispatcherRules: '' },
+        // No local artifact — build a full spec from Microcks data before deleting
+        let spec = null;
+        const serviceId = await getMicrocksServiceId(service);
+        if (serviceId) {
+          try {
+            const raw = await httpGet(`${MICROCKS_URL}/api/services/${serviceId}`);
+            const data = JSON.parse(raw);
+            const svc = data.service || {};
+            const msgs = data.messagesMap || {};
+            const version = svc.version || '1.0';
+            const paths = {};
+            for (const op of (svc.operations || [])) {
+              const parts = op.name.split(' ');
+              const method = (parts[0] || 'GET').toLowerCase();
+              const opPath = parts.slice(1).join(' ') || '/';
+              const opMsgs = msgs[op.name] || [];
+              const examples = {};
+              for (const m of opMsgs) {
+                const resp = m.response || {};
+                let val;
+                try { val = JSON.parse(resp.content || '{}'); } catch (_) { val = resp.content; }
+                if (op.name === operation) val = aiData;
+                examples[resp.name || 'example-1'] = { value: val };
+              }
+              if (opMsgs.length === 0 && op.name === operation) {
+                examples['ai-injected'] = { value: aiData };
+              }
+              const opObj = {
+                operationId: op.name,
                 responses: {
                   '200': {
-                    description: 'AI-injected response',
-                    content: { 'application/json': { examples: { 'ai-injected': { value: aiData } } } }
+                    description: 'Mock response',
+                    content: { 'application/json': { examples } }
+                  }
+                }
+              };
+              if (op.dispatcher) {
+                opObj['x-microcks-operation'] = {
+                  dispatcher: op.dispatcher,
+                  dispatcherRules: op.dispatcherRules || ''
+                };
+              }
+              if (!paths[opPath]) paths[opPath] = {};
+              paths[opPath][method] = opObj;
+            }
+            spec = {
+              openapi: '3.0.0',
+              info: { title: service, version },
+              paths
+            };
+          } catch (_) {}
+        }
+
+        if (!spec) {
+          const parts = operation.split(' ');
+          const method = (parts[0] || 'GET').toLowerCase();
+          const opPath = parts.slice(1).join(' ') || '/';
+          spec = {
+            openapi: '3.0.0',
+            info: { title: service, version: '1.0' },
+            paths: {
+              [opPath]: {
+                [method]: {
+                  operationId: operation,
+                  'x-microcks-operation': { dispatcher: 'FALLBACK', dispatcherRules: '' },
+                  responses: {
+                    '200': {
+                      description: 'AI-injected response',
+                      content: { 'application/json': { examples: { 'ai-injected': { value: aiData } } } }
+                    }
                   }
                 }
               }
             }
-          }
-        };
+          };
+        }
+
         uploadPath = path.join(os.tmpdir(), `ai-inject-${Date.now()}-${service}-openapi.json`);
         fs.writeFileSync(uploadPath, JSON.stringify(spec, null, 2));
+
+        if (serviceId) {
+          await deleteServiceFromMicrocks(serviceId);
+          await new Promise(r => setTimeout(r, 1000));
+        }
       }
 
       importArtifactToMicrocks(uploadPath, true);
