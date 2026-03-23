@@ -16,6 +16,7 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const https = require('https');
+const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -323,14 +324,21 @@ function proxyToMicrocksAsText(req, res, targetPath) {
     method: req.method, headers, timeout: 10000,
   };
   const proxyReq = mod.request(options, (proxyRes) => {
+    const encoding = (proxyRes.headers['content-encoding'] || '').toLowerCase();
+    let stream = proxyRes;
+    if (encoding === 'gzip') stream = proxyRes.pipe(zlib.createGunzip());
+    else if (encoding === 'deflate') stream = proxyRes.pipe(zlib.createInflate());
+    else if (encoding === 'br') stream = proxyRes.pipe(zlib.createBrotliDecompress());
     const chunks = [];
-    proxyRes.on('data', c => chunks.push(c));
-    proxyRes.on('end', () => {
+    stream.on('data', c => chunks.push(c));
+    stream.on('end', () => {
       const body = Buffer.concat(chunks).toString();
       res.status(proxyRes.statusCode);
-      res.removeHeader('content-encoding');
       res.setHeader('content-type', 'text/plain');
       res.send(body);
+    });
+    stream.on('error', () => {
+      res.status(502).json({ error: 'Decompression error' });
     });
   });
   proxyReq.on('error', (err) => {
