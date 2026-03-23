@@ -316,6 +316,7 @@ function proxyToMicrocksAsText(req, res, targetPath) {
   const mod = url.protocol === 'https:' ? https : http;
   const headers = { ...req.headers, host: url.host };
   delete headers['content-length'];
+  delete headers['accept-encoding'];
   const options = {
     hostname: url.hostname, port: url.port,
     path: url.pathname + url.search,
@@ -327,6 +328,7 @@ function proxyToMicrocksAsText(req, res, targetPath) {
     proxyRes.on('end', () => {
       const body = Buffer.concat(chunks).toString();
       res.status(proxyRes.statusCode);
+      res.removeHeader('content-encoding');
       res.setHeader('content-type', 'text/plain');
       res.send(body);
     });
