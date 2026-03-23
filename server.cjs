@@ -1098,7 +1098,12 @@ CRITICAL RULES — FOLLOW EXACTLY:
 - MISSING FIELDS means: remove 2-3 fields entirely from the JSON object. They should NOT appear at all.
 - NULL VALUES means: set every field value to null.
 - EMPTY ARRAYS means: set any field that could be an array to [], and set string fields to "".
-- Use real sports content (NFL, NBA, MLB teams/players) when generating valid-looking values.`;
+- Use real sports content (NFL, NBA, MLB teams/players) when generating valid-looking values.
+
+NULL vs EMPTY OBJECT (CRITICAL):
+- For optional/empty nested objects (podium, race_info, score_leaderboard, ad_placement, etc.), ALWAYS use null — NEVER use an empty object {}.
+- Empty objects {} crash downstream parsers that call .map() or access nested fields. null is safely handled.
+- For empty arrays, use [] (not null).`;
 
 function getOperationReturnType(opName) {
   const artifactsDir = path.join(__dirname, 'artifacts');
@@ -1921,6 +1926,13 @@ STRUCTURE AND NAMING RULES:
 - For arrays, generate 1-2 items to show the structure without excessive data.
 - Every field in the schema must appear in the output with a realistic value of the correct type.
 - If a field name suggests a specific domain (e.g. permalink, slug), generate url-friendly kebab-case strings.
+
+NULL vs EMPTY OBJECT RULES (CRITICAL for parser compatibility):
+- If a field is optional or represents data that may not exist (e.g. podium, race_info, score_leaderboard, ad_placement), use null — NEVER use an empty object {}.
+- Empty objects {} will crash parsers that try to access nested properties. Always use null for "no data".
+- Only use {} when the schema explicitly requires a non-null object with no required fields AND the consumer code handles empty objects.
+- For arrays that have no data, use [] (empty array), not null — unless the field is truly optional.
+- When in doubt, prefer null over {}.
 
 SPORTS DOMAIN RULES:
 - Use real league names: NFL, NBA, MLB, NHL, MLS, Premier League, etc.
@@ -3074,9 +3086,13 @@ function injectExamplesIntoOpenAPI(spec, operations, generatedData) {
     const data = generatedData[op.name];
     if (!data) continue;
 
-    // Add FALLBACK dispatcher for operations with path params
+    // Add FALLBACK dispatcher so any parameter values return a response
     const pathParams = [];
     op.path.replace(/\{(\w+)\}/g, (_, name) => { pathParams.push(name); });
+    const queryParams = (op.parameters || [])
+      .filter(p => p.in === 'query')
+      .map(p => p.name);
+
     if (pathParams.length > 0) {
       methodDef['x-microcks-operation'] = {
         dispatcher: 'FALLBACK',
@@ -3085,6 +3101,20 @@ function injectExamplesIntoOpenAPI(spec, operations, generatedData) {
           dispatcherRules: pathParams.join(' && '),
           fallback: 'example-1',
         }),
+      };
+    } else if (queryParams.length > 0) {
+      methodDef['x-microcks-operation'] = {
+        dispatcher: 'FALLBACK',
+        dispatcherRules: JSON.stringify({
+          dispatcher: 'URI_PARAMS',
+          dispatcherRules: queryParams.join(' && '),
+          fallback: 'example-1',
+        }),
+      };
+    } else {
+      methodDef['x-microcks-operation'] = {
+        dispatcher: 'FALLBACK',
+        dispatcherRules: JSON.stringify({ fallback: 'example-1' }),
       };
     }
 
@@ -3099,7 +3129,7 @@ function injectExamplesIntoOpenAPI(spec, operations, generatedData) {
     if (Array.isArray(data)) {
       data.forEach((d, i) => { examples[`example-${i + 1}`] = { summary: `AI generated example ${i + 1}`, value: d }; });
     } else {
-      examples['ai-generated'] = { summary: 'AI generated example', value: data };
+      examples['example-1'] = { summary: 'AI generated example', value: data };
     }
     ct.examples = examples;
   }
