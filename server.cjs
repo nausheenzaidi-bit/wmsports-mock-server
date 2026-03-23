@@ -911,7 +911,7 @@ function getRestExampleBody(serviceName, operationName) {
   return null;
 }
 
-function getRestOperationDetails(serviceName, operationName) {
+async function getRestOperationDetails(serviceName, operationName) {
   const artifactsDir = path.join(__dirname, 'artifacts');
   const files = fs.readdirSync(artifactsDir).filter(f => f.endsWith('-examples.postman.json'));
 
@@ -936,6 +936,36 @@ function getRestOperationDetails(serviceName, operationName) {
       }
     } catch (_) {}
   }
+
+  // Fallback: fetch from Microcks when no local artifact exists
+  try {
+    const serviceId = await getMicrocksServiceId(serviceName);
+    if (serviceId) {
+      const raw = await httpGet(`${MICROCKS_URL}/api/services/${serviceId}`);
+      const data = JSON.parse(raw);
+      const svc = data.service || {};
+      const msgs = data.messagesMap || {};
+      const opMessages = msgs[operationName];
+      if (opMessages && opMessages.length > 0) {
+        const msg = opMessages[0];
+        const resp = msg.response || {};
+        const op = (svc.operations || []).find(o => o.name === operationName) || {};
+        const parts = operationName.split(' ');
+        const method = parts[0] || 'GET';
+        const opPath = parts.slice(1).join(' ') || '/';
+        let body = null;
+        try { body = JSON.parse(resp.content || '{}'); } catch (_) {}
+        return {
+          method,
+          url: `${MICROCKS_URL}/rest/${serviceName}/${svc.version || '1.0'}${opPath}`,
+          exampleName: resp.name || 'example-1',
+          statusCode: resp.status ? parseInt(resp.status, 10) : 200,
+          body,
+        };
+      }
+    }
+  } catch (_) {}
+
   return null;
 }
 
@@ -1252,7 +1282,7 @@ app.post('/ai/inject', async (req, res) => {
   const isRest = apiType === 'rest';
 
   if (isRest) {
-    const details = getRestOperationDetails(service, operation);
+    const details = await getRestOperationDetails(service, operation);
     const exampleBody = details ? details.body : null;
     const structureDesc = exampleBody ? describeJsonStructure(exampleBody) : '{}';
     const fieldList = (fields && fields.length > 0) ? fields : (exampleBody ? Object.keys(exampleBody) : []);
