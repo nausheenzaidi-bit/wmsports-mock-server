@@ -630,22 +630,42 @@ app.all('/v3/*', (req, res) => {
   proxyToMicrocks(req, res, `/rest/Census+API/1.0/v3/${req.params[0]}${search}`);
 });
 
-app.all('/statmilk/*', (req, res) => {
+app.all('/statmilk/*', async (req, res) => {
   const search = req._parsedUrl.search || '';
-  proxyToMicrocks(req, res, `/rest/StatMilk/1.0/statmilk/${req.params[0]}${search}`);
+  const svcName = await resolveStatMilkService();
+  proxyToMicrocks(req, res, `/rest/${svcName}/1.0/statmilk/${req.params[0]}${search}`);
 });
 
 // ── Microcks API proxy (for direct access) ───────────────────────────────
 
-app.all('/api/*', (req, res) => {
+let _resolvedStatMilkService = null;
+let _statMilkResolveTime = 0;
+async function resolveStatMilkService() {
+  if (_resolvedStatMilkService && Date.now() - _statMilkResolveTime < 300000) {
+    return _resolvedStatMilkService;
+  }
+  for (const candidate of ['StatMilk', 'StatMilkTest']) {
+    const id = await getMicrocksServiceId(candidate);
+    if (id) {
+      _resolvedStatMilkService = candidate;
+      _statMilkResolveTime = Date.now();
+      console.log(`[StatMilk proxy] Resolved to service: ${candidate}`);
+      return candidate;
+    }
+  }
+  return 'StatMilk';
+}
+
+app.all('/api/*', async (req, res) => {
   const search = req._parsedUrl.search || '';
   const subPath = req.params[0] || '';
   const statmilkPaths = ['gamecast/', 'scores/', 'standings/', 'schedules/', 'leagues', 'events/', 'games/'];
   if (statmilkPaths.some(p => subPath.startsWith(p))) {
+    const svcName = await resolveStatMilkService();
     if (subPath.startsWith('scores/')) {
-      return proxyToMicrocksAsText(req, res, `/rest/StatMilk/1.0/api/${subPath}${search}`);
+      return proxyToMicrocksAsText(req, res, `/rest/${svcName}/1.0/api/${subPath}${search}`);
     }
-    return proxyToMicrocks(req, res, `/rest/StatMilk/1.0/api/${subPath}${search}`);
+    return proxyToMicrocks(req, res, `/rest/${svcName}/1.0/api/${subPath}${search}`);
   }
   proxyToMicrocks(req, res, `/api/${subPath}${search}`);
 });
