@@ -2695,7 +2695,7 @@ function generateMockFromOpenAPISchema(schema, spec, depth = 0) {
         else if (fn.includes('status'))
           obj[key] = generateGameStatus();
         else if (fn.includes('abbreviation') || fn.includes('abbrev'))
-          obj[key] = faker.string.alphaNumeric(3).toUpperCase();
+          obj[key] = faker.string.alphanumeric(3).toUpperCase();
         else if (resolved.enum) 
           obj[key] = resolved.enum[Math.floor(Math.random() * resolved.enum.length)];
         else 
