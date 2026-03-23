@@ -702,15 +702,27 @@ function importArtifactToMicrocks(filePath, isMain = true) {
 function findMainArtifact(serviceName) {
   const artifactsDir = path.join(__dirname, 'artifacts');
   const norm = serviceName.toLowerCase().replace(/api$/i, '').replace(/[^a-z0-9]/g, '');
+
+  // Pass 1: exact match only
   const schemaFiles = fs.readdirSync(artifactsDir).filter(f => f.endsWith('-schema.graphql'));
   for (const file of schemaFiles) {
     const fn = file.toLowerCase().replace(/-schema\.graphql$/, '').replace(/-/g, '');
-    if (fn === norm || fn.includes(norm) || norm.includes(fn)) return file;
+    if (fn === norm) return file;
   }
   const openapiFiles = fs.readdirSync(artifactsDir).filter(f => f.endsWith('-openapi.json') || f.endsWith('-openapi.yaml'));
   for (const file of openapiFiles) {
     const fn = file.toLowerCase().replace(/-openapi\.(json|yaml)$/, '').replace(/-/g, '');
-    if (fn === norm || fn.includes(norm) || norm.includes(fn)) return file;
+    if (fn === norm) return file;
+  }
+
+  // Pass 2: substring match (but only if the normalized names are the same length to avoid cross-matching)
+  for (const file of schemaFiles) {
+    const fn = file.toLowerCase().replace(/-schema\.graphql$/, '').replace(/-/g, '');
+    if (fn.length === norm.length && (fn.includes(norm) || norm.includes(fn))) return file;
+  }
+  for (const file of openapiFiles) {
+    const fn = file.toLowerCase().replace(/-openapi\.(json|yaml)$/, '').replace(/-/g, '');
+    if (fn.length === norm.length && (fn.includes(norm) || norm.includes(fn))) return file;
   }
   return null;
 }
@@ -720,9 +732,15 @@ function findExamplesFile(serviceName) {
   const files = fs.readdirSync(artifactsDir).filter(f => f.endsWith('-examples.postman.json'));
   const norm = serviceName.toLowerCase().replace(/api$/i, '').replace(/[^a-z0-9]/g, '');
 
+  // Exact match first
   for (const file of files) {
     const fn = file.toLowerCase().replace(/-examples\.postman\.json$/, '').replace(/-/g, '');
-    if (fn === norm || fn.includes(norm) || norm.includes(fn)) return file;
+    if (fn === norm) return file;
+  }
+  // Substring match only for same-length names
+  for (const file of files) {
+    const fn = file.toLowerCase().replace(/-examples\.postman\.json$/, '').replace(/-/g, '');
+    if (fn.length === norm.length && (fn.includes(norm) || norm.includes(fn))) return file;
   }
   for (const file of files) {
     try {
