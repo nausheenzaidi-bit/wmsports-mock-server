@@ -1180,6 +1180,7 @@ async function callLLM(systemPrompt, userPrompt) {
 }
 
 const FAILURE_SCENARIOS = {
+  'success': { name: 'Success (Happy Path)', prompt: 'Generate correct, realistic data with ALL fields present, proper types, and realistic values. This should be a perfect, valid API response with no issues — real team names, correct scores, valid dates, proper nested structures, and all arrays populated with 1-2 items.' },
   'wrong-types': { name: 'Wrong Data Types', prompt: 'Generate data where field values have WRONG types: strings where numbers expected, numbers where strings expected, objects where arrays expected. Make it look like a provider API regression.' },
   'missing-fields': { name: 'Missing Required Fields', prompt: 'Generate data with several important fields completely missing (not null, but absent from the JSON). Simulate a provider removing fields in a breaking change.' },
   'null-values': { name: 'Unexpected Nulls', prompt: 'Generate data where fields that should have values are null. Simulate a database issue or incomplete data load.' },
