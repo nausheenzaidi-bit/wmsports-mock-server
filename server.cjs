@@ -1863,6 +1863,20 @@ CRITICAL RULES:
 - If asked for N examples, generate exactly N examples per operation.
 - Follow the schema types precisely: strings for String, integers for Int, etc.
 
+STRUCTURE AND NAMING RULES:
+- PRESERVE the exact field naming convention from the schema. If fields are snake_case (e.g. game_date, team_one), your output MUST use snake_case. If camelCase, use camelCase.
+- Generate ALL levels of nesting shown in the schema description. Do NOT flatten or skip nested objects.
+- For arrays, generate 1-2 items to show the structure without excessive data.
+- Every field in the schema must appear in the output with a realistic value of the correct type.
+- If a field name suggests a specific domain (e.g. permalink, slug), generate url-friendly kebab-case strings.
+
+SPORTS DOMAIN RULES:
+- Use real league names: NFL, NBA, MLB, NHL, MLS, Premier League, etc.
+- Use real team names: Kansas City Chiefs, Buffalo Bills, Golden State Warriors, etc.
+- Use realistic scores, records (e.g. "12-5"), dates, and permalinks (e.g. "kansas-city-chiefs").
+- For logo/image URLs, use placeholder URLs like "https://example.com/team-name.png".
+- For game status fields, use values like "closed", "in_progress", "scheduled".
+
 SCENARIO SUPPORT:
 When the user requests scenarios or failure cases, generate examples that match. Available scenarios:
 - "success" / "happy path": Correct, realistic data with all fields present and valid.
@@ -2669,20 +2683,52 @@ function resolveSchemaRef(ref, spec) {
   return result || {};
 }
 
-function describeSchema(schema, spec, depth = 0) {
-  if (depth > 3) return '...';
+function describeSchema(schema, spec, depth = 0, indent = '') {
+  if (depth > 6) return '...';
+  if (!schema) return 'any';
   if (schema.$ref) schema = resolveSchemaRef(schema.$ref, spec);
+  if (!schema) return 'any';
+
+  if (schema.enum) {
+    return `enum(${schema.enum.slice(0, 5).join('|')}${schema.enum.length > 5 ? '|...' : ''})`;
+  }
+
+  const typeStr = (s) => {
+    let t = s.type || 'any';
+    if (s.format) t += `(${s.format})`;
+    return t;
+  };
+
   if (schema.type === 'object' || schema.properties) {
+    const inner = indent + '  ';
     const fields = Object.entries(schema.properties || {}).map(([k, v]) => {
       if (v.$ref) v = resolveSchemaRef(v.$ref, spec);
-      return `${k}: ${v.type || 'object'}${v.items ? '[]' : ''}`;
+      if (!v) return `${inner}${k}: any`;
+      if (v.type === 'object' || v.properties) {
+        return `${inner}${k}: ${describeSchema(v, spec, depth + 1, inner)}`;
+      }
+      if (v.type === 'array' && v.items) {
+        let items = v.items.$ref ? resolveSchemaRef(v.items.$ref, spec) : v.items;
+        if (items && (items.type === 'object' || items.properties)) {
+          return `${inner}${k}: [${describeSchema(items, spec, depth + 1, inner)}]`;
+        }
+        return `${inner}${k}: ${typeStr(items || {})}[]`;
+      }
+      if (v.enum) return `${inner}${k}: ${describeSchema(v, spec, depth + 1, inner)}`;
+      return `${inner}${k}: ${typeStr(v)}`;
     });
-    return `{ ${fields.join(', ')} }`;
+    return `{\n${fields.join(',\n')}\n${indent}}`;
   }
+
   if (schema.type === 'array' && schema.items) {
-    return `[${describeSchema(schema.items, spec, depth + 1)}]`;
+    let items = schema.items.$ref ? resolveSchemaRef(schema.items.$ref, spec) : schema.items;
+    if (items && (items.type === 'object' || items.properties)) {
+      return `[${describeSchema(items, spec, depth + 1, indent)}]`;
+    }
+    return `${typeStr(items || {})}[]`;
   }
-  return schema.type || 'any';
+
+  return typeStr(schema);
 }
 
 function generateMockFromOpenAPISchema(schema, spec, depth = 0) {
@@ -3421,8 +3467,13 @@ if (trimmed.startsWith('{')) {
 
       const opDescriptions = operations.map(op => {
         const schemaDesc = describeSchema(op.responseSchema, spec);
+        let rawHint = '';
+        try {
+          const raw = JSON.stringify(op.responseSchema, null, 2);
+          if (raw.length > 20 && raw.length < 3000) rawHint = `\n  JSON Schema:\n${raw}`;
+        } catch (_) {}
         return `"${op.name}" (${op.summary || 'no summary'}):
-  Response schema: ${schemaDesc}`;
+  Response shape:\n${schemaDesc}${rawHint}`;
       }).join('\n\n');
 
       const batchPrompt = `Generate ${samplesPerOp} DISTINCT mock data examples for each of the following REST API operations.
