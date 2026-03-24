@@ -10,6 +10,11 @@
  *   - REST proxy:    /rest/:service/*  → Microcks /rest/:service/1.0/*
  *   - Health check:  /health
  *   - Fallback:      @graphql-tools/mock when Microcks is unavailable
+ *
+ * FUTURE ENHANCEMENT:
+ *   This server's mock generation logic (@faker-js/faker, @graphql-tools/mock, LLM integration)
+ *   can be extracted as an npm package to support inline mocking in resolvers, where developers
+ *   can call generateMockData() directly without endpoint changes. See ENHANCEMENT.md.
  */
 
 const express = require('express');
@@ -2801,9 +2806,11 @@ function generateMockFromOpenAPISchema(schema, spec, depth = 0) {
 
   if (schema.type === 'object' || schema.properties) {
     const obj = {};
+    const required = schema.required || [];
     for (const [key, prop] of Object.entries(schema.properties || {})) {
       const resolved = prop.$ref ? resolveSchemaRef(prop.$ref, spec) : prop;
       const fn = key.toLowerCase();
+      const isRequired = required.includes(key);
 
       if (resolved.type === 'string') {
         if (resolved.format === 'uuid' || fn === 'id' || fn.endsWith('id'))
@@ -2882,8 +2889,15 @@ function generateMockFromOpenAPISchema(schema, spec, depth = 0) {
       } else if (resolved.type === 'array') {
         obj[key] = [generateMockFromOpenAPISchema(resolved.items || {}, spec, depth + 1)];
       } else if (resolved.type === 'object' || resolved.properties) {
-        obj[key] = generateMockFromOpenAPISchema(resolved, spec, depth + 1);
-      } else {
+        const nestedObj = generateMockFromOpenAPISchema(resolved, spec, depth + 1);
+        // For optional fields, if object is empty or null, use null instead of {}
+        if (!isRequired && (!nestedObj || Object.keys(nestedObj).length === 0)) {
+          obj[key] = null;
+        } else {
+          obj[key] = nestedObj;
+        }
+      } else if (!isRequired) {
+        // For any other optional field that doesn't have a specific generator, use null
         obj[key] = null;
       }
     }
