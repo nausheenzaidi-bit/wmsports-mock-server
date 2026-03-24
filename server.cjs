@@ -1957,7 +1957,7 @@ STRUCTURE AND NAMING RULES:
 
 NULL vs EMPTY OBJECT RULES (CRITICAL for parser compatibility):
 - If a field is optional or represents data that may not exist (e.g. podium, race_info, score_leaderboard, ad_placement), use null — NEVER use an empty object {}.
-- Empty objects {} will crash parsers that try to access nested properties. Always use null for "no data".
+- Empty objects or arrays will crash parsers that try to access nested properties. Always use null for "no data".
 - Only use {} when the schema explicitly requires a non-null object with no required fields AND the consumer code handles empty objects.
 - For arrays that have no data, use [] (empty array), not null — unless the field is truly optional.
 - When in doubt, prefer null over {}.
