@@ -4367,7 +4367,6 @@ function hideAll() {
   document.getElementById('rest-view').classList.remove('active');
   document.getElementById('event-view').classList.remove('active');
   document.getElementById('routes-view').classList.remove('active');
-  document.getElementById('ai-view').classList.remove('active');
   document.getElementById('setup-view').classList.remove('active');
   document.querySelectorAll('.svc-btn').forEach(b => b.classList.remove('active'));
 }
