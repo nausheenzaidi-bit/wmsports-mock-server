@@ -1,0 +1,574 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "StatMilk REST API - Schema Only",
+    "version": "1.0",
+    "description": "StatMilk REST API endpoints with datatypes (no example values)"
+  },
+  "paths": {
+    "/api/scores/schedules": {
+      "get": {
+        "summary": "Get Scores and Schedules",
+        "operationId": "getScores",
+        "parameters": [
+          {
+            "name": "league",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scores response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "surrogate_keys": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "name": { "type": "string" }
+                        }
+                      }
+                    },
+                    "success": { "type": "boolean" },
+                    "sport": { "type": "string" },
+                    "site": { "type": "string" },
+                    "calendar_navigation": {
+                      "type": "object",
+                      "properties": {
+                        "previous": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string" },
+                              "href": { "type": "string" },
+                              "query_parameters": { "type": "object" }
+                            }
+                          }
+                        },
+                        "current": {
+                          "type": "object",
+                          "properties": {
+                            "name": { "type": "string" },
+                            "href": { "type": "string" },
+                            "query_parameters": { "type": "object" }
+                          }
+                        },
+                        "next": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string" },
+                              "href": { "type": "string" },
+                              "query_parameters": { "type": "object" }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "leagues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "league": { "type": "integer" },
+                          "name": { "type": "string" },
+                          "current": { "type": "boolean" },
+                          "permalink": { "type": "string" },
+                          "query_parameters": { "type": "object" },
+                          "children": { "type": "array" }
+                        }
+                      }
+                    },
+                    "game_groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "current": { "type": "boolean" },
+                          "name": { "type": "string" },
+                          "events": { "type": "array" },
+                          "games": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": { "type": "string" },
+                                "name": { "type": "string" },
+                                "game_date": { "type": "string", "format": "date-time" },
+                                "sport": { "type": "string" },
+                                "site": { "type": "string" },
+                                "league": { "type": "string" },
+                                "status": { "type": "string" },
+                                "gamecast": { "type": "string" },
+                                "current": { "type": "boolean" },
+                                "team_one": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": { "type": "string" },
+                                    "short_name": { "type": "string" },
+                                    "abbrev": { "type": "string" },
+                                    "is_winner": { "type": "boolean" },
+                                    "logo": { "type": "string" },
+                                    "main_score": { "type": "string" },
+                                    "record": { "type": "string" },
+                                    "colors": { "type": "array", "items": { "type": "string" } },
+                                    "permalink": { "type": "string" }
+                                  }
+                                },
+                                "team_two": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": { "type": "string" },
+                                    "short_name": { "type": "string" },
+                                    "abbrev": { "type": "string" },
+                                    "is_winner": { "type": "boolean" },
+                                    "logo": { "type": "string" },
+                                    "main_score": { "type": "string" },
+                                    "record": { "type": "string" },
+                                    "colors": { "type": "array", "items": { "type": "string" } },
+                                    "permalink": { "type": "string" }
+                                  }
+                                },
+                                "progress": {
+                                  "type": "object",
+                                  "properties": {
+                                    "network": { "type": "string" },
+                                    "play_period": { "type": "string" },
+                                    "clock": { "type": ["string", "null"] },
+                                    "round": { "type": "string" }
+                                  }
+                                },
+                                "game_state": { "type": ["object", "null"] },
+                                "meta_data": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": { "type": "string" },
+                                    "status": { "type": "string" },
+                                    "start_date": { "type": "string", "format": "date" },
+                                    "end_date": { "type": "string", "format": "date" }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "betting_link": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "success": { "type": "boolean" },
+                        "cta_text": { "type": "string" },
+                        "logo": { "type": "string" },
+                        "click_url": { "type": "string" },
+                        "partner": { "type": "string" },
+                        "betting": { "type": "boolean" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gamecast/{permalink}": {
+      "get": {
+        "summary": "Get Gamecast Details",
+        "operationId": "getGamecast",
+        "parameters": [
+          {
+            "name": "permalink",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Gamecast response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "update_date": { "type": "string", "format": "date-time" },
+                    "processing_time": { "type": "string" },
+                    "success": { "type": "boolean" },
+                    "sport": { "type": "string" },
+                    "title": { "type": "string" },
+                    "site": { "type": "string" },
+                    "league": { "type": "string" },
+                    "status": { "type": "string" },
+                    "game_date": { "type": "string", "format": "date-time" },
+                    "scoreboard": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "game_date": { "type": "string", "format": "date-time" },
+                        "permalink": { "type": "string" },
+                        "status": { "type": "string" },
+                        "team_one": {
+                          "type": "object",
+                          "properties": {
+                            "name": { "type": "string" },
+                            "short_name": { "type": "string" },
+                            "abbrev": { "type": "string" },
+                            "is_winner": { "type": "boolean" },
+                            "logo": { "type": "string" },
+                            "score": { "type": "string" },
+                            "record": { "type": "string" },
+                            "colors": { "type": "array", "items": { "type": "string" } },
+                            "permalink": { "type": "string" }
+                          }
+                        },
+                        "team_two": {
+                          "type": "object",
+                          "properties": {
+                            "name": { "type": "string" },
+                            "short_name": { "type": "string" },
+                            "abbrev": { "type": "string" },
+                            "is_winner": { "type": "boolean" },
+                            "logo": { "type": "string" },
+                            "score": { "type": "string" },
+                            "record": { "type": "string" },
+                            "colors": { "type": "array", "items": { "type": "string" } },
+                            "permalink": { "type": "string" }
+                          }
+                        },
+                        "progress": {
+                          "type": "object",
+                          "properties": {
+                            "network": { "type": "string" },
+                            "play_period": { "type": "string" },
+                            "play_period_condensed": { "type": ["string", "null"] },
+                            "clock": { "type": ["string", "null"] },
+                            "round": { "type": "string" }
+                          }
+                        }
+                      }
+                    },
+                    "linescore": {
+                      "type": "object",
+                      "properties": {
+                        "title": { "type": "string" },
+                        "team_one": {
+                          "type": "object",
+                          "properties": {
+                            "name": { "type": "string" },
+                            "logo": { "type": "string" },
+                            "colors": { "type": "array", "items": { "type": "string" } },
+                            "record": { "type": "string" },
+                            "values": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "value": { "type": "string" }
+                                }
+                              }
+                            },
+                            "summary_values": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "value": { "type": "string" }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "team_two": {
+                          "type": "object",
+                          "properties": {
+                            "name": { "type": "string" },
+                            "logo": { "type": "string" },
+                            "colors": { "type": "array", "items": { "type": "string" } },
+                            "record": { "type": "string" },
+                            "values": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "value": { "type": "string" }
+                                }
+                              }
+                            },
+                            "summary_values": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "value": { "type": "string" }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "headers": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "value": { "type": "string" }
+                            }
+                          }
+                        },
+                        "summary_headers": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "value": { "type": "string" }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "match_info_v2": {
+                      "type": "object",
+                      "properties": {
+                        "stadium": { "type": "string" },
+                        "location": { "type": "string" },
+                        "weather_primary": { "type": "string" },
+                        "weather_secondary": { "type": "string" },
+                        "weather_emoji": { "type": "string" }
+                      }
+                    },
+                    "score_leaderboard": { "type": ["object", "null"] },
+                    "race_info": { "type": ["object", "null"] },
+                    "podium": { "type": ["object", "null"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/standings/{permalink}": {
+      "get": {
+        "summary": "Get Standings",
+        "operationId": "getStandings",
+        "parameters": [
+          {
+            "name": "permalink",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Standings response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "permalink": { "type": "string" },
+                    "season": { "type": "integer" },
+                    "name": { "type": "string" },
+                    "sport": { "type": "string" },
+                    "league": { "type": "string" },
+                    "standings_groupings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "title": { "type": "string" },
+                          "entries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "title": { "type": "string" },
+                                "teams": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": { "type": "string" },
+                                      "logo": { "type": "string" },
+                                      "slug": { "type": "string" },
+                                      "permalink": { "type": "string" },
+                                      "values": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "value": { "type": "string" }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "headers": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": { "type": "string" }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/standings/gamecast/{permalink}": {
+      "get": {
+        "summary": "Get Standings by Gamecast Slug",
+        "operationId": "getStandingsByGamecastSlug",
+        "parameters": [
+          {
+            "name": "permalink",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Standings gamecast response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "permalink": { "type": "string" },
+                    "season": { "type": "integer" },
+                    "name": { "type": "string" },
+                    "standings_groupings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "title": { "type": "string" },
+                          "entries": { "type": "array" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schedules/{slug}": {
+      "get": {
+        "summary": "Get Schedule",
+        "operationId": "getSchedule",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schedule response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "permalink": { "type": "string" },
+                    "season": { "type": "integer" },
+                    "name": { "type": "string" },
+                    "league": { "type": "string" },
+                    "schedule_groupings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "title": { "type": "string" },
+                          "current": { "type": "boolean" },
+                          "link": {
+                            "type": "object",
+                            "properties": {
+                              "title": { "type": "string" },
+                              "type": { "type": "string" },
+                              "value": { "type": "string" }
+                            }
+                          },
+                          "entries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "current": { "type": "boolean" },
+                                "date": { "type": "string" },
+                                "home_away": { "type": "string" },
+                                "opponent": { "type": "string" },
+                                "opponent_logo": { "type": "string" },
+                                "result_description": { "type": "string" },
+                                "result_code": {
+                                  "type": "object",
+                                  "properties": {
+                                    "color": { "type": "string" },
+                                    "value": { "type": "string" }
+                                  }
+                                },
+                                "gamecast_permalink": { "type": "string" },
+                                "status": { "type": "string" },
+                                "iso_utc_datetime": { "type": "string", "format": "date-time" },
+                                "start_time_tbd": { "type": "boolean" },
+                                "location": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": { "type": "string" },
+                                    "city": { "type": "string" },
+                                    "state": { "type": "string" },
+                                    "country": { "type": "string" }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "ad_placement": { "type": "array" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

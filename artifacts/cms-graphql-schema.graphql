@@ -1,0 +1,20 @@
+type Query {
+  getTagByUUID(uuid: String!, tenant: Tenant!): Tag
+}
+
+enum Tenant {
+  bleacherReport
+  other
+}
+
+type Tag {
+  tenant: String
+  uuid: String
+  slug: String
+  type: String
+  parent: ParentTag
+}
+
+type ParentTag {
+  slug: String
+}
