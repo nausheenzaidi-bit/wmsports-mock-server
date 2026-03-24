@@ -434,8 +434,19 @@ async function getServiceSchema(service) {
   if (cached && Date.now() - cached.ts < SCHEMA_CACHE_TTL) return cached.schema;
 
   try {
+    // Look up actual service version
+    let serviceVersion = '1.0';
+    try {
+      const data = await httpGet(`${MICROCKS_URL}/api/services?page=0&size=200`);
+      const services = JSON.parse(data);
+      const svc = services.find(s => s.name.toLowerCase() === service.toLowerCase());
+      if (svc) serviceVersion = svc.version;
+    } catch (e) {
+      // Fall back to 1.0
+    }
+    
     const introspectionQuery = '{ __schema { types { name kind fields { name type { name kind ofType { name kind ofType { name kind ofType { name kind } } } } } } queryType { name } mutationType { name } } }';
-    const resp = await fetchFromMicrocks(`/graphql/${service}/1.0`, { query: introspectionQuery });
+    const resp = await fetchFromMicrocks(`/graphql/${service}/${serviceVersion}`, { query: introspectionQuery });
     if (resp.status === 200) {
       const parsed = JSON.parse(resp.body);
       if (parsed.data && parsed.data.__schema) {
@@ -512,7 +523,19 @@ function extractOperationName(queryStr) {
 
 app.post('/graphql/:service', async (req, res) => {
   const service = req.params.service;
-  const microcksPath = `/graphql/${service}/1.0`;
+  
+  // Look up the actual service version from Microcks
+  let serviceVersion = '1.0';
+  try {
+    const data = await httpGet(`${MICROCKS_URL}/api/services?page=0&size=200`);
+    const services = JSON.parse(data);
+    const svc = services.find(s => s.name.toLowerCase() === service.toLowerCase());
+    if (svc) serviceVersion = svc.version;
+  } catch (e) {
+    // Fall back to 1.0 if lookup fails
+  }
+  
+  const microcksPath = `/graphql/${service}/${serviceVersion}`;
   const queryStr = req.body?.query || '';
 
   if (queryStr.includes('__schema') || queryStr.includes('__type')) {
