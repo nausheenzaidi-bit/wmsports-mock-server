@@ -4108,10 +4108,6 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
         Mock API Routes
         <span class="cnt" style="background:#1f6feb22;color:#58a6ff">URLs</span>
       </button>
-      <button class="svc-btn" data-type="ai" onclick="showAI()" style="color:#a371f7;font-weight:600">
-        ⚡ AI Agent
-        <span class="cnt" style="background:#8957e522;color:#a371f7">LLM</span>
-      </button>
       <button class="svc-btn" data-type="setup" onclick="showSetup()" style="color:#3fb950;font-weight:600">
         ⚙ AI Setup
         <span class="cnt" style="background:#23863622;color:#3fb950">New</span>
@@ -5183,14 +5179,6 @@ async function inlineAIClear() {
   }
 }
 
-function showAI() {
-  hideAll();
-  document.getElementById('ai-view').classList.add('active');
-  document.querySelector('.svc-btn[data-type="ai"]').classList.add('active');
-  loadAIScenarios();
-  loadAIOverrides();
-}
-
 function showSetup() {
   hideAll();
   document.getElementById('setup-view').classList.add('active');
@@ -5282,17 +5270,6 @@ async function runSetup() {
     btn.textContent = 'Generate & Deploy';
     btn.style.opacity = '1';
   }
-}
-
-async function loadAIScenarios() {
-  try {
-    const r = await fetch('/ai/scenarios');
-    const d = await r.json();
-    const el = document.getElementById('ai-scenarios');
-    el.innerHTML = d.scenarios.map(s =>
-      '<button onclick="aiRunScenario(\\x27'+s.id+'\\x27)" style="background:#21262d;color:#c9d1d9;border:1px solid #30363d;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.78rem" title="'+s.description+'">'+s.name+'</button>'
-    ).join('');
-  } catch(_) {}
 }
 
 // ── File drag-and-drop / upload handling ──────────────────────
@@ -5440,7 +5417,6 @@ app.listen(PORT, async () => {
   console.log(`  GraphQL:    POST /graphql/:service`);
   console.log(`  REST:       /rest/:service/:version/...`);
   console.log(`  Health:     GET /health`);
-  console.log(`  AI Agent:   POST /ai/generate, /ai/override`);
   console.log(`  AI Setup:   POST /ai/setup (schema + prompt → auto-deploy)`);
   console.log(`  AI Key:     ${AI_API_KEY ? 'Configured (' + AI_MODEL + ')' : '⚠ Not set (export GROQ_API_KEY)'}\n`);
 
