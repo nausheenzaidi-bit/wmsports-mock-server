@@ -661,7 +661,8 @@ app.all('/v3/*', (req, res) => {
 app.all('/statmilk/*', async (req, res) => {
   const search = req._parsedUrl.search || '';
   const svcName = await resolveStatMilkService();
-  proxyToMicrocks(req, res, `/rest/${svcName}/1.0/statmilk/${req.params[0]}${search}`);
+  const encodedSvcName = encodeURIComponent(svcName);
+  proxyToMicrocks(req, res, `/rest/${encodedSvcName}/1.0/statmilk/${req.params[0]}${search}`);
 });
 
 // ── Microcks API proxy (for direct access) ───────────────────────────────
@@ -672,7 +673,7 @@ async function resolveStatMilkService() {
   if (_resolvedStatMilkService && Date.now() - _statMilkResolveTime < 300000) {
     return _resolvedStatMilkService;
   }
-  for (const candidate of ['StatMilk', 'StatMilkTest']) {
+  for (const candidate of ['StatMilk REST API', 'StatMilk', 'StatMilkTest']) {
     const id = await getMicrocksServiceId(candidate);
     if (id) {
       _resolvedStatMilkService = candidate;
@@ -681,7 +682,7 @@ async function resolveStatMilkService() {
       return candidate;
     }
   }
-  return 'StatMilk';
+  return 'StatMilk REST API';
 }
 
 app.all('/api/*', async (req, res) => {
@@ -690,10 +691,11 @@ app.all('/api/*', async (req, res) => {
   const statmilkPaths = ['gamecast/', 'scores/', 'standings/', 'schedules/', 'leagues', 'events/', 'games/'];
   if (statmilkPaths.some(p => subPath.startsWith(p))) {
     const svcName = await resolveStatMilkService();
+    const encodedSvcName = encodeURIComponent(svcName);
     if (subPath.startsWith('scores/')) {
-      return proxyToMicrocksAsText(req, res, `/rest/${svcName}/1.0/api/${subPath}${search}`);
+      return proxyToMicrocksAsText(req, res, `/rest/${encodedSvcName}/1.0/api/${subPath}${search}`);
     }
-    return proxyToMicrocks(req, res, `/rest/${svcName}/1.0/api/${subPath}${search}`);
+    return proxyToMicrocks(req, res, `/rest/${encodedSvcName}/1.0/api/${subPath}${search}`);
   }
   proxyToMicrocks(req, res, `/api/${subPath}${search}`);
 });
@@ -2070,6 +2072,104 @@ function parseGraphQLSchema(schemaText) {
   return { types, operations, enums };
 }
 
+// ── Schema Validation: Detect undefined types and potential issues ──────────
+
+function validateGraphQLSchema(schemaText) {
+  const warnings = [];
+  const errors = [];
+
+  try {
+    const { types, enums, operations } = parseGraphQLSchema(schemaText);
+    
+    // Collect all defined type names (scalars, built-ins, custom types, enums)
+    const builtInScalars = new Set(['String', 'Int', 'Float', 'Boolean', 'ID']);
+    const definedTypes = new Set([...Object.keys(types), ...Object.keys(enums), ...builtInScalars]);
+
+    // Check all field type references
+    for (const [typeName, fields] of Object.entries(types)) {
+      for (const [fieldName, fieldType] of Object.entries(fields)) {
+        // fieldType is { name, isList, isRequired, isNonNullList }
+        const baseType = fieldType.name;
+        
+        if (!definedTypes.has(baseType)) {
+          errors.push({
+            type: 'UNDEFINED_TYPE',
+            message: `Field '${typeName}.${fieldName}' references undefined type '${baseType}'`,
+            field: `${typeName}.${fieldName}`,
+            referencedType: baseType,
+            available: Array.from(definedTypes).sort(),
+          });
+        }
+      }
+    }
+
+    // Check operation return types
+    for (const op of operations) {
+      if (!definedTypes.has(op.returnType)) {
+        errors.push({
+          type: 'UNDEFINED_OPERATION_RETURN',
+          message: `Operation '${op.name}' returns undefined type '${op.returnType}'`,
+          operation: op.name,
+          returnType: op.returnType,
+          available: Array.from(definedTypes).sort(),
+        });
+      }
+
+      // Check argument types
+      for (const arg of op.args) {
+        if (!definedTypes.has(arg.type.name)) {
+          warnings.push({
+            type: 'UNDEFINED_ARGUMENT_TYPE',
+            message: `Operation '${op.name}' argument '${arg.name}' has undefined type '${arg.type.name}'`,
+            operation: op.name,
+            argument: arg.name,
+            argumentType: arg.type.name,
+          });
+        }
+      }
+    }
+
+    // Check for empty or minimal schema
+    if (Object.keys(types).length === 0 && Object.keys(enums).length === 0) {
+      warnings.push({
+        type: 'EMPTY_SCHEMA',
+        message: 'Schema contains no types or enums',
+      });
+    }
+
+    // Check for Query type existence
+    if (!types.Query && !types.Mutation && !types.Subscription) {
+      errors.push({
+        type: 'NO_ROOT_TYPE',
+        message: 'Schema must define at least one of: Query, Mutation, or Subscription',
+      });
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+      warnings,
+      summary: {
+        typeCount: Object.keys(types).length,
+        enumCount: Object.keys(enums).length,
+        operationCount: operations.length,
+        errorCount: errors.length,
+        warningCount: warnings.length,
+      },
+    };
+  } catch (e) {
+    return {
+      valid: false,
+      errors: [{
+        type: 'PARSE_ERROR',
+        message: `Failed to parse schema: ${e.message}`,
+      }],
+      warnings: [],
+      summary: null,
+    };
+  }
+}
+
 function generateMockValue(fieldName, typeInfo, types, enums, depth = 0) {
   const tname = typeInfo.name;
 
@@ -3379,11 +3479,36 @@ function convertJsonToOpenAPI(json, serviceName = 'GeneratedAPI') {
     }
   };
 }
+
+// ── Schema Validation Endpoint ────────────────────────────────────────────
+
+app.post('/validate-schema', (req, res) => {
+  const { schema } = req.body;
+
+  if (!schema) {
+    return res.status(400).json({ error: 'No schema provided' });
+  }
+
+  try {
+    const validation = validateGraphQLSchema(schema);
+    return res.json(validation);
+  } catch (e) {
+    return res.status(500).json({
+      error: 'Validation failed',
+      message: e.message,
+    });
+  }
+});
+
 app.post('/ai/setup', async (req, res) => {
   const { schema: schemaText, prompt, serviceName: reqServiceName } = req.body;
 
   if (!schemaText) {
     return res.status(400).json({ error: 'Paste a GraphQL SDL or OpenAPI/JSON spec.' });
+  }
+
+  if (!prompt || prompt.trim() === '') {
+    return res.status(400).json({ error: 'Please provide a prompt to guide mock data generation.' });
   }
 
   const steps = [];
@@ -3392,21 +3517,45 @@ app.post('/ai/setup', async (req, res) => {
 
   try {
     // ── Detect schema type early ─────────────────────────────
-const schemaType = detectSchemaType(schemaText);
+    const schemaType = detectSchemaType(schemaText);
 
-console.log(`📘 Detected schema type: ${schemaType}`);
+    console.log(`📘 Detected schema type: ${schemaType}`);
 
-if (schemaType === 'json') {
-  return res.status(400).json({
-    error: 'You provided raw JSON data. Please provide a GraphQL SDL or OpenAPI schema instead.'
-  });
-}
+    if (schemaType === 'json') {
+      return res.status(400).json({
+        error: 'You provided raw JSON data. Please provide a GraphQL SDL or OpenAPI schema instead.'
+      });
+    }
 
-if (schemaType === 'unknown') {
-  return res.status(400).json({
-    error: 'Unsupported schema format. Expected GraphQL SDL or OpenAPI.'
-  });
-}
+    if (schemaType === 'unknown') {
+      return res.status(400).json({
+        error: 'Unsupported schema format. Expected GraphQL SDL or OpenAPI.'
+      });
+    }
+
+    // ── Validate GraphQL schema for undefined types ──────────
+    let schemaIssues = [];
+    if (schemaType === 'graphql') {
+      const validation = validateGraphQLSchema(schemaText);
+      steps.push(`✓ Schema validation completed (${validation.summary.errorCount} errors, ${validation.summary.warningCount} warnings)`);
+      
+      // Collect errors as warnings to allow processing to continue
+      if (!validation.valid && validation.errors.length > 0) {
+        steps.push(`⚠️ Schema issues detected:`);
+        validation.errors.forEach(e => {
+          steps.push(`   - [ERROR] ${e.message}`);
+          schemaIssues.push(e);
+        });
+      }
+      
+      if (validation.warnings.length > 0) {
+        steps.push(`⚠️ Schema warnings detected:`);
+        validation.warnings.forEach(w => {
+          steps.push(`   - ${w.message}`);
+          schemaIssues.push(w);
+        });
+      }
+    }
 
 // Handle plain-types (nested JSON with type definitions)
 if (schemaType === 'plain-types') {
@@ -3896,6 +4045,7 @@ Format: { "opName1": [example1, ...], "opName2": [example1, ...] }`;
       schemaFile: `${slugName}-schema.graphql`,
       examplesFile: `${slugName}-examples.postman.json`,
       graphqlEndpoint: `/graphql/${serviceName}`,
+      ...(schemaIssues.length > 0 && { schemaIssues }),
     });
   } catch (err) {
     res.status(500).json({ error: err.message, steps });
@@ -5299,13 +5449,14 @@ function readSchemaFile(file) {
     // Auto-detect service name from filename
     const nameInput = document.getElementById('setup-service-name');
     if (!nameInput.value.trim()) {
-      const baseName = file.name.replace(/\\.(graphql|gql|json|yaml|yml|txt)$/i, '')
-        .replace(/[-_]+/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase()).replace(/\\s+/g, '');
+      const baseName = file.name.replace(/\.(graphql|gql|json|yaml|yml|txt)$/i, '')
+        .replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).replace(/\s+/g, '');
       if (baseName) nameInput.value = baseName;
     }
 
-    // Auto-trigger generation
-    runSetup();
+    // DO NOT auto-trigger generation - wait for user to provide prompt
+    // User must click "Generate & Deploy" button
+    document.getElementById('editor-result').innerHTML = '<div style="color:#58a6ff">✓ Schema loaded. Now enter a prompt and click Generate & Deploy</div>';
   };
   reader.readAsText(file);
 }
