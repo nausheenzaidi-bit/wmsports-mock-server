@@ -1,0 +1,48 @@
+{
+  "info": {
+    "_postman_id": "ai-setup-test-1774514546289",
+    "name": "test",
+    "description": "version=1.0 - AI-generated mock examples for test",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "user",
+      "request": {
+        "method": "POST",
+        "url": "http://user",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query user { user { name id } }\",\"variables\":{}}"
+        }
+      },
+      "response": [
+        {
+          "name": "example-1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://user",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query user { user { name id } }\",\"variables\":{}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"user\":{\"name\":\"Hurricanes\",\"id\":\"id-cLxpcIPg\"}}}"
+        }
+      ]
+    }
+  ]
+}
