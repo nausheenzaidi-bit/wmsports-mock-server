@@ -702,9 +702,23 @@ app.all('/api/*', async (req, res) => {
 
 // ── AI Agent — LLM-powered mock data generation ─────────────────────────
 
-const AI_API_KEY = process.env.AI_API_KEY || process.env.GROQ_API_KEY || '';
-const AI_BASE_URL = process.env.AI_BASE_URL || 'https://api.groq.com/openai/v1';
-const AI_MODEL = process.env.AI_MODEL || 'llama-3.3-70b-versatile';
+const AI_PROVIDER = process.env.AI_PROVIDER || 'groq'; // groq | together
+
+const AI_CONFIG = {
+  groq: {
+    apiKey: process.env.GROQ_API_KEY,
+    baseURL: 'https://api.groq.com/openai/v1',
+    model: 'llama3-8b-8192'
+  },
+  together: {
+    apiKey: process.env.TOGETHER_API_KEY,
+    baseURL: 'https://api.together.xyz/v1',
+    model: 'Qwen/Qwen2.5-7B-Instruct'
+  }
+};
+
+const { apiKey: AI_API_KEY, baseURL: AI_BASE_URL, model: AI_MODEL } =
+  AI_CONFIG[AI_PROVIDER];
 
 const responseOverrides = {};
 const aiRemovedFields = {};
@@ -1232,6 +1246,37 @@ async function callLLM(systemPrompt, userPrompt) {
     r.write(postData);
     r.end();
   });
+}
+
+// ========== LLM + Retry + Fallback Logic ==========
+async function generateMockData(schema) {
+  // Retry logic: attempt up to 2 times with LLM
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const result = await callLLM(AI_SYSTEM_PROMPT, `Generate mock JSON strictly following this schema:\n${schema}`);
+      // Clean and validate
+      const cleaned = result.replace(/\/\/.*$/gm, '').replace(/,\s*([}\]])/g, '$1');
+      return JSON.parse(cleaned);
+    } catch (err) {
+      console.warn(`Attempt ${attempt} failed: ${err.message}`);
+      if (attempt === 2) {
+        console.warn('LLM failed twice, falling back to Faker/static data');
+        // FALLBACK: Generate using Faker
+        return generateFallbackData(schema);
+      }
+    }
+  }
+}
+
+function generateFallbackData(schema) {
+  // Simple fallback generator using Faker
+  return {
+    id: faker.string.uuid(),
+    name: faker.person.fullName(),
+    timestamp: new Date().toISOString(),
+    score: faker.number.int({ min: 0, max: 100 }),
+    status: 'active'
+  };
 }
 
 const FAILURE_SCENARIOS = {
