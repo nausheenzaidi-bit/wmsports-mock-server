@@ -10,3 +10,5 @@ services:
         value: 4010
       - key: NODE_ENV
         value: production
+      - key: MICROCKS_URL
+        value: https://microcks-uber-latest.onrender.com
