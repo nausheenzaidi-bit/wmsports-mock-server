@@ -673,7 +673,7 @@ async function resolveStatMilkService() {
   if (_resolvedStatMilkService && Date.now() - _statMilkResolveTime < 300000) {
     return _resolvedStatMilkService;
   }
-  for (const candidate of ['StatMilk REST API', 'StatMilk', 'StatMilkTest']) {
+  for (const candidate of ['StatMilkTest', 'StatMilk REST API', 'StatMilk']) {
     const id = await getMicrocksServiceId(candidate);
     if (id) {
       _resolvedStatMilkService = candidate;
@@ -682,7 +682,7 @@ async function resolveStatMilkService() {
       return candidate;
     }
   }
-  return 'StatMilk REST API';
+  return 'StatMilkTest';
 }
 
 app.all('/api/*', async (req, res) => {
@@ -2158,14 +2158,21 @@ function validateGraphQLSchema(schemaText) {
       },
     };
   } catch (e) {
+    const parseErrors = [{
+      type: 'PARSE_ERROR',
+      message: `Failed to parse schema: ${e.message}`,
+    }];
     return {
       valid: false,
-      errors: [{
-        type: 'PARSE_ERROR',
-        message: `Failed to parse schema: ${e.message}`,
-      }],
+      errors: parseErrors,
       warnings: [],
-      summary: null,
+      summary: {
+        typeCount: 0,
+        enumCount: 0,
+        operationCount: 0,
+        errorCount: parseErrors.length,
+        warningCount: 0,
+      },
     };
   }
 }
