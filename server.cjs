@@ -3573,12 +3573,6 @@ app.post('/ai/setup', async (req, res) => {
 
     console.log(`📘 Detected schema type: ${schemaType}`);
 
-    if (schemaType === 'json') {
-      return res.status(400).json({
-        error: 'You provided raw JSON data. Please provide a GraphQL SDL or OpenAPI schema instead.'
-      });
-    }
-
     if (schemaType === 'unknown') {
       return res.status(400).json({
         error: 'Unsupported schema format. Expected GraphQL SDL or OpenAPI.'
