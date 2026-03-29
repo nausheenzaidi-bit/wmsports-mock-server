@@ -3633,47 +3633,61 @@ if (schemaType === 'plain-types') {
 // ── JSON → OpenAPI conversion ─────────────────────────────
 if (trimmed.startsWith('{')) {
   try {
-    const parsed = JSON.parse(trimmed);
-
-    const isLikelyOpenAPI = parsed.openapi || parsed.swagger;
-
-    if (!isLikelyOpenAPI) {
-      steps.push({
-        step: 'Detected raw JSON, converting to OpenAPI schema...',
-        status: 'running'
-      });
-
-      const converted = convertJsonToOpenAPI(
-        parsed,
-        serviceName || reqServiceName || 'GeneratedAPI'
-      );
-
-      finalSchema = JSON.stringify(converted, null, 2);
-
-      if (!serviceName) serviceName = reqServiceName || 'GeneratedAPI';
-
-      steps[steps.length - 1].status = 'done';
+    let parsed = null;
+    
+    // Try direct JSON parse first
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch (e) {
+      // Try lenient parsing for unquoted type names like { name: String, age: Int }
+      const lenient = trimmed.replace(/(\w+)\s*:/g, '"$1":').replace(/:\s*(\w+)/g, ':"$1"');
+      try {
+        parsed = JSON.parse(lenient);
+      } catch (e2) {
+        // If both fail, skip this section and let detectAndConvertPlainType handle it
+        parsed = null;
+      }
     }
-    if (prompt && finalSchema) {
-      steps.push({ step: 'Enhancing schema with AI...', status: 'running' });
-    
-      finalSchema = await enhanceSchemaWithAI(finalSchema, prompt);
-    
-      steps[steps.length - 1].status = 'done';
-    }
-    
-    
-    // ── OpenAPI detection ─────────────────────
-    const isOpenAPI = (() => {
-      const t = finalSchema.trim();
-      if (t.startsWith('{')) return /"openapi"|"swagger"/.test(t);
-      return /^openapi:|^swagger:/m.test(t);
-    })();
 
+    if (parsed) {
+      const isLikelyOpenAPI = parsed.openapi || parsed.swagger;
+
+      if (!isLikelyOpenAPI) {
+        steps.push({
+          step: 'Detected raw JSON, converting to OpenAPI schema...',
+          status: 'running'
+        });
+
+        const converted = convertJsonToOpenAPI(
+          parsed,
+          serviceName || reqServiceName || 'GeneratedAPI'
+        );
+
+        finalSchema = JSON.stringify(converted, null, 2);
+
+        if (!serviceName) serviceName = reqServiceName || 'GeneratedAPI';
+
+        steps[steps.length - 1].status = 'done';
+      }
+      if (prompt && finalSchema) {
+        steps.push({ step: 'Enhancing schema with AI...', status: 'running' });
+      
+        finalSchema = await enhanceSchemaWithAI(finalSchema, prompt);
+      
+        steps[steps.length - 1].status = 'done';
+      }
+      
+      
+      // ── OpenAPI detection ─────────────────────
+      const isOpenAPI = (() => {
+        const t = finalSchema.trim();
+        if (t.startsWith('{')) return /"openapi"|"swagger"/.test(t);
+        return /^openapi:|^swagger:/m.test(t);
+      })();
+    }
   } catch (err) {
-    return res.status(400).json({
-      error: 'Invalid JSON format.'
-    });
+    // Log but don't fail - let detectAndConvertPlainType handle it
+    console.log('JSON parsing in /ai/setup failed, will try detectAndConvertPlainType:', err.message);
   }
 }
     // ── Plain type detection (auto-CRUD generation) ──────────────────
