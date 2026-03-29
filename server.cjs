@@ -713,7 +713,7 @@ const AI_CONFIG = {
   groq: {
     apiKey: process.env.GROQ_API_KEY,
     baseURL: 'https://api.groq.com/openai/v1',
-    model: 'llama3-8b-8192'
+    model: 'mixtral-8x7b-32768'
   },
   together: {
     apiKey: process.env.TOGETHER_API_KEY,
