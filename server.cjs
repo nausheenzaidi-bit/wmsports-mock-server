@@ -1416,7 +1416,7 @@ app.post('/ai/inject', async (req, res) => {
     if (scenario && FAILURE_SCENARIOS[scenario]) {
       const base = FAILURE_SCENARIOS[scenario].prompt;
       const examples = {
-        'wrong-types': `The response has these fields: ${fNames}. For EACH field, return the WRONG type. Example: if "id" is number, return a string like "not-a-number". If "title" is string, return a number like 99999. If "createdAt" is string, return a boolean. EVERY field must have the wrong type.`,
+        'wrong-types': `The response has these fields: ${fNames}. For ONLY these specific fields, return the WRONG type. ${fieldList.length === 1 ? `"${fNames}" should have wrong type (if number make it string, if string make it number/boolean, etc.)` : `Examples: if "id" is number, return a string like "not-a-number". If "title" is string, return a number like 99999.`} Leave all OTHER fields that aren't in this list with correct, valid types. ONLY the specified fields should have wrong types.`,
         'missing-fields': `The response has these fields: ${fNames}. REMOVE at least 2-3 of these fields entirely from the JSON. The response must have FEWER keys than the original.`,
         'null-values': `The response has these fields: ${fNames}. Set EVERY single one to null.`,
         'empty-arrays': `The response has these fields: ${fNames}. Set every field to an empty value: strings become "", arrays become [], numbers become 0, booleans become null.`,
@@ -1426,7 +1426,7 @@ app.post('/ai/inject', async (req, res) => {
         'boundary-values': `The response has these fields: ${fNames}. Use extreme values: 200+ char strings, negative numbers like -99999, MAX_INT (2147483647), empty strings "".`,
         'encoding-issues': `The response has these fields: ${fNames}. Put special characters in string fields: unicode (\\u0000), HTML (<script>alert(1)</script>), emojis, newlines, backslashes.`,
         'partial-response': `The response has these fields: ${fNames}. Only include 1-2 of the ${fieldList.length} fields. The rest must be ABSENT (not null, completely missing).`,
-        'mixed-good-bad': `The response has these fields: ${fNames}. For roughly HALF the fields, return correct realistic values with proper types. For the OTHER HALF, mix in problems: wrong types (number instead of string), null values, missing fields, or empty strings. Simulate a partial API regression.`,
+        'mixed-good-bad': `The response has these fields: ${fNames}. For these SPECIFIC fields (and ONLY these), for roughly HALF return correct realistic values. For the OTHER HALF, introduce problems: wrong types, null values, empty strings. Leave all OTHER fields in the response with valid, correct data. Do NOT break fields that aren't listed.`,
       };
       scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
     }
@@ -1530,7 +1530,7 @@ app.post('/ai/inject', async (req, res) => {
     const base = FAILURE_SCENARIOS[scenario].prompt;
     if (fieldList) {
       const examples = {
-        'wrong-types': `CRITICAL - WRONG TYPES REQUIRED: The query has these fields: ${fNames}. For EVERY field you MUST return the WRONG type. String fields (e.g. director, title, id) → return a NUMBER like 99999 or a BOOLEAN like true. Number fields (e.g. episodeID, starCount, rating) → return a STRING like "not-a-number" or an ARRAY like [1]. Float fields → return a string. NO field may have its correct type. Example: director (String) → 12345, title (String) → true, id (String) → [0].`,
+        'wrong-types': `CRITICAL - WRONG TYPES ONLY FOR SPECIFIED FIELDS: The query has these specific fields requested: ${fNames}. For ONLY these ${fieldList.length === 1 ? 'field' : 'fields'}, return the WRONG type. ${fieldList.length === 1 ? `String fields like "${fNames}" → return a NUMBER like 99999 or a BOOLEAN like true. Number fields → return a STRING. Boolean fields → return a number.` : `String fields (e.g. ${fieldList.filter((f, i) => i < 2).map(f => `"${f}"`).join(', ')}) → return NUMBER/BOOLEAN. Number fields → return STRING/ARRAY. Float fields → return string.`} Do NOT apply this to any other fields - leave them with correct types. NO field may have its correct type EXCEPT those not in the requested list. Example: if requested field is "director" (String) → return 12345, other fields like "title" should remain correct.`,
         'missing-fields': `The query has these fields: ${fNames}. REMOVE at least 2 of these fields entirely from the JSON. The response must have FEWER keys than requested.`,
         'null-values': `The query has these fields: ${fNames}. Set EVERY single one to null.`,
         'empty-arrays': `The query has these fields: ${fNames}. Set every field to an empty value: strings become "", arrays become [], numbers become 0.`,
@@ -1540,7 +1540,7 @@ app.post('/ai/inject', async (req, res) => {
         'boundary-values': `The query has these fields: ${fNames}. Use extreme values: 200+ char strings, -99999, MAX_INT, empty strings.`,
         'encoding-issues': `The query has these fields: ${fNames}. Put special chars: unicode, HTML entities, <script> tags, emojis.`,
         'partial-response': `The query has these fields: ${fNames}. Only include 1-2 of the ${fieldList ? fieldList.length : '?'} fields. Rest must be ABSENT.`,
-        'mixed-good-bad': `CRITICAL REQUIREMENT - MIXED GOOD AND BAD DATA: The query has these fields: ${fNames}. DO THIS: (1) For roughly 50% of the fields, return CORRECT, REALISTIC values that match the schema type. (2) For the OTHER 50%, intentionally introduce problems - some fields null, some empty objects {}, some WRONG types, some omitted. EXAMPLE: slug "nfl-patriots-vs-steelers" (CORRECT), status null (BROKEN), gameDate "2022-09-18" (CORRECT), scoreboard with partial data (MOSTLY CORRECT), venue {} (BROKEN), linescore null (BROKEN). Make it look like a real partial regression.`,
+        'mixed-good-bad': `CRITICAL REQUIREMENT - MIXED GOOD AND BAD DATA FOR SPECIFIC FIELDS: The query has these fields: ${fNames}. For these SPECIFIC fields (and ONLY these), introduce problems. For roughly 50% of them, return CORRECT types. For the OTHER 50%, return WRONG types or null. Leave all OTHER fields in the response with correct data. DO NOT break other fields that aren't in this list.`,
       };
       scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
     } else {
