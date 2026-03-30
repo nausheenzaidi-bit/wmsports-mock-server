@@ -2842,6 +2842,49 @@ function clearServiceDispatchers(serviceName) {
   });
 }
 
+function configureServiceDispatchers(serviceName, dispatcher, rules) {
+  return new Promise(async (resolve) => {
+    try {
+      const data = await httpGetLong(`${MICROCKS_URL}/api/services?page=0&size=200`);
+      const services = JSON.parse(data);
+      const norm = serviceName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const svc = services.find(s => s.name === serviceName)
+        || services.find(s => s.name.toLowerCase() === serviceName.toLowerCase())
+        || services.find(s => s.name.toLowerCase().replace(/[^a-z0-9]/g, '') === norm);
+      if (!svc) { resolve({ configured: 0 }); return; }
+
+      let configured = 0;
+      for (const op of (svc.operations || [])) {
+        try {
+          await new Promise((res2, rej2) => {
+            const opName = encodeURIComponent(op.name);
+            const url = new URL(`${MICROCKS_URL}/api/services/${svc.id}/operation?operationName=${opName}`);
+            const transport = url.protocol === 'https:' ? https : http;
+            const body = JSON.stringify({ dispatcher, dispatcherRules: rules });
+            const opts = {
+              hostname: url.hostname, port: url.port || (url.protocol === 'https:' ? 443 : 80),
+              path: url.pathname + url.search, method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+              timeout: 15000,
+            };
+            const r = transport.request(opts, (resp) => {
+              let d = ''; resp.on('data', c => d += c);
+              resp.on('end', () => res2(resp.statusCode));
+            });
+            r.on('error', rej2);
+            r.on('timeout', () => { r.destroy(); rej2(new Error('timeout')); });
+            r.write(body); r.end();
+          });
+          configured++;
+        } catch (_) {}
+      }
+      resolve({ configured });
+    } catch (err) {
+      resolve({ configured: 0, error: err.message });
+    }
+  });
+}
+
 async function callLLMWithHighTokens(systemPrompt, userPrompt, maxTokens = 4000) {
   if (!AI_API_KEY) throw new Error('No AI_API_KEY set.');
   const payload = {
@@ -4089,6 +4132,19 @@ Format: { "opName1": [example1, ...], "opName2": [example1, ...] }`;
         totalCleared += dispResult.cleared || 0;
         if (totalCleared > 0) break;
       }
+      
+      // Setup QUERY_ARGS dispatcher to allow selecting examples by ?example=example-1 param
+      // This lets users get different responses from multiple examples
+      if (totalCleared > 0 && operations.length > 0) {
+        try {
+          const dispatcherRules = operations.map(op => `${op.name}?example={example}`).join(' && ');
+          await configureServiceDispatchers(serviceName, 'QUERY_ARGS', dispatcherRules);
+          steps.push({ step: 'Dispatcher rules configured - use ?example=example-1 to select responses', status: 'done' });
+        } catch (e) {
+          console.log('Dispatcher rule configuration failed (non-critical):', e.message);
+        }
+      }
+      
       steps[steps.length - 1] = { step: `Dispatchers configured (${totalCleared} cleared)`, status: 'done' };
     } catch (err) {
       steps[steps.length - 1] = { step: `Dispatcher config: ${err.message}`, status: 'warning' };
