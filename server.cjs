@@ -243,7 +243,7 @@ function loadAsyncApiSpecs() {
 loadAsyncApiSpecs();
 
 const PORT = process.env.PORT || 4010;
-const MICROCKS_URL = process.env.MICROCKS_URL || 'http://localhost:8585';
+const MICROCKS_URL = process.env.MICROCKS_URL || 'https://microcks-uber-latest.onrender.com';
 
 // ── Microcks service registry (auto-discovered) ─────────────────────────
 
@@ -4121,7 +4121,7 @@ Format: { "opName1": [example1, ...], "opName2": [example1, ...] }`;
       steps[steps.length - 1] = { step: `Examples import: ${err.message}`, status: 'warning' };
     }
 
-    // Clear QUERY_ARGS dispatchers so Microcks serves examples (retry up to 3 times)
+    // Clear QUERY_ARGS dispatchers and configure new ones
     steps.push({ step: 'Configuring dispatchers...', status: 'running' });
     try {
       let totalCleared = 0;
@@ -4135,13 +4135,14 @@ Format: { "opName1": [example1, ...], "opName2": [example1, ...] }`;
       
       // Setup QUERY_ARGS dispatcher to allow selecting examples by ?example=example-1 param
       // This lets users get different responses from multiple examples
-      if (totalCleared > 0 && operations.length > 0) {
+      if (operations.length > 0) {
         try {
           const dispatcherRules = operations.map(op => `${op.name}?example={example}`).join(' && ');
-          await configureServiceDispatchers(serviceName, 'QUERY_ARGS', dispatcherRules);
-          steps.push({ step: 'Dispatcher rules configured - use ?example=example-1 to select responses', status: 'done' });
+          const configResult = await configureServiceDispatchers(serviceName, 'QUERY_ARGS', dispatcherRules);
+          steps.push({ step: `Dispatcher rules configured (${configResult.configured} ops) - use ?example=example-1 to select responses`, status: 'done' });
         } catch (e) {
           console.log('Dispatcher rule configuration failed (non-critical):', e.message);
+          steps.push({ step: `Dispatcher config attempted: ${e.message}`, status: 'warning' });
         }
       }
       
