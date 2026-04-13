@@ -1,6 +1,6 @@
 # Mock Server Infrastructure — Deployment Guide
 
-This document describes how to deploy the **WM Sports Mock Server** stack on AWS using the same patterns as the Contract Testing infrastructure guide: **one EC2 instance**, **Docker Engine**, and **Docker Compose**.
+This document describes how to deploy the **WM Sports Mock Server** stack on AWS : **one EC2 instance**, **Docker Engine**, and **Docker Compose**.
 
 The mock server proxies GraphQL and REST traffic to **Microcks**, serves the **dashboard** (port `4010`), and optionally uses an **external LLM** (Groq, etc.) for AI-driven failure scenarios.
 
