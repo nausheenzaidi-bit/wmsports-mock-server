@@ -30,11 +30,17 @@ const yaml = require('js-yaml');
 const { faker } = require('@faker-js/faker');
 const { addMocksToSchema } = require('@graphql-tools/mock');
 const { makeExecutableSchema } = require('@graphql-tools/schema');
-
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.text({ type: 'text/*', limit: '5mb' }));
+
+// ── User scoping for overrides (lightweight, no DB) ──────────────────────
+// Pass X-User header to isolate AI overrides per person. No auth required.
+
+function getUserScope(req) {
+  return req.headers['x-user'] || 'global';
+}
 
 // ── Load real GraphQL schemas for field validation ──────────────────────
 
@@ -544,20 +550,31 @@ app.post('/graphql/:service', async (req, res) => {
     return proxyToMicrocks(req, res, microcksPath);
   }
 
-  // Check for AI override
+  // Check for AI override (user-scoped, then global fallback)
   const isProbe = req.headers['x-probe'] === 'true';
   const opName = extractOperationName(queryStr);
   if (opName) {
-    const overrideKey = `${service}:${opName}`;
-    const override = responseOverrides[overrideKey];
+    const userScope = getUserScope(req);
+    const wsKey = `${userScope}:${service}:${opName}`;
+    const globalKey = `global:${service}:${opName}`;
+    const override = responseOverrides[wsKey] || responseOverrides[globalKey];
+    const activeKey = responseOverrides[wsKey] ? wsKey : globalKey;
     if (override && override.remaining > 0) {
       if (!isProbe) {
         override.remaining--;
-        if (override.remaining <= 0) delete responseOverrides[overrideKey];
+        if (override.remaining <= 0) delete responseOverrides[activeKey];
       }
       res.setHeader('X-Source', 'ai-override');
       res.setHeader('X-Override-Remaining', override.remaining);
       return res.json(override.data);
+    }
+
+    const scenarioWsKey = `${userScope}:${service}:${opName}`;
+    const scenarioGlobalKey = `global:${service}:${opName}`;
+    const scenarioEntry = scenarioStore[scenarioWsKey] || scenarioStore[scenarioGlobalKey];
+    if (scenarioEntry) {
+      res.setHeader('X-Source', 'ai-scenario');
+      return res.json(scenarioEntry.data);
     }
   }
 
@@ -593,8 +610,10 @@ app.post('/graphql/:service', async (req, res) => {
 
     const parsed = JSON.parse(resp.body);
     if (parsed.data) {
-      const removedKey = opName ? `${service}:${opName}` : null;
-      const removedFields = removedKey ? (aiRemovedFields[removedKey] || []) : [];
+      const userScope = getUserScope(req);
+      const removedKey = opName ? `${userScope}:${service}:${opName}` : null;
+      const globalRemovedKey = opName ? `global:${service}:${opName}` : null;
+      const removedFields = removedKey ? (aiRemovedFields[removedKey] || aiRemovedFields[globalRemovedKey] || []) : [];
       parsed.data = filterResponseBySelection(parsed.data, selectionMap, removedFields);
     }
     res.json(parsed);
@@ -640,13 +659,34 @@ app.post('/graphql', async (req, res) => {
 
 // ── REST proxy to Microcks ───────────────────────────────────────────────
 
+function checkRestScenario(req, service) {
+  const userScope = getUserScope(req);
+  const method = req.method;
+  const subPath = '/' + (req.params[0] || '');
+  const opKey = `${method} ${subPath}`;
+  const wsKey = `${userScope}:${service}:${opKey}`;
+  const globalKey = `global:${service}:${opKey}`;
+  return scenarioStore[wsKey] || scenarioStore[globalKey] || null;
+}
+
 app.all('/rest/:service/:version/*', (req, res) => {
+  const service = req.params.service;
+  const entry = checkRestScenario(req, service);
+  if (entry) {
+    res.setHeader('X-Source', 'ai-scenario');
+    return res.json(entry.data);
+  }
   const restPath = req.originalUrl;
   proxyToMicrocks(req, res, restPath);
 });
 
 app.all('/rest/:service/*', (req, res) => {
   const service = req.params.service;
+  const entry = checkRestScenario(req, service);
+  if (entry) {
+    res.setHeader('X-Source', 'ai-scenario');
+    return res.json(entry.data);
+  }
   const subPath = req.params[0] || '';
   const search = req._parsedUrl.search || '';
   const restPath = `/rest/${service}/1.0/${subPath}${search}`;
@@ -724,6 +764,7 @@ const { apiKey: AI_API_KEY, baseURL: AI_BASE_URL, model: AI_MODEL } =
 
 const responseOverrides = {};
 const aiRemovedFields = {};
+const scenarioStore = {};
 
 async function getMicrocksServiceId(serviceName) {
   lastFetch = 0;
@@ -753,16 +794,6 @@ async function deleteServiceFromMicrocks(serviceId) {
     const { status } = parseCurlResult(result);
     return status >= 200 && status < 300;
   } catch (_) { return false; }
-}
-
-function importArtifactToMicrocks(filePath, isMain = true) {
-  const ext = path.extname(filePath).toLowerCase();
-  const mimeMap = { '.graphql': 'text/plain', '.json': 'application/json', '.yaml': 'text/yaml', '.yml': 'text/yaml' };
-  const mime = mimeMap[ext] || 'application/octet-stream';
-  const result = curlExec(`-X POST "${MICROCKS_URL}/api/artifact/upload?mainArtifact=${isMain}" -F "file=@${filePath};type=${mime}"`, 30000);
-  const { status, body } = parseCurlResult(result);
-  if (status >= 200 && status < 300) return { status, body };
-  throw new Error(`Microcks upload failed: HTTP ${status} — ${body}`);
 }
 
 function findMainArtifact(serviceName) {
@@ -852,12 +883,12 @@ function buildPostmanCollection(serviceName, operationName, responseBody, fields
   };
 }
 
-function uploadPostmanCollection(collection) {
+async function uploadPostmanCollection(collection) {
   const os = require('os');
   const tmpFile = path.join(os.tmpdir(), `microcks-inject-${Date.now()}.postman_collection.json`);
   fs.writeFileSync(tmpFile, JSON.stringify(collection, null, 2));
   try {
-    const result = importArtifactToMicrocks(tmpFile, false);
+    const result = await importArtifactToMicrocks(tmpFile, false);
     fs.unlinkSync(tmpFile);
     return result;
   } catch (err) {
@@ -900,7 +931,7 @@ async function resetAndInjectAI(serviceName, operationName, aiData, fields) {
 
   // Re-import the schema
   if (schemaPath) {
-    importArtifactToMicrocks(schemaPath, true);
+    await importArtifactToMicrocks(schemaPath, true);
     if (!mainFile) try { fs.unlinkSync(schemaPath); } catch(_) {}
     await new Promise(r => setTimeout(r, 1500));
   }
@@ -935,12 +966,12 @@ async function restoreOriginalExamples(serviceName) {
 
   const mainFile = findMainArtifact(serviceName);
   if (!mainFile) return { restored: false, reason: 'No main artifact found for ' + serviceName };
-  importArtifactToMicrocks(path.join(artifactsDir, mainFile), true);
+  await importArtifactToMicrocks(path.join(artifactsDir, mainFile), true);
   await new Promise(r => setTimeout(r, 2000));
 
   const examplesFile = findExamplesFile(serviceName);
   if (!examplesFile) return { restored: false, reason: 'No examples file found for ' + serviceName };
-  importArtifactToMicrocks(path.join(artifactsDir, examplesFile), false);
+  await importArtifactToMicrocks(path.join(artifactsDir, examplesFile), false);
 
   lastFetch = 0;
   
@@ -1053,7 +1084,7 @@ async function getRestOperationDetails(serviceName, operationName) {
   return null;
 }
 
-function buildRestPostmanCollection(serviceName, operationName, responseBody, details) {
+function buildSingleOpRestCollection(serviceName, operationName, responseBody, details) {
   const bodyStr = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody);
   const method = details.method || 'GET';
   const url = details.url || `http://example.com${operationName}`;
@@ -1250,37 +1281,6 @@ async function callLLM(systemPrompt, userPrompt) {
   });
 }
 
-// ========== LLM + Retry + Fallback Logic ==========
-async function generateMockData(schema) {
-  // Retry logic: attempt up to 2 times with LLM
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const result = await callLLM(AI_SYSTEM_PROMPT, `Generate mock JSON strictly following this schema:\n${schema}`);
-      // Clean and validate
-      const cleaned = result.replace(/\/\/.*$/gm, '').replace(/,\s*([}\]])/g, '$1');
-      return JSON.parse(cleaned);
-    } catch (err) {
-      console.warn(`Attempt ${attempt} failed: ${err.message}`);
-      if (attempt === 2) {
-        console.warn('LLM failed twice, falling back to Faker/static data');
-        // FALLBACK: Generate using Faker
-        return generateFallbackData(schema);
-      }
-    }
-  }
-}
-
-function generateFallbackData(schema) {
-  // Simple fallback generator using Faker
-  return {
-    id: faker.string.uuid(),
-    name: faker.person.fullName(),
-    timestamp: new Date().toISOString(),
-    score: faker.number.int({ min: 0, max: 100 }),
-    status: 'active'
-  };
-}
-
 const FAILURE_SCENARIOS = {
   'success': { name: 'Success (Happy Path)', prompt: 'Generate correct, realistic data with ALL fields present, proper types, and realistic values. This should be a perfect, valid API response with no issues — real team names, correct scores, valid dates, proper nested structures, and all arrays populated with 1-2 items.' },
   'wrong-types': { name: 'Wrong Data Types', prompt: 'Generate data where field values have WRONG types: strings where numbers expected, numbers where strings expected, objects where arrays expected. Make it look like a provider API regression.' },
@@ -1310,6 +1310,39 @@ CRITICAL RULES — FOLLOW EXACTLY:
 - EMPTY ARRAYS means: set any field that could be an array to [], and set string fields to "".
 - Only return the fields you are told to return. Do NOT add extra fields.
 - Use real sports content (NFL, NBA, MLB teams/players) when generating valid-looking values.`;
+
+// ── Shared scenario prompt builder (used by override + scenario) ─────────
+
+function buildScenarioPrompt(scenario, fieldList, fNames, apiLabel) {
+  if (!scenario || !FAILURE_SCENARIOS[scenario]) return '';
+  const base = FAILURE_SCENARIOS[scenario].prompt;
+  if (!fieldList) return base;
+
+  const label = apiLabel || 'query';
+  const examples = {
+    'wrong-types': `The ${label} has these fields: ${fNames}. For ONLY these specific fields, return the WRONG type. String fields → return NUMBER/BOOLEAN. Number fields → return STRING. Do NOT apply this to other fields.`,
+    'missing-fields': `The ${label} has these fields: ${fNames}. REMOVE at least 2 of these fields entirely from the JSON. The response must have FEWER keys than requested.`,
+    'null-values': `The ${label} has these fields: ${fNames}. Set EVERY single one to null.`,
+    'empty-arrays': `The ${label} has these fields: ${fNames}. Set every field to an empty value: strings become "", arrays become [], numbers become 0.`,
+    'extra-fields': `The ${label} has these fields: ${fNames}. Include all with valid data, BUT also add 3-4 EXTRA unexpected fields like "__internal_id", "_debug_trace", "legacyScore".`,
+    'deprecated-fields': `The ${label} has these fields: ${fNames}. Rename 2-3 of them (e.g. "slug" → "slug_v2"). Original names must be ABSENT.`,
+    'malformed-dates': `The ${label} has these fields: ${fNames}. For date fields return "not-a-date" or 0. Other fields can be valid.`,
+    'boundary-values': `The ${label} has these fields: ${fNames}. Use extreme values: 200+ char strings, -99999, MAX_INT (2147483647), empty strings.`,
+    'encoding-issues': `The ${label} has these fields: ${fNames}. Put special chars: unicode, HTML entities, <script> tags, emojis.`,
+    'partial-response': `The ${label} has these fields: ${fNames}. Only include 1-2 of the ${fieldList.length} fields. Rest must be ABSENT.`,
+    'mixed-good-bad': `The ${label} has these fields: ${fNames}. For roughly HALF, return correct values. For the OTHER HALF, introduce problems: wrong types, null, or empty. Leave unlisted fields correct.`,
+  };
+  return (examples[scenario] || base) + '\n\n' + base;
+}
+
+function extractFieldsToRemove(prompt, fieldList) {
+  if (!prompt || !fieldList || !/remove|delete|omit/i.test(prompt)) return [];
+  const words = prompt.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/);
+  return fieldList.filter(f => {
+    const fn = f.toLowerCase();
+    return words.some(w => fn.includes(w) || w.includes(fn)) || prompt.toLowerCase().includes(fn);
+  });
+}
 
 app.post('/ai/generate', async (req, res) => {
   const { type, operation, prompt, scenario } = req.body;
@@ -1344,32 +1377,10 @@ app.post('/ai/override', async (req, res) => {
   if (!overrideData && (prompt || scenario)) {
     const retType = getOperationReturnType(operation);
     const svcForSchema = queryServiceMap[operation] || service || null;
-    let schemaCtx = retType ? buildTypeSchema(retType, 0, new Set(), svcForSchema) : '';
+    const schemaCtx = retType ? buildTypeSchema(retType, 0, new Set(), svcForSchema) : '';
     const fieldList = (fields && fields.length > 0) ? fields : null;
     const fNames = fieldList ? fieldList.join(', ') : 'all fields';
-
-    let scenarioPrompt = '';
-    if (scenario && FAILURE_SCENARIOS[scenario]) {
-      const base = FAILURE_SCENARIOS[scenario].prompt;
-      if (fieldList) {
-        const examples = {
-          'wrong-types': `The query has these fields: ${fNames}. For EACH field, return the WRONG type. Example: if "slug" is String, return a number like 99999. If "gameDate" is String, return a boolean like true. If "sport" is String, return an array like ["wrong"]. If "status" is String, return a number. If "jsonResponse" is String, return an integer. EVERY field must have the wrong type.`,
-          'missing-fields': `The query has these fields: ${fNames}. REMOVE at least 2 of these fields entirely from the JSON. The response object must have FEWER keys than requested. For example if 5 fields are requested, only include 2-3.`,
-          'null-values': `The query has these fields: ${fNames}. Set EVERY single one to null. Example: {"${fieldList[0]}": null${fieldList.length > 1 ? `, "${fieldList[1]}": null` : ''}, ...}`,
-          'empty-arrays': `The query has these fields: ${fNames}. Set every field to an empty value: strings become "", arrays become [], numbers become 0.`,
-          'extra-fields': `The query has these fields: ${fNames}. Include all of them with valid data, BUT also add 3-4 EXTRA fields that are NOT in the query: e.g. "__internal_id", "_debug_trace", "legacyScore", "deprecated_field_xyz". These extra fields simulate a provider adding unexpected fields.`,
-          'deprecated-fields': `The query has these fields: ${fNames}. Rename 2-3 of them to different names like "slug" becomes "slug_v2", "status" becomes "gameStatus". The ORIGINAL field names must be ABSENT.`,
-          'malformed-dates': `The query has these fields: ${fNames}. For any date/time field return garbage like "not-a-date", 0, or "1970-01-01". For other fields return valid data.`,
-          'boundary-values': `The query has these fields: ${fNames}. Use extreme values: strings with 200+ characters, negative numbers like -99999, MAX_INT (2147483647), empty strings "".`,
-          'encoding-issues': `The query has these fields: ${fNames}. Put special characters in string fields: unicode (\\u0000), HTML (<script>alert(1)</script>), emojis, newlines, backslashes.`,
-          'partial-response': `The query has these fields: ${fNames}. Only include 1-2 of the ${fieldList.length} fields. The rest must be ABSENT (not null, completely missing).`,
-          'mixed-good-bad': `The query has these fields: ${fNames}. For roughly HALF the fields, return correct realistic values with proper types. For the OTHER HALF, mix in problems: wrong types (number instead of string), null values, missing fields, or empty strings. Make it look like a partial regression where some data is fine and some is broken.`,
-        };
-        scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
-      } else {
-        scenarioPrompt = base;
-      }
-    }
+    const scenarioPrompt = buildScenarioPrompt(scenario, fieldList, fNames, 'query');
 
     const userPrompt = scenarioPrompt || prompt || '';
     const opMsg = userPrompt + `\n\nSchema context:\n${schemaCtx}\n\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
@@ -1379,54 +1390,47 @@ app.post('/ai/override', async (req, res) => {
   }
   if (!overrideData) return res.status(400).json({ error: 'Provide "data", "prompt", or "scenario"' });
 
-  const key = `${service}:${operation}`;
+  const userScope = getUserScope(req);
+  const key = `${userScope}:${service}:${operation}`;
   responseOverrides[key] = { data: overrideData, remaining: count };
-  res.json({ message: `Override active for ${key} (${count} request${count > 1 ? 's' : ''})`, key, remaining: count, preview: overrideData });
+  res.json({ message: `Override active for ${service}:${operation} (${count} request${count > 1 ? 's' : ''})`, key, user: userScope, remaining: count, preview: overrideData });
 });
 
 app.get('/ai/overrides', (req, res) => {
+  const userPrefix = getUserScope(req) + ':';
   const active = {};
-  for (const [k, v] of Object.entries(responseOverrides)) { if (v.remaining > 0) active[k] = { remaining: v.remaining }; }
+  for (const [k, v] of Object.entries(responseOverrides)) {
+    if (v.remaining > 0 && k.startsWith(userPrefix)) {
+      active[k.slice(userPrefix.length)] = { remaining: v.remaining };
+    }
+  }
   res.json({ overrides: active });
 });
 
 app.delete('/ai/overrides', (req, res) => {
-  Object.keys(responseOverrides).forEach(k => delete responseOverrides[k]);
-  res.json({ message: 'All overrides cleared' });
+  const userPrefix = getUserScope(req) + ':';
+  let cleared = 0;
+  Object.keys(responseOverrides).forEach(k => {
+    if (k.startsWith(userPrefix)) { delete responseOverrides[k]; cleared++; }
+  });
+  res.json({ message: `${cleared} override(s) cleared` });
 });
 
-app.post('/ai/inject', async (req, res) => {
-  const { service, operation, prompt, scenario, fields, apiType } = req.body;
+app.post('/ai/scenario', async (req, res) => {
+  const { service, operation, prompt, scenario, fields, apiType, preview } = req.body;
   if (!service || !operation) return res.status(400).json({ error: 'Provide "service" and "operation"' });
   if (!prompt && !scenario) return res.status(400).json({ error: 'Provide "prompt" or "scenario"' });
 
   const isRest = apiType === 'rest';
+  const fieldList = (fields && fields.length > 0) ? fields : null;
 
   if (isRest) {
     const details = await getRestOperationDetails(service, operation);
     const exampleBody = details ? details.body : null;
     const structureDesc = exampleBody ? describeJsonStructure(exampleBody) : '{}';
-    const fieldList = (fields && fields.length > 0) ? fields : (exampleBody ? Object.keys(exampleBody) : []);
-    const fNames = fieldList.join(', ') || 'all fields';
-
-    let scenarioPrompt = '';
-    if (scenario && FAILURE_SCENARIOS[scenario]) {
-      const base = FAILURE_SCENARIOS[scenario].prompt;
-      const examples = {
-        'wrong-types': `The response has these fields: ${fNames}. For ONLY these specific fields, return the WRONG type. ${fieldList.length === 1 ? `"${fNames}" should have wrong type (if number make it string, if string make it number/boolean, etc.)` : `Examples: if "id" is number, return a string like "not-a-number". If "title" is string, return a number like 99999.`} Leave all OTHER fields that aren't in this list with correct, valid types. ONLY the specified fields should have wrong types.`,
-        'missing-fields': `The response has these fields: ${fNames}. REMOVE at least 2-3 of these fields entirely from the JSON. The response must have FEWER keys than the original.`,
-        'null-values': `The response has these fields: ${fNames}. Set EVERY single one to null.`,
-        'empty-arrays': `The response has these fields: ${fNames}. Set every field to an empty value: strings become "", arrays become [], numbers become 0, booleans become null.`,
-        'extra-fields': `The response has these fields: ${fNames}. Include all with valid data, BUT also add 3-4 EXTRA unexpected fields like "__internal_id", "_debug_trace", "legacyField", "deprecated_v1".`,
-        'deprecated-fields': `The response has these fields: ${fNames}. Rename 2-3 of them (e.g. "title" → "title_v2", "id" → "notification_id"). Original names must be ABSENT.`,
-        'malformed-dates': `The response has these fields: ${fNames}. For any date/time field (createdAt, updatedAt, etc) return garbage like "not-a-date", 0, or "1970-01-01". For other fields return valid data.`,
-        'boundary-values': `The response has these fields: ${fNames}. Use extreme values: 200+ char strings, negative numbers like -99999, MAX_INT (2147483647), empty strings "".`,
-        'encoding-issues': `The response has these fields: ${fNames}. Put special characters in string fields: unicode (\\u0000), HTML (<script>alert(1)</script>), emojis, newlines, backslashes.`,
-        'partial-response': `The response has these fields: ${fNames}. Only include 1-2 of the ${fieldList.length} fields. The rest must be ABSENT (not null, completely missing).`,
-        'mixed-good-bad': `The response has these fields: ${fNames}. For these SPECIFIC fields (and ONLY these), for roughly HALF return correct realistic values. For the OTHER HALF, introduce problems: wrong types, null values, empty strings. Leave all OTHER fields in the response with valid, correct data. Do NOT break fields that aren't listed.`,
-      };
-      scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
-    }
+    const restFields = fieldList || (exampleBody ? Object.keys(exampleBody) : []);
+    const fNames = restFields.join(', ') || 'all fields';
+    const scenarioPrompt = buildScenarioPrompt(scenario, restFields, fNames, 'response');
 
     const isCustomRestPrompt = !!prompt && !scenario;
     const userPrompt = prompt || scenarioPrompt || '';
@@ -1442,108 +1446,38 @@ app.post('/ai/inject', async (req, res) => {
       aiData = await callLLM(REST_AI_SYSTEM_PROMPT, opMsg);
     } catch (err) { return res.status(500).json({ error: 'LLM error: ' + err.message }); }
 
-    // POST-PROCESS: If custom prompt asks to remove/delete fields, actually remove them from aiData
-    if (isCustomRestPrompt && /remove|delete|omit/i.test(userPrompt) && fieldList) {
-      const words = userPrompt.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/);
-      const toRemove = fieldList.filter(f => {
-        const fn = f.toLowerCase();
-        return words.some(w => fn.includes(w) || w.includes(fn)) || userPrompt.toLowerCase().includes(fn);
-      });
+    if (isCustomRestPrompt) {
+      const toRemove = extractFieldsToRemove(userPrompt, restFields);
       if (toRemove.length > 0 && typeof aiData === 'object') {
-        toRemove.forEach(field => {
-          delete aiData[field];
-        });
+        toRemove.forEach(field => delete aiData[field]);
       }
     }
 
-    if (!details) {
-      return res.status(400).json({ error: `Could not find operation "${operation}" in ${service} examples`, preview: aiData });
+    if (preview) {
+      return res.json({ preview: aiData, scenario: scenario || 'custom', apiType: 'rest', service, operation });
     }
 
-    try {
-      const artifactsDir = path.join(__dirname, 'artifacts');
-      const mainFile = findMainArtifact(service);
-      const os = require('os');
-      let uploadPath;
-
-      if (mainFile) {
-        const mainPath = path.join(artifactsDir, mainFile);
-        const ext = path.extname(mainFile).toLowerCase();
-        uploadPath = mainPath;
-
-        if (ext === '.json') {
-          const spec = JSON.parse(fs.readFileSync(mainPath, 'utf-8'));
-          const injected = injectIntoOpenApiSpec(spec, operation, aiData);
-          if (injected) {
-            uploadPath = path.join(os.tmpdir(), `ai-inject-${Date.now()}-${mainFile}`);
-            fs.writeFileSync(uploadPath, JSON.stringify(spec, null, 2));
-          }
-        }
-
-        const serviceId = await getMicrocksServiceId(service);
-        if (serviceId) {
-          await deleteServiceFromMicrocks(serviceId);
-          await new Promise(r => setTimeout(r, 1000));
-        }
-      } else {
-        // No local artifact — upload a Postman collection as a secondary artifact
-        // This merges into the existing service without deleting it
-        const collection = buildRestPostmanCollection(service, operation, aiData, details);
-        uploadPath = path.join(os.tmpdir(), `ai-inject-${Date.now()}-${service}-examples.postman.json`);
-        fs.writeFileSync(uploadPath, JSON.stringify(collection, null, 2));
-      }
-
-      const isSecondary = !mainFile;
-      importArtifactToMicrocks(uploadPath, !isSecondary);
-      try { if (uploadPath !== path.join(artifactsDir, mainFile || '')) fs.unlinkSync(uploadPath); } catch(_) {}
-      await new Promise(r => setTimeout(r, 2000));
-
-      const uploadResult = { status: 201 };
-      lastFetch = 0;
-      res.json({
-        message: `AI data injected into Microcks for REST ${service}/${operation}`,
-        injectedTo: 'microcks',
-        microcksUrl: `${MICROCKS_URL}/rest/${service}/1.0`,
-        preview: aiData,
-        scenario: scenario || 'custom',
-        upload: uploadResult.status,
-        apiType: 'rest',
-      });
-    } catch (err) {
-      res.status(500).json({ error: 'Microcks injection failed: ' + err.message, preview: aiData });
-    }
+    const userScope = req.body.global ? 'global' : getUserScope(req);
+    const key = `${userScope}:${service}:${operation}`;
+    scenarioStore[key] = { data: aiData, scenario: scenario || 'custom', apiType: 'rest' };
+    res.json({
+      message: `Scenario active for REST ${service}/${operation}`,
+      appliedTo: 'server',
+      key,
+      user: userScope,
+      preview: aiData,
+      scenario: scenario || 'custom',
+      apiType: 'rest',
+    });
     return;
   }
 
-  // GraphQL inject (existing logic)
+  // GraphQL scenario
   const retType = getOperationReturnType(operation);
   const svcForSchema = queryServiceMap[operation] || service || null;
-  let schemaCtx = retType ? buildTypeSchema(retType, 0, new Set(), svcForSchema) : '';
-  const fieldList = (fields && fields.length > 0) ? fields : null;
+  const schemaCtx = retType ? buildTypeSchema(retType, 0, new Set(), svcForSchema) : '';
   const fNames = fieldList ? fieldList.join(', ') : 'all fields';
-
-  let scenarioPrompt = '';
-  if (scenario && FAILURE_SCENARIOS[scenario]) {
-    const base = FAILURE_SCENARIOS[scenario].prompt;
-    if (fieldList) {
-      const examples = {
-        'wrong-types': `CRITICAL - WRONG TYPES ONLY FOR SPECIFIED FIELDS: The query has these specific fields requested: ${fNames}. For ONLY these ${fieldList.length === 1 ? 'field' : 'fields'}, return the WRONG type. ${fieldList.length === 1 ? `String fields like "${fNames}" → return a NUMBER like 99999 or a BOOLEAN like true. Number fields → return a STRING. Boolean fields → return a number.` : `String fields (e.g. ${fieldList.filter((f, i) => i < 2).map(f => `"${f}"`).join(', ')}) → return NUMBER/BOOLEAN. Number fields → return STRING/ARRAY. Float fields → return string.`} Do NOT apply this to any other fields - leave them with correct types. NO field may have its correct type EXCEPT those not in the requested list. Example: if requested field is "director" (String) → return 12345, other fields like "title" should remain correct.`,
-        'missing-fields': `The query has these fields: ${fNames}. REMOVE at least 2 of these fields entirely from the JSON. The response must have FEWER keys than requested.`,
-        'null-values': `The query has these fields: ${fNames}. Set EVERY single one to null.`,
-        'empty-arrays': `The query has these fields: ${fNames}. Set every field to an empty value: strings become "", arrays become [], numbers become 0.`,
-        'extra-fields': `The query has these fields: ${fNames}. Include all with valid data, BUT also add 3-4 EXTRA unexpected fields like "__internal_id", "_debug", "legacyScore".`,
-        'deprecated-fields': `The query has these fields: ${fNames}. Rename 2-3 of them (e.g. "slug" → "slug_v2"). Original names must be ABSENT.`,
-        'malformed-dates': `The query has these fields: ${fNames}. For date fields return "not-a-date" or 0. Other fields can be valid.`,
-        'boundary-values': `The query has these fields: ${fNames}. Use extreme values: 200+ char strings, -99999, MAX_INT, empty strings.`,
-        'encoding-issues': `The query has these fields: ${fNames}. Put special chars: unicode, HTML entities, <script> tags, emojis.`,
-        'partial-response': `The query has these fields: ${fNames}. Only include 1-2 of the ${fieldList ? fieldList.length : '?'} fields. Rest must be ABSENT.`,
-        'mixed-good-bad': `CRITICAL REQUIREMENT - MIXED GOOD AND BAD DATA FOR SPECIFIC FIELDS: The query has these fields: ${fNames}. For these SPECIFIC fields (and ONLY these), introduce problems. For roughly 50% of them, return CORRECT types. For the OTHER 50%, return WRONG types or null. Leave all OTHER fields in the response with correct data. DO NOT break other fields that aren't in this list.`,
-      };
-      scenarioPrompt = (examples[scenario] || base) + '\n\n' + base;
-    } else {
-      scenarioPrompt = base;
-    }
-  }
+  const scenarioPrompt = buildScenarioPrompt(scenario, fieldList, fNames, 'query');
 
   const isCustomPrompt = !!(prompt && String(prompt).trim());
   const userPrompt = prompt || scenarioPrompt || '';
@@ -1552,22 +1486,14 @@ app.post('/ai/inject', async (req, res) => {
     fieldsConstraint = `\nThe response object MUST contain ONLY these fields: ${fNames}.`;
   }
 
-  // Extract field names from prompt when user says "remove X and Y" / "delete X and Y"
-  let explicitNullFields = '';
-  if (isCustomPrompt && fieldList && /remove|delete|omit/i.test(userPrompt)) {
-    const words = userPrompt.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/);
-    const toNull = fieldList.filter(f => {
-      const fn = f.toLowerCase();
-      return words.some(w => fn.includes(w) || w.includes(fn)) || userPrompt.toLowerCase().includes(fn);
-    });
-    if (toNull.length > 0) {
-      explicitNullFields = `\n\nSET THESE FIELDS TO null (not empty object, not omitted): ${toNull.join(', ')}. For nested scoreboard.gameDate, set scoreboard.gameDate to null.`;
-    }
-  }
+  const toNull = isCustomPrompt ? extractFieldsToRemove(userPrompt, fieldList) : [];
+  const explicitNullFields = toNull.length > 0
+    ? `\n\nSET THESE FIELDS TO null (not empty object, not omitted): ${toNull.join(', ')}.`
+    : '';
 
   let opMsg;
   if (isCustomPrompt) {
-    opMsg = `USER INSTRUCTION (follow this EXACTLY): ${userPrompt}\n\nThe query has these fields: ${fNames}.\nCRITICAL: Follow the user instruction above precisely. When they say "remove", "delete", or "omit" specific fields (e.g. venue, gameDate), set those fields to null — do NOT use empty objects {} or omit the keys (GraphQL requires all requested fields present). For nested fields (e.g. scoreboard.gameDate), set that nested property to null too. All other fields: return realistic values.${explicitNullFields}\n\nSchema for reference:\n${schemaCtx}\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
+    opMsg = `USER INSTRUCTION (follow this EXACTLY): ${userPrompt}\n\nThe query has these fields: ${fNames}.\nCRITICAL: Follow the user instruction above precisely. When they say "remove", "delete", or "omit" specific fields, set those fields to null — do NOT use empty objects {} or omit the keys (GraphQL requires all requested fields present). All other fields: return realistic values.${explicitNullFields}\n\nSchema for reference:\n${schemaCtx}\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
   } else {
     opMsg = userPrompt + `\n\nSchema (use EXACT field names and types below):\n${schemaCtx}${fieldsConstraint}\nCRITICAL: Every nested object must use the EXACT sub-field names from the schema above. Do NOT invent field names.\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
   }
@@ -1577,38 +1503,30 @@ app.post('/ai/inject', async (req, res) => {
     aiData = await callLLM(AI_SYSTEM_PROMPT, opMsg);
   } catch (err) { return res.status(500).json({ error: 'LLM error: ' + err.message }); }
 
-  // POST-PROCESS: If custom prompt asks to remove/delete fields, actually remove them from aiData
-  if (isCustomPrompt && /remove|delete|omit/i.test(userPrompt) && fieldList) {
-    const words = userPrompt.toLowerCase().replace(/[^\w\s]/g, ' ').split(/\s+/);
-    const toRemove = fieldList.filter(f => {
-      const fn = f.toLowerCase();
-      return words.some(w => fn.includes(w) || w.includes(fn)) || userPrompt.toLowerCase().includes(fn);
-    });
-    console.log(`🧹 POST-PROCESS: fieldList=${JSON.stringify(fieldList)}, words=${JSON.stringify(words)}, toRemove=${JSON.stringify(toRemove)}`);
-    if (toRemove.length > 0 && aiData && aiData.data && aiData.data[operation]) {
-      toRemove.forEach(field => {
-        delete aiData.data[operation][field];
-        console.log(`  ✓ Deleted field: ${field}`);
-      });
-      aiRemovedFields[`${service}:${operation}`] = toRemove;
-      console.log(`  📝 Stored removed fields for ${service}:${operation}: ${toRemove.join(', ')}`);
+  if (isCustomPrompt && fieldList) {
+    const toRemove = extractFieldsToRemove(userPrompt, fieldList);
+    if (toRemove.length > 0 && aiData?.data?.[operation]) {
+      toRemove.forEach(field => delete aiData.data[operation][field]);
+      const userScope = getUserScope(req);
+      aiRemovedFields[`${userScope}:${service}:${operation}`] = toRemove;
     }
   }
 
-  try {
-    const uploadResult = await resetAndInjectAI(service, operation, aiData, fieldList);
-    lastFetch = 0;
-    res.json({
-      message: `AI data injected into Microcks for ${service}/${operation} (service reset + AI-only example)`,
-      injectedTo: 'microcks',
-      microcksUrl: `${MICROCKS_URL}/graphql/${service}/1.0`,
-      preview: aiData,
-      scenario: scenario || 'custom',
-      upload: uploadResult.status,
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Microcks injection failed: ' + err.message, preview: aiData });
+  if (preview) {
+    return res.json({ preview: aiData, scenario: scenario || 'custom', apiType: 'graphql', service, operation });
   }
+
+  const userScope = req.body.global ? 'global' : getUserScope(req);
+  const key = `${userScope}:${service}:${operation}`;
+  scenarioStore[key] = { data: aiData, scenario: scenario || 'custom', apiType: 'graphql' };
+  res.json({
+    message: `Scenario active for ${service}/${operation}`,
+    appliedTo: 'server',
+    key,
+    user: userScope,
+    preview: aiData,
+    scenario: scenario || 'custom',
+  });
 });
 
 app.post('/ai/restore', async (req, res) => {
@@ -1617,9 +1535,12 @@ app.post('/ai/restore', async (req, res) => {
   try {
     const result = await restoreOriginalExamples(service);
     lastFetch = 0;
-    // Clear any AI-removed fields for this service
+    const userScope = getUserScope(req);
     for (const key of Object.keys(aiRemovedFields)) {
-      if (key.startsWith(service + ':')) delete aiRemovedFields[key];
+      if (key.startsWith(`${userScope}:${service}:`)) delete aiRemovedFields[key];
+    }
+    for (const key of Object.keys(scenarioStore)) {
+      if (key.startsWith(`${userScope}:${service}:`)) delete scenarioStore[key];
     }
     res.json(result);
   } catch (err) {
@@ -1629,6 +1550,26 @@ app.post('/ai/restore', async (req, res) => {
 
 app.get('/ai/scenarios', (req, res) => {
   res.json({ scenarios: Object.entries(FAILURE_SCENARIOS).map(([id, s]) => ({ id, name: s.name, description: s.prompt.split('.')[0] + '.' })) });
+});
+
+app.get('/ai/scenarios/active', (req, res) => {
+  const userPrefix = getUserScope(req) + ':';
+  const active = {};
+  for (const [k, v] of Object.entries(scenarioStore)) {
+    if (k.startsWith(userPrefix)) {
+      active[k.slice(userPrefix.length)] = { scenario: v.scenario, apiType: v.apiType };
+    }
+  }
+  res.json({ scenarios: active });
+});
+
+app.delete('/ai/scenarios/active', (req, res) => {
+  const userPrefix = getUserScope(req) + ':';
+  let cleared = 0;
+  Object.keys(scenarioStore).forEach(k => {
+    if (k.startsWith(userPrefix)) { delete scenarioStore[k]; cleared++; }
+  });
+  res.json({ message: `${cleared} scenario(s) cleared` });
 });
 
 app.get('/ai/rest-fields', (req, res) => {
@@ -4290,6 +4231,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .status-badge{padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:600}
 .status-badge.online{background:#238636;color:#fff}
 .status-badge.offline{background:#da3633;color:#fff}
+.user-badge{display:flex;align-items:center;gap:.35rem;padding:3px 10px;border-radius:12px;background:#1f2937;border:1px solid #30363d;cursor:pointer;transition:border-color .15s}
+.user-badge:hover{border-color:#58a6ff}
+.user-badge strong{color:#58a6ff}
 .stats-bar{display:flex;gap:1.5rem;margin-left:auto;font-size:.8rem;color:#8b949e}
 .stats-bar strong{color:#58a6ff}
 .layout{display:flex;height:calc(100vh - 56px)}
@@ -4364,6 +4308,10 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
 <div class="header">
   <h1>WM Sports Mock Server</h1>
   <span class="status-badge ${microcksUp ? 'online' : 'offline'}">${microcksUp ? 'Microcks Connected' : 'Offline'}</span>
+  <div class="user-badge" id="user-badge" onclick="changeUser()" title="Click to change user">
+    <span style="font-size:.7rem;opacity:.6">User:</span>
+    <strong id="user-display" style="font-size:.78rem"></strong>
+  </div>
   <div class="stats-bar">
     <span><strong>${graphqlSvcs.length}</strong> GraphQL</span>
     <span><strong>${restSvcs.length}</strong> REST</span>
@@ -4415,7 +4363,7 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
           <span class="timing" id="editor-timing"></span>
           <div style="display:flex;gap:.4rem;align-items:center;margin-left:auto">
             <select id="inline-ai-scenario" style="background:#21262d;color:#a371f7;border:1px solid #8957e544;border-radius:4px;padding:3px 6px;font-size:.72rem;cursor:pointer;display:none">
-              <option value="">AI Inject...</option>
+              <option value="">AI Scenario...</option>
               <option value="wrong-types">Wrong Types</option>
               <option value="missing-fields">Missing Fields</option>
               <option value="null-values">Null Values</option>
@@ -4429,7 +4377,11 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
               <option value="mixed-good-bad">Mixed Good & Bad</option>
             </select>
             <input id="inline-ai-prompt" placeholder="or describe..." style="background:#21262d;color:#c9d1d9;border:1px solid #8957e544;border-radius:4px;padding:3px 6px;font-size:.72rem;width:180px;display:none">
-            <button id="inline-ai-btn" onclick="inlineAIInject()" style="background:#8957e5;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.72rem;font-weight:600;display:none">Inject</button>
+            <label id="inline-ai-global-wrap" style="display:none;align-items:center;gap:3px;font-size:.68rem;color:#d29922;cursor:pointer" title="Apply scenario globally (affects all users)">
+              <input type="checkbox" id="inline-ai-global" style="accent-color:#d29922;width:12px;height:12px">
+              <span>Global</span>
+            </label>
+            <button id="inline-ai-btn" onclick="inlineAIInject()" style="background:#8957e5;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.72rem;font-weight:600;display:none">Apply Scenario</button>
             <button id="inline-ai-clear" onclick="inlineAIClear()" style="background:#da363322;color:#f85149;border:1px solid #da363344;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:.72rem;display:none">Clear</button>
             <button class="run-btn" onclick="runQuery()">Run</button>
           </div>
@@ -4642,6 +4594,45 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
 </div>
 
 <script>
+// ── User identity (cookie + URL param) ─────────────────────────────────
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+function setCookie(name, value) {
+  document.cookie = name + '=' + encodeURIComponent(value) + '; path=/; max-age=31536000; SameSite=Lax';
+}
+
+let mockUser = new URLSearchParams(window.location.search).get('user')
+  || getCookie('mock_user')
+  || '';
+
+if (!mockUser) {
+  mockUser = prompt('Enter your username (for multi-user isolation):') || 'anonymous';
+  setCookie('mock_user', mockUser);
+} else if (!getCookie('mock_user')) {
+  setCookie('mock_user', mockUser);
+}
+
+function changeUser() {
+  const name = prompt('Change username:', mockUser);
+  if (name && name.trim()) {
+    mockUser = name.trim();
+    setCookie('mock_user', mockUser);
+    document.getElementById('user-display').textContent = mockUser;
+  }
+}
+
+function getHeaders(extra) {
+  const h = { 'Content-Type': 'application/json', 'X-User': mockUser };
+  if (extra) Object.assign(h, extra);
+  return h;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('user-display').textContent = mockUser;
+});
+
 const SVC_DATA = ${svcDataJson};
 let currentService = '';
 let currentOpName = '';
@@ -4706,7 +4697,7 @@ async function fetchSchema(svc) {
   if (schemaCache[svc]) return schemaCache[svc];
   try {
     const r = await fetch('/graphql/' + svc, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: getHeaders(),
       body: JSON.stringify({query: '{ __schema { types { name kind fields { name args { name type { name kind ofType { name kind ofType { name kind ofType { name kind } } } } } } type { name kind ofType { name kind ofType { name kind ofType { name kind ofType { name kind } } } } } } } queryType { name } mutationType { name } } }'})
     });
     const d = await r.json();
@@ -4809,11 +4800,12 @@ async function selectOp(name, type) {
   srcLabel.style.color = '#30363d';
   srcLabel.textContent = '(from Microcks)';
 
-  ['inline-ai-scenario','inline-ai-prompt','inline-ai-btn','inline-ai-clear'].forEach(id => {
+  ['inline-ai-scenario','inline-ai-prompt','inline-ai-btn','inline-ai-clear','inline-ai-global-wrap'].forEach(id => {
     document.getElementById(id).style.display = '';
   });
   document.getElementById('inline-ai-scenario').value = '';
   document.getElementById('inline-ai-prompt').value = '';
+  document.getElementById('inline-ai-global').checked = false;
 
   const schema = await fetchSchema(currentService);
   const prefix = type === 'MUTATION' ? 'mutation ' : '';
@@ -4887,7 +4879,7 @@ async function selectOp(name, type) {
     editor.value = queryOp + ' {\\n  ' + callPart + '\\n}';
   }
 
-  result.textContent = 'Click Run (Cmd+Enter) to execute, or select an AI scenario and click Inject.';
+  result.textContent = 'Click Run (Cmd+Enter) to execute, or select an AI scenario and click Apply Scenario.';
   timingEl.innerHTML = '';
 }
 
@@ -5036,7 +5028,7 @@ async function generateAsyncAI() {
   try {
     const r = await fetch('/async/ai-generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify({ spec: specTitle, channel, scenario: scenario || undefined, prompt: prompt || undefined })
     });
     const data = await r.json();
@@ -5069,7 +5061,7 @@ async function validateAsyncPayload(specTitle, channel, payload) {
   try {
     const r = await fetch('/async/validate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify({ spec: specTitle, channel, payload })
     });
     const d = await r.json();
@@ -5159,11 +5151,12 @@ function tryRest(method, fullUrl) {
   typeBadge.className = 'badge rest';
 
   // Show AI controls for REST
-  ['inline-ai-scenario','inline-ai-prompt','inline-ai-btn','inline-ai-clear'].forEach(id => {
+  ['inline-ai-scenario','inline-ai-prompt','inline-ai-btn','inline-ai-clear','inline-ai-global-wrap'].forEach(id => {
     document.getElementById(id).style.display = '';
   });
   document.getElementById('inline-ai-scenario').value = '';
   document.getElementById('inline-ai-prompt').value = '';
+  document.getElementById('inline-ai-global').checked = false;
 
   const hasParams = /\\{[^}]+\\}/.test(templateUrl);
   let panelHtml = '<div style="padding:1rem;color:#8b949e;font-size:.82rem">';
@@ -5180,12 +5173,12 @@ function tryRest(method, fullUrl) {
     });
     panelHtml += '<br>';
   }
-  panelHtml += '<div style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid #21262d"><strong style="color:#a371f7;font-size:.72rem">AI Agent</strong><br><span style="font-size:.72rem;color:#484f58">Select a scenario above and click Inject to generate bad data for this REST endpoint via AI.</span></div>';
+  panelHtml += '<div style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid #21262d"><strong style="color:#a371f7;font-size:.72rem">AI Agent</strong><br><span style="font-size:.72rem;color:#484f58">Select a scenario above and click Apply Scenario to generate test data for this REST endpoint via AI.</span></div>';
   panelHtml += '</div>';
   document.getElementById('ops-panel').innerHTML = panelHtml;
 
   document.getElementById('editor-query').value = resolvedUrl;
-  document.getElementById('editor-result').textContent = 'Click Run to send the request, or select an AI scenario and click Inject.';
+  document.getElementById('editor-result').textContent = 'Click Run to send the request, or select an AI scenario and click Apply Scenario.';
   document.getElementById('editor-result').className = '';
   document.getElementById('editor-timing').innerHTML = '';
 
@@ -5209,7 +5202,7 @@ async function runQuery() {
     window.__restCtx.url = url;
     try {
       const urlObj = new URL(url.startsWith('http') ? url : window.location.origin + url);
-      const r = await fetch(urlObj.pathname + urlObj.search, {method, headers:{'Content-Type':'application/json','x-api-key':'mock'}});
+      const r = await fetch(urlObj.pathname + urlObj.search, {method, headers: getHeaders({'x-api-key':'mock'})});
       const ms = Math.round(performance.now() - start);
       const text = await r.text();
       let parsed = null;
@@ -5233,11 +5226,13 @@ async function runQuery() {
   }
   try {
     const r = await fetch('/graphql/' + currentService, {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', headers: getHeaders(),
       body: JSON.stringify(body)
     });
     const ms = Math.round(performance.now() - start);
-    const isAI = r.headers.get('X-Source') === 'ai-override';
+    const xSource = r.headers.get('X-Source') || '';
+    const isAI = xSource === 'ai-override';
+    const isScenario = xSource === 'ai-scenario';
     const aiLeft = parseInt(r.headers.get('X-Override-Remaining') || '0', 10);
     const text = await r.text();
     let parsed = null;
@@ -5250,7 +5245,8 @@ async function runQuery() {
     if (r.status === 200 && hasErrors && !hasData) logicalStatus = 400;
     if (r.status === 200 && hasErrors && hasData) logicalStatus = 206;
     const sc = logicalStatus === 206 ? 's206' : (logicalStatus < 300 ? 's2' : (logicalStatus < 500 ? 's4' : 's5'));
-    timingEl.innerHTML = '<span class="pg-status '+sc+'">'+logicalStatus+'</span> '+ms+'ms <span style="font-size:.7rem;color:#484f58">(via Microcks)</span>';
+    const sourceHint = isScenario ? '(scenario for ' + mockUser + ')' : isAI ? '(ai-override)' : '(via Microcks)';
+    timingEl.innerHTML = '<span class="pg-status '+sc+'">'+logicalStatus+'</span> '+ms+'ms <span style="font-size:.7rem;color:#484f58">' + sourceHint + '</span>';
     el.textContent = display;
     if (hasErrors) el.className = 'error';
     if (parsed && currentOpName) {
@@ -5280,7 +5276,7 @@ async function validateResponse(service, operation, response, apiType) {
       queryFields = extractQueryFields(q);
     }
     const r = await fetch('/ai/validate', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: getHeaders(),
       body: JSON.stringify({ service, operation, response, apiType, queryFields })
     });
     const d = await r.json();
@@ -5340,7 +5336,8 @@ async function inlineAIInject() {
 
   const scenario = document.getElementById('inline-ai-scenario').value;
   const prompt = document.getElementById('inline-ai-prompt').value;
-  if (!scenario && !prompt) { document.getElementById('editor-result').textContent = 'Select a scenario or type a prompt, then click Inject'; return; }
+  const isGlobal = document.getElementById('inline-ai-global').checked;
+  if (!scenario && !prompt) { document.getElementById('editor-result').textContent = 'Select a scenario or type a prompt, then click Apply Scenario'; return; }
 
   const result = document.getElementById('editor-result');
   const timingEl = document.getElementById('editor-timing');
@@ -5349,10 +5346,10 @@ async function inlineAIInject() {
 
   if (isRest) {
     const ctx = window.__restCtx;
-    result.textContent = 'Injecting AI data into Microcks for REST: ' + ctx.serviceName + ' / ' + ctx.operationName + '...';
+    result.textContent = 'Applying scenario for REST: ' + ctx.serviceName + ' / ' + ctx.operationName + (isGlobal ? ' (GLOBAL)' : '') + '...';
     result.className = '';
-    timingEl.innerHTML = '<span class="pg-status ai">AI</span> injecting into Microcks...';
-    srcLabel.textContent = '(injecting...)';
+    timingEl.innerHTML = '<span class="pg-status ai">AI</span> applying scenario...';
+    srcLabel.textContent = '(applying...)';
     srcLabel.style.color = '#a371f7';
 
     try {
@@ -5363,9 +5360,10 @@ async function inlineAIInject() {
       };
       if (scenario) payload.scenario = scenario;
       if (prompt) payload.prompt = prompt;
+      if (isGlobal) payload.global = true;
 
-      const r = await fetch('/ai/inject', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
+      const r = await fetch('/ai/scenario', {
+        method: 'POST', headers: getHeaders(),
         body: JSON.stringify(payload)
       });
       const d = await r.json();
@@ -5374,15 +5372,15 @@ async function inlineAIInject() {
         result.textContent = 'AI Error: ' + d.error;
         result.className = 'error';
         timingEl.innerHTML = '<span class="pg-status s4">ERR</span>';
-        srcLabel.textContent = '(injection failed)';
+        srcLabel.textContent = '(scenario failed)';
         return;
       }
 
-      srcLabel.textContent = '(AI injected into Microcks)';
+      srcLabel.textContent = isGlobal ? '(scenario applied globally)' : '(scenario applied for ' + mockUser + ')';
       srcLabel.style.color = '#a371f7';
 
       result.textContent = JSON.stringify(d.preview, null, 2);
-      timingEl.innerHTML = '<span class="pg-status ai">AI</span> injected — click Run to verify';
+      timingEl.innerHTML = '<span class="pg-status ai">AI</span> scenario active — click Run to verify';
       await runQuery();
     } catch(e) {
       result.textContent = 'Error: ' + e.message;
@@ -5391,12 +5389,12 @@ async function inlineAIInject() {
     return;
   }
 
-  // GraphQL inject
+  // GraphQL scenario
   const fields = extractFieldsFromQuery(editor.value);
-  result.textContent = 'Injecting AI data into Microcks for: ' + (fields.length ? fields.join(', ') : 'all fields') + '...';
+  result.textContent = 'Applying scenario for: ' + (fields.length ? fields.join(', ') : 'all fields') + (isGlobal ? ' (GLOBAL)' : '') + '...';
   result.className = '';
-  timingEl.innerHTML = '<span class="pg-status ai">AI</span> injecting into Microcks...';
-  srcLabel.textContent = '(injecting...)';
+  timingEl.innerHTML = '<span class="pg-status ai">AI</span> applying scenario...';
+  srcLabel.textContent = '(applying...)';
   srcLabel.style.color = '#a371f7';
 
   try {
@@ -5404,9 +5402,10 @@ async function inlineAIInject() {
     if (scenario) payload.scenario = scenario;
     if (prompt) payload.prompt = prompt;
     if (fields.length > 0) payload.fields = fields;
+    if (isGlobal) payload.global = true;
 
-    const r = await fetch('/ai/inject', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+    const r = await fetch('/ai/scenario', {
+      method: 'POST', headers: getHeaders(),
       body: JSON.stringify(payload)
     });
     const d = await r.json();
@@ -5415,11 +5414,11 @@ async function inlineAIInject() {
       result.textContent = 'AI Error: ' + d.error;
       result.className = 'error';
       timingEl.innerHTML = '<span class="pg-status s4">ERR</span>';
-      srcLabel.textContent = '(injection failed)';
+      srcLabel.textContent = '(scenario failed)';
       return;
     }
 
-    srcLabel.textContent = '(AI injected into Microcks)';
+    srcLabel.textContent = isGlobal ? '(scenario applied globally)' : '(scenario applied for ' + mockUser + ')';
     srcLabel.style.color = '#a371f7';
 
     await runQuery();
@@ -5444,9 +5443,10 @@ async function inlineAIClear() {
   timingEl.innerHTML = '<span class="pg-status s206">...</span> restoring';
 
   try {
-    await fetch('/ai/overrides', { method: 'DELETE' });
+    await fetch('/ai/overrides', { method: 'DELETE', headers: getHeaders() });
+    await fetch('/ai/scenarios/active', { method: 'DELETE', headers: getHeaders() });
     const r = await fetch('/ai/restore', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: getHeaders(),
       body: JSON.stringify({ service: serviceName })
     });
     const d = await r.json();
@@ -5456,8 +5456,9 @@ async function inlineAIClear() {
 
     document.getElementById('inline-ai-scenario').value = '';
     document.getElementById('inline-ai-prompt').value = '';
+    document.getElementById('inline-ai-global').checked = false;
 
-    result.textContent = d.restored ? 'Original examples restored. Click Run to verify.' : d.reason || 'Cleared.';
+    result.textContent = d.restored ? 'Scenarios & overrides cleared. Click Run to verify.' : d.reason || 'Cleared.';
     timingEl.innerHTML = '';
   } catch(e) {
     result.textContent = 'Restore error: ' + e.message;
@@ -5501,7 +5502,7 @@ async function runSetup() {
 
     const r = await fetch('/ai/setup', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify(body),
     });
     const data = await r.json();
@@ -5654,7 +5655,7 @@ async function doRegen(serviceName, type) {
 
     const r = await fetch('/ai/setup', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify(body),
     });
     const data = await r.json();
@@ -5704,7 +5705,10 @@ app.listen(PORT, async () => {
   console.log(`  REST:       /rest/:service/:version/...`);
   console.log(`  Health:     GET /health`);
   console.log(`  AI Setup:   POST /ai/setup (schema + prompt → auto-deploy)`);
-  console.log(`  AI Key:     ${AI_API_KEY ? 'Configured (' + AI_MODEL + ')' : '⚠ Not set (export GROQ_API_KEY)'}\n`);
+  console.log(`  AI Scenario: POST /ai/scenario (apply failure scenarios to Microcks)`);
+  console.log(`  AI Key:     ${AI_API_KEY ? 'Configured (' + AI_MODEL + ')' : '⚠ Not set (export GROQ_API_KEY)'}`);
+  console.log(`  Scoping:    Pass X-User header to isolate overrides + scenarios per person`);
+  console.log('');
 
   const services = await fetchMicrocksServices();
   if (services.length > 0) {
