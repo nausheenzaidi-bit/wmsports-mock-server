@@ -1,8 +1,8 @@
 # Mock Server Infrastructure — Deployment Guide
 
-This document describes how to deploy the **WM Sports Mock Server** stack on AWS : **one EC2 instance**, **Docker Engine**, and **Docker Compose**.
+This guide is for **DevOps / Platform**. It describes how to deploy the **WM Sports Mock Server** on AWS using **one EC2 instance**, **Docker Engine**, and **Docker Compose**. **Microcks** stores GraphQL schemas, Postman collections, and OpenAPI/AsyncAPI artifacts; the **dashboard** (Node/Express, port **4010**) proxies GraphQL/REST, serves the explorer UI, and may call an **external LLM** (e.g. Groq) for `/ai/*` routes.
 
-The mock server proxies GraphQL and REST traffic to **Microcks**, serves the **dashboard** (port `4010`), and optionally uses an **external LLM** (Groq, etc.) for AI-driven failure scenarios.
+The repo root [`docker-compose.yml`](../docker-compose.yml) is the **source of truth** for service names, ports, and dependencies.
 
 ---
 
@@ -14,59 +14,52 @@ The mock server proxies GraphQL and REST traffic to **Microcks**, serves the **d
 |------|-------|
 | **Instance type** | `t3.medium` (2 vCPU, 4 GB RAM) |
 | **OS** | Amazon Linux 2023 or Ubuntu 22.04 LTS |
-| **Storage** | **30 GB** `gp3` EBS (Microcks + artifacts + logs; 20 GB minimum for light use) |
+| **Storage** | 20 GB `gp3` EBS (30 GB if you retain large artifact sets or verbose logs) |
 | **Software** | Docker Engine 24+, Docker Compose v2 |
 | **Estimated cost** | ~$30–40/mo on-demand (lower with enterprise rates) |
 
-A `t3.small` (2 vCPU, 2 GB) can work for **low traffic / demos** but is tight once Microcks, PostgreSQL, and the Node process are all running. **`t3.medium` is the recommended default** for team usage and CI hitting the mock concurrently.
+A `t3.small` (2 vCPU, 2 GB) is marginal once **Microcks**, **PostgreSQL**, and the **Node** dashboard run together. **`t3.medium`** is the recommended default for team usage and CI traffic.
 
 ### Networking & Security Group
 
-Adjust sources to match your VPC, VPN, and CI runners (e.g. GitHub Actions egress IPs).
-
 | Rule | Port | Source | Purpose |
 |------|------|--------|---------|
-| Inbound TCP | **4010** | VPC CIDR / trusted CI IPs | Mock server (dashboard + API) |
-| Inbound TCP | **8585** | VPC CIDR / admin networks | Microcks UI & API (host maps **8585 → 8080** in container) |
-| Inbound TCP | **5432** | VPC CIDR only (recommended) | PostgreSQL (only if you keep the port published; see below) |
-| Inbound TCP | 22 | Admin IP range | SSH (maintenance); prefer SSM Session Manager if your org allows |
-| Outbound | All | `0.0.0.0/0` | Docker pulls, LLM API (if used), OS updates |
+| Inbound TCP | **4010** | VPC CIDR / trusted CI or developer IPs | Mock dashboard + API (`/graphql/*`, `/rest/*`, `/ai/*`) |
+| Inbound TCP | **8585** | VPC CIDR / admin or CI (if calling Microcks directly) | Microcks API + UI (host **8585** → container **8080**) |
+| Inbound TCP | **5432** | VPC CIDR only (recommended) | PostgreSQL for `dashboard` compose service—avoid public exposure |
+| Inbound TCP | **22** | Admin IP range | SSH (maintenance); prefer SSM Session Manager |
+| Outbound | All | `0.0.0.0/0` | Docker image pulls, OS updates, **LLM HTTPS** if AI is enabled |
 
-> **Prefer no public internet on the mock or Microcks.** Deploy in a **private subnet** with access via VPN, internal ALB, or CI connectivity into the VPC.
+> **No broad public exposure required.** Deploy in a **private subnet** with VPN or internal ALB; allow inbound **4010** (and **8585** if needed) only from trusted networks and CI egress IPs.
 
-**LLM egress:** If you enable the AI features, the application may call **external** inference APIs (e.g. Groq). If policy forbids that, use an **internal** model endpoint or disable AI routes—coordinate with Security.
+**LLM egress:** `/ai/*` routes may call **external** inference APIs. If policy forbids that, use an approved internal endpoint or do not configure API keys.
+
+### Production hardening (checklist)
+
+| Item | Action |
+|------|--------|
+| **Secrets** | Replace compose defaults: `POSTGRES_PASSWORD`, `JWT_SECRET`, and any DB URL in `DATABASE_URL`. Load from **Secrets Manager** / SSM Parameter Store at deploy time, not plaintext in git. |
+| **Postgres exposure** | Prefer **not** publishing `5432` on `0.0.0.0/0`; restrict to VPC or remove the host port and keep DB on the Docker network only. |
+| **Microcks** | Pin image digest or tag (avoid uncontrolled `:latest` drift in strict environments). |
+| **Reboots** | Ensure containers start after host reboot: e.g. `restart: unless-stopped` on long-running services **or** a **systemd** unit / `@reboot` script that runs `docker compose up -d` from the install directory. |
+| **TLS** | Terminate HTTPS at an **ALB** or corporate proxy; containers can stay HTTP behind it. |
 
 ---
 
 ## What Gets Deployed
 
-Per the repo’s root [`docker-compose.yml`](../docker-compose.yml), **four Compose services** run on one host:
+Four Docker services on one machine ([`docker-compose.yml`](../docker-compose.yml)):
 
-| Service | Image / build | Host port | Purpose |
-|---------|----------------|-----------|---------|
-| **dashboard** | `build: .` (Node20) | **4010** | Express app: UI, `/graphql/*`, `/rest/*`, `/ai/*`, `GET /health` |
-| **microcks** | `quay.io/microcks/microcks-uber:latest` | **8585** → 8080 | Mock engine (schemas + examples imported from `artifacts/`) |
-| **import** | Same Microcks image (one-shot) | — | Waits for Microcks healthy, then uploads artifacts |
-| **postgres** | `postgres:15-alpine` | **5432** (default in file) | Database defined for Compose; verify whether your branch uses it for app persistence |
+| Container | Image / build | Port | CPU* | RAM* | Purpose |
+|-----------|---------------|------|------|------|---------|
+| **Dashboard** | `build: .` (Node 20) | **4010** | ~0.25 vCPU | ~256–512 MB | GraphQL/REST proxy, AI agent, explorer UI, `GET /health` |
+| **Microcks** | `quay.io/microcks/microcks-uber:latest` | **8585** | ~0.5 vCPU | ~512 MB–1 GB | Mock engine, spec-backed examples |
+| **Import** | `microcks-uber` (one-shot) | — | — | — | Imports `artifacts/` into Microcks on startup |
+| **PostgreSQL** | `postgres:15-alpine` | **5432** | ~0.25 vCPU | ~256 MB | Database wired in Compose for the dashboard service |
 
-Total footprint is typically **well within a `t3.medium`** for the expected mock/CI traffic described in program docs.
+\*Approximate steady-state; Microcks spikes during import. **Total** is typically **well within a `t3.medium`**.
 
-> **Production hardening:** Consider **not** publishing PostgreSQL to the public internet—restrict `5432` to the Docker network only (remove the host port mapping) unless operators need host access.
-
-> **Microcks persistence:** For production, add a **named volume** (or EBS-backed path) for Microcks data if you need mock definitions to survive container recreation without re-import. The repo mounts `./artifacts` read-only for imports; runtime state still benefits from durable Microcks storage.
-
----
-
-## Relationship to Contract Testing
-
-Contract Testing’s guide deploys **Pact Broker + PostgreSQL + Microcks + MongoDB** as separate containers.
-
-This mock server repo uses the **Microcks “uber”** image and a **single Compose file** tuned for **mocking only**. You can:
-
-- Run **two instances** (mock vs contract testing), or  
-- **Consolidate** onto one host **only if** you deliberately merge Compose stacks and resolve port/password conflicts—treat that as a Platform decision.
-
-If Microcks is **shared**, align **import jobs**, **credentials**, and **backup** ownership between teams.
+> **Persistence:** Add a **named volume** for Microcks (or EBS-backed path) if you need definitions to survive container recreation without re-import. **`artifacts/`** in Git remains the source of truth for what gets loaded.
 
 ---
 
@@ -74,90 +67,91 @@ If Microcks is **shared**, align **import jobs**, **credentials**, and **backup*
 
 ### 1. Provision the EC2 Instance
 
-Create a `t3.medium` (or larger) in a **private subnet**, attach the security group above, and (optionally) an IAM instance profile for S3 backups or Secrets Manager access.
+```text
+# AWS Console or CLI — create a t3.medium in your private subnet
+# Attach the security group with the rules above
+# Optional: IAM instance profile for S3 backups or Secrets Manager
+```
 
 ### 2. Install Docker
 
-Use the same Docker + Compose plugin installation steps as the Contract Testing deployment guide (Amazon Linux 2023 `dnf` install, or [Docker’s Ubuntu guide](https://docs.docker.com/engine/install/ubuntu/)).
-
-Verify:
+**Amazon Linux 2023:**
 
 ```bash
+sudo dnf update -y
+sudo dnf install -y docker
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker $USER
+
+sudo mkdir -p /usr/local/lib/docker/cli-plugins
+sudo curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
 docker --version
 docker compose version
 ```
 
-### 3. Clone the repo and configure
+For **Ubuntu 22.04**, follow [Docker’s official install guide](https://docs.docker.com/engine/install/ubuntu/).
+
+### 3. Clone This Repo and Configure
 
 ```bash
-git clone <your-fork-or-upstream-url> wmsports-mock-server
+git clone https://github.com/<org>/wmsports-mock-server.git
 cd wmsports-mock-server
 ```
 
-Create a **`.env`** next to `docker-compose.yml`. To pass variables into the **dashboard** container, either:
-
-- Add `env_file: .env` under the `dashboard` service in `docker-compose.yml`, or  
-- Add explicit `environment` entries (e.g. `GROQ_API_KEY: ${GROQ_API_KEY}`) so Compose injects secrets at runtime.
-
-Minimum variables for the running app:
+Ensure **`GROQ_API_KEY`** (or equivalent per `server.cjs`) reaches the **dashboard** container. The committed Compose file lists `environment` for `PORT`, `MICROCKS_URL`, etc.; add **`env_file: .env`** to the `dashboard` service or extend `environment` with `GROQ_API_KEY: ${GROQ_API_KEY}`.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `GROQ_API_KEY` | For AI features | Groq API key (or set `AI_API_KEY` if your build supports it—see `server.cjs`) |
-| `MICROCKS_URL` | Optional in Compose | Defaults to `http://microcks:8080` **inside** the stack; override only if Microcks is external |
+| `GROQ_API_KEY` | For `/ai/*` | Groq API key (see `server.cjs` for `AI_API_KEY` fallbacks) |
+| `MICROCKS_URL` | Usually set in Compose | `http://microcks:8080` on the Docker network |
 | `PORT` | Optional | Default **4010** |
-| `AI_MODEL` | Optional | Default from `server.cjs` (e.g. Groq model id) |
+| `AI_MODEL` | Optional | Overrides default model in `server.cjs` |
 
-Example `.env` fragment:
+Store secrets in **AWS Secrets Manager** (or your standard); do not commit real `.env` files.
 
-```bash
-GROQ_API_KEY=<from-secrets-manager>
-# Optional overrides:
-# PORT=4010
-# AI_MODEL=llama-3.3-70b-versatile
-```
-
-Store secrets in **AWS Secrets Manager** (or your standard) and inject at deploy time—avoid committing `.env`.
-
-### 4. Start the stack
+### 4. Start the Services
 
 ```bash
 docker compose up -d
 ```
 
-The **import** service exits after loading artifacts; **dashboard**, **microcks**, and **postgres** stay up.
+The **import** container exits after loading artifacts; **dashboard**, **microcks**, and **postgres** keep running.
 
-### 5. Verify health
+### 5. Verify Health
 
 ```bash
 docker compose ps
 
-# Mock server aggregate health (Microcks reachability + counts)
+# Mock server (Microcks reachability + service counts)
 curl -s http://localhost:4010/health
 
-# Microcks API
+# Microcks
 curl -s http://localhost:8585/api/services
 
-# Dashboard (use VPN / jump host as appropriate)
-# Open http://<instance-ip>:4010
+# Dashboard UI — via VPN / jump host
+# http://<instance-ip>:4010
 ```
 
-Expected: `/health` returns JSON with service metadata; `/api/services` lists imported services after a successful import.
+Expected: `/health` returns JSON; `/api/services` lists services after a successful import (may be non-empty immediately).
 
-### 6. CI / client configuration
+### 6. Clients and CI
 
-Point tests and tools at the **internal base URL** of the mock server, for example:
+Point tests and tools at the mock **base URL**:
 
-- `http://<internal-dns-or-alb>:4010/graphql/<ServiceName>`
-- `http://<internal-dns-or-alb>:4010/rest/...`
+- `http://<internal-host>:4010/graphql/<ServiceName>`
+- `http://<internal-host>:4010/rest/...`
 
-If the server uses **per-user isolation** for AI scenarios and overrides, callers should send a stable **`X-User`** header (or use the dashboard cookie flow). Coordinate header values with the team owning the mock.
+If your deployment uses **per-user** AI isolation, send a stable **`X-User`** header (or use the dashboard’s identity flow).
 
 ---
 
 ## Operations
 
-### Logs
+### View Logs
 
 ```bash
 docker compose logs -f
@@ -165,14 +159,14 @@ docker compose logs -f dashboard
 docker compose logs -f microcks
 ```
 
-### Restart
+### Restart Services
 
 ```bash
 docker compose restart
 docker compose restart dashboard
 ```
 
-### Update images / app
+### Update Images / App
 
 ```bash
 git pull
@@ -181,51 +175,77 @@ docker compose pull microcks
 docker compose up -d
 ```
 
-Re-run imports if you change artifacts and need Microcks refreshed (bring stack up so **import** runs again, or trigger your pipeline’s import step).
+After changing **`artifacts/`**, re-run the one-shot importer (a plain `docker compose up -d` may **not** re-execute a completed **import** container):
 
-### Backups
+```bash
+docker compose run --rm import
+```
 
-| Data | Suggestion |
-|------|------------|
-| **Artifacts** (schemas, Postman, OpenAPI) | Source of truth is **Git**; tag releases. |
-| **Microcks** | Optional volume snapshots or Microcks backup procedures if definitions diverge from Git. |
-| **PostgreSQL** in this Compose file | If you rely on it for future features, use `pg_dump` / RDS-style snapshots as in the Contract Testing guide. |
+Alternatively remove the old import container and run `docker compose up -d import`, or use your standard pipeline to POST artifacts to Microcks.
+
+### Backup PostgreSQL (Compose `postgres` service)
+
+```bash
+docker compose exec postgres pg_dump -U mockserver mockserver > backup_$(date +%Y%m%d).sql
+# Restore example (replace file name):
+cat backup_20260309.sql | docker compose exec -T postgres psql -U mockserver mockserver
+```
+
+User/database names match [`docker-compose.yml`](../docker-compose.yml) (`mockserver` / `mockserver`). **Production:** set a strong `POSTGRES_PASSWORD` and use it in `pg_dump`/connection strings. For automated backups, use **cron** + `pg_dump` or **RDS** if required.
+
+### Microcks Data
+
+The **uber** image bundles storage; for disaster recovery, prefer **volume snapshots** or **re-import** from Git-tracked **`artifacts/`** (schemas, Postman, OpenAPI, AsyncAPI).
 
 ---
 
 ## Monitoring
 
-| Check | Endpoint | Notes |
-|-------|----------|--------|
-| Mock server | `GET /health` | Use for load balancer / CloudWatch HTTP health checks |
-| Microcks | `GET /api/services` | Returns `200`; empty list is valid before first import |
+### Health Check Endpoints
 
-Alert on consecutive failures, high CPU/memory, and disk usage on EBS.
+| Service | Endpoint | Expected |
+|---------|----------|----------|
+| Mock dashboard | `GET /health` | JSON with Microcks status / counts |
+| Microcks | `GET /api/services` | `200 OK` |
+
+Use CloudWatch, Datadog, or similar **HTTP checks** against **`GET http://<host>:4010/health`** and **`GET http://<host>:8585/api/services`**. Alert on consecutive failures or non-200 responses.
+
+**Load balancer:** If an ALB targets the dashboard, use **`/health`** as the target health path (confirm it returns **HTTP200** in your build).
+
+### Disk Usage
+
+Monitor EBS: artifacts, container layers, and Microcks data grow slowly; bump disk or prune images if usage climbs.
 
 ---
 
 ## Scaling Notes
 
-This is a **developer / CI** tool, not a customer-facing production API. A single **`t3.medium`** is appropriate for full program adoption of mocks at the traffic levels described in internal sizing docs. Scale up if you add **self-hosted LLMs**, heavy concurrent AI generation, or many large artifacts.
+| Metric | Typical range |
+|--------|----------------|
+| GraphQL subgraphs / REST / async surfaces | As defined in repo `README` (hundreds of operations) |
+| Mock requests/day | Low vs. production APIs — developer and CI traffic |
+| Instance | **`t3.medium`** sufficient for full internal adoption |
 
-For **high availability**, move to an existing **EKS/ECS** platform with health checks and multiple tasks—only if the organization requires it.
+Scale up to **`t3.large`** if you enable **self-hosted LLMs**, sustained heavy **AI** traffic, or many parallel imports. For **HA**, use your org’s container platform (EKS/ECS) only if required.
 
 ---
 
 ## Troubleshooting
 
-| Issue | What to check |
-|-------|----------------|
-| Dashboard up, GraphQL/REST errors | `MICROCKS_URL` reachable from **dashboard** container; Microcks healthy; import logs |
-| `/health` shows Microcks disconnected | Network between containers; Microcks not ready; wrong `MICROCKS_URL` |
-| AI endpoints fail | `GROQ_API_KEY` / `AI_API_KEY` set; outbound HTTPS allowed; rate limits |
-| Import failures | `artifacts/` mounted; file names/patterns match `import-to-microcks.sh`; Microcks logs |
-| Out of memory | `docker stats`; bump instance to `t3.large` or reduce concurrent AI usage |
+| Issue | Fix |
+|-------|-----|
+| Dashboard up, GraphQL/REST errors | `MICROCKS_URL` from dashboard container; Microcks healthy; **import** logs |
+| `/health` shows Microcks disconnected | Network, startup order, wrong `MICROCKS_URL` |
+| AI routes fail | `GROQ_API_KEY` / `AI_API_KEY`; outbound HTTPS; provider rate limits |
+| Import failures | `artifacts/` paths; `import-to-microcks.sh`; Microcks logs |
+| Port conflict | Adjust host ports in Compose |
+| OOM | `docker stats`; increase instance size or reduce concurrency |
 
 ---
 
 ## References
 
-- Root [`README.md`](../README.md) — usage, routes, environment variables  
-- [`docker-compose.yml`](../docker-compose.yml) — authoritative service list and ports  
-- Contract Testing deployment guide (sibling repo) — Pact Broker + Microcks layout for comparison  
+- Root [`README.md`](../README.md) — routes, examples, environment variables  
+- [`docker-compose.yml`](../docker-compose.yml) — ports and service definitions  
+
+If Microcks is **already running elsewhere**, point **`MICROCKS_URL`** at that instance and run only the **dashboard** (custom Compose overlay or single-service run)—no second Microcks on the same catalog unless intended.
