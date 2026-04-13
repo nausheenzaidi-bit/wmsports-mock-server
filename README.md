@@ -215,3 +215,7 @@ Or use the `render.yaml` blueprint.
 | `MICROCKS_URL` | `http://localhost:8585` | Microcks instance URL |
 | `GROQ_API_KEY` | — | Groq API key for AI agent |
 | `AI_MODEL` | `llama-3.3-70b-versatile` | LLM model to use |
+
+## Documentation
+
+For detailed design and implementation, refer to the [WM Sports Mock Server Confluence Page](https://wbddigital.atlassian.net/wiki/x/bYD8yQ).
