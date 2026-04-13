@@ -81,8 +81,8 @@ Inject AI-generated bad data into any operation to test how your code handles pr
 **Via API** (for CI/CD pipelines):
 
 ```bash
-# Inject bad data for an operation
-curl -X POST https://wmsports-mock-server.onrender.com/ai/inject \
+# Apply a failure scenario to an operation
+curl -X POST https://wmsports-mock-server.onrender.com/ai/scenario \
   -H "Content-Type: application/json" \
   -d '{
     "service": "StatsAPI",
@@ -115,7 +115,7 @@ curl -X POST https://wmsports-mock-server.onrender.com/ai/restore \
 | `ALL /rest/:service/:version/*` | REST proxy to Microcks |
 | `ALL /v3/*` | Census REST API (shortcut) |
 | `ALL /statmilk/*` | StatMilk REST API (shortcut) |
-| `POST /ai/inject` | Inject AI-generated data into Microcks |
+| `POST /ai/scenario` | Apply AI-generated scenario data to Microcks |
 | `POST /ai/restore` | Restore original examples for a service |
 | `POST /ai/generate` | Preview AI-generated data (no injection) |
 | `GET /ai/scenarios` | List available failure scenarios |
@@ -186,6 +186,12 @@ curl -X POST https://wmsports-mock-server.onrender.com/ai/restore \
 **AI Inject flow**: Delete service from Microcks → re-import main schema → upload AI-only Postman collection. Microcks has exactly 1 example: the AI data.
 
 **AI Restore flow**: Delete service from Microcks → re-import main schema → re-import original Postman examples. Service is back to its original state.
+
+---
+
+## Production deployment (AWS)
+
+For EC2 sizing, security groups, Docker Compose, health checks, and operations, see the **[Mock Server deployment guide](./deployment/MOCK-SERVER-DEPLOYMENT-GUIDE.md)**.
 
 ---
 
