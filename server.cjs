@@ -1491,11 +1491,15 @@ app.post('/ai/scenario', async (req, res) => {
     ? `\n\nSET THESE FIELDS TO null (not empty object, not omitted): ${toNull.join(', ')}.`
     : '';
 
+  // Extract example number from request (if provided) to generate diverse data
+  const exampleNum = req.body.example || req.body.exchangeName || '';
+  const diversityHint = exampleNum ? `\nIMPORTANT: This is ${exampleNum}. Generate DIFFERENT realistic data from other examples. Vary: team names, dates, scores, show titles, episode numbers, league info, etc. Make each example distinct.` : '';
+
   let opMsg;
   if (isCustomPrompt) {
-    opMsg = `USER INSTRUCTION (follow this EXACTLY): ${userPrompt}\n\nThe query has these fields: ${fNames}.\nCRITICAL: Follow the user instruction above precisely. When they say "remove", "delete", or "omit" specific fields, set those fields to null — do NOT use empty objects {} or omit the keys (GraphQL requires all requested fields present). All other fields: return realistic values.${explicitNullFields}\n\nSchema for reference:\n${schemaCtx}\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
+    opMsg = `USER INSTRUCTION (follow this EXACTLY): ${userPrompt}\n\nThe query has these fields: ${fNames}.\nCRITICAL: Follow the user instruction above precisely. When they say "remove", "delete", or "omit" specific fields, set those fields to null — do NOT use empty objects {} or omit the keys (GraphQL requires all requested fields present). All other fields: return realistic values.${explicitNullFields}${diversityHint}\n\nSchema for reference:\n${schemaCtx}\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
   } else {
-    opMsg = userPrompt + `\n\nSchema (use EXACT field names and types below):\n${schemaCtx}${fieldsConstraint}\nCRITICAL: Every nested object must use the EXACT sub-field names from the schema above. Do NOT invent field names.\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
+    opMsg = userPrompt + `\n\nSchema (use EXACT field names and types below):\n${schemaCtx}${fieldsConstraint}\nCRITICAL: Every nested object must use the EXACT sub-field names from the schema above. Do NOT invent field names.${diversityHint}\nReturn ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
   }
 
   let aiData;
@@ -1513,19 +1517,21 @@ app.post('/ai/scenario', async (req, res) => {
   }
 
   if (preview) {
-    return res.json({ preview: aiData, scenario: scenario || 'custom', apiType: 'graphql', service, operation });
+    return res.json({ preview: aiData, scenario: scenario || 'custom', apiType: 'graphql', service, operation, example: exampleNum });
   }
 
   const userScope = req.body.global ? 'global' : getUserScope(req);
-  const key = `${userScope}:${service}:${operation}`;
-  scenarioStore[key] = { data: aiData, scenario: scenario || 'custom', apiType: 'graphql' };
+  // Key by both operation AND example to store different data for each example
+  const key = exampleNum ? `${userScope}:${service}:${operation}:${exampleNum}` : `${userScope}:${service}:${operation}`;
+  scenarioStore[key] = { data: aiData, scenario: scenario || 'custom', apiType: 'graphql', example: exampleNum };
   res.json({
-    message: `Scenario active for ${service}/${operation}`,
+    message: `Scenario active for ${service}/${operation}${exampleNum ? ` (${exampleNum})` : ''}`,
     appliedTo: 'server',
     key,
     user: userScope,
     preview: aiData,
     scenario: scenario || 'custom',
+    example: exampleNum,
   });
 });
 
