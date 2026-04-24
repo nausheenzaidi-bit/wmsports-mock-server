@@ -6,7 +6,7 @@ const { parse: gqlParse, Kind } = require('graphql');
 const { MICROCKS_URL } = require('../config.cjs');
 const { SCALAR_TYPES } = require('../lib/graphql-utils.cjs');
 const { httpGet } = require('../lib/http-helpers.cjs');
-const { responseOverrides, aiRemovedFields, scenarioStore, getUserScope } = require('../state.cjs');
+const { responseOverrides, aiRemovedFields, scenarioStore, getUserScope, markDirty } = require('../state.cjs');
 const {
   callLLM,
   AI_SYSTEM_PROMPT,
@@ -22,8 +22,9 @@ const {
   deleteServiceFromMicrocks,
   clearServiceDispatchers,
   invalidateCache,
+  configureOperationDispatcher,
 } = require('../lib/microcks-service.cjs');
-const { buildPostmanCollection } = require('../lib/postman-builder.cjs');
+const { buildPostmanCollection, buildSingleOpRestCollection } = require('../lib/postman-builder.cjs');
 
 const ARTIFACTS_DIR = path.join(__dirname, '..', '..', 'artifacts');
 
@@ -284,7 +285,7 @@ function buildTypeSchema(typeName, depth = 0, visited = new Set(), svcName = nul
 const router = express.Router();
 
 router.post('/ai/scenario', async (req, res) => {
-  const { service, operation, prompt, scenario, fields, apiType, preview } = req.body;
+  const { service, operation, prompt, scenario, fields, apiType, preview, resolvedOperation } = req.body;
   if (!service || !operation) return res.status(400).json({ error: 'Provide "service" and "operation"' });
   if (!prompt && !scenario) return res.status(400).json({ error: 'Provide "prompt" or "scenario"' });
 
@@ -325,10 +326,12 @@ router.post('/ai/scenario', async (req, res) => {
     }
 
     const userScope = req.body.global ? 'global' : getUserScope(req);
-    const key = `${userScope}:${service}:${operation}`;
+    const storeOp = resolvedOperation || operation;
+    const key = `${userScope}:${service}:${storeOp}`;
     scenarioStore[key] = { data: aiData, scenario: scenario || 'custom', apiType: 'rest' };
+    markDirty();
     res.json({
-      message: `Scenario active for REST ${service}/${operation}`,
+      message: `Scenario active for REST ${service}/${storeOp}`,
       appliedTo: 'server',
       key,
       user: userScope,
@@ -391,6 +394,7 @@ router.post('/ai/scenario', async (req, res) => {
   // Key by both operation AND example to store different data for each example
   const key = exampleNum ? `${userScope}:${service}:${operation}:${exampleNum}` : `${userScope}:${service}:${operation}`;
   scenarioStore[key] = { data: aiData, scenario: scenario || 'custom', apiType: 'graphql', example: exampleNum };
+  markDirty();
   res.json({
     message: `Scenario active for ${service}/${operation}${exampleNum ? ` (${exampleNum})` : ''}`,
     appliedTo: 'server',
@@ -442,7 +446,110 @@ router.delete('/ai/scenarios/active', (req, res) => {
   Object.keys(scenarioStore).forEach(k => {
     if (k.startsWith(userPrefix)) { delete scenarioStore[k]; cleared++; }
   });
+  markDirty();
   res.json({ message: `${cleared} scenario(s) cleared` });
+});
+
+router.post('/ai/scenario/clear', (req, res) => {
+  const { service, operation } = req.body;
+  if (!service || !operation) return res.status(400).json({ error: 'Provide service and operation' });
+
+  const userScope = getUserScope(req);
+  const wsId = req.headers['x-workspace'] || null;
+  let cleared = 0;
+
+  const keysToCheck = [
+    `${userScope}:${service}:${operation}`,
+    `global:${service}:${operation}`,
+  ];
+  if (wsId) {
+    keysToCheck.unshift(`ws:${wsId}:${userScope}:${service}:${operation}`);
+  }
+
+  for (const key of keysToCheck) {
+    if (scenarioStore[key]) { delete scenarioStore[key]; cleared++; }
+    if (responseOverrides[key]) { delete responseOverrides[key]; cleared++; }
+    if (aiRemovedFields[key]) { delete aiRemovedFields[key]; cleared++; }
+  }
+
+  for (const k of Object.keys(scenarioStore)) {
+    if (k.startsWith(`${userScope}:${service}:${operation}:`)) { delete scenarioStore[k]; cleared++; }
+    if (wsId && k.startsWith(`ws:${wsId}:${userScope}:${service}:${operation}:`)) { delete scenarioStore[k]; cleared++; }
+  }
+
+  markDirty();
+  res.json({ cleared, service, operation });
+});
+
+router.post('/ai/scenario-inject', async (req, res) => {
+  const { service, operation, data, apiType, scenarioName, variables, resolvedOperation } = req.body;
+  if (!service || !operation || !data) {
+    return res.status(400).json({ error: 'Provide service, operation, and data' });
+  }
+
+  try {
+    let collection;
+    if (apiType === 'rest') {
+      const parts = operation.split(' ');
+      const method = parts[0] || 'GET';
+      const templatePath = parts.slice(1).join(' ') || '/';
+
+      let resolvedPath = null;
+      if (resolvedOperation) {
+        const rParts = resolvedOperation.split(' ');
+        resolvedPath = rParts.slice(1).join(' ') || null;
+      }
+
+      collection = buildSingleOpRestCollection(service, operation, data, {
+        method,
+        url: resolvedPath ? `http://example.com${resolvedPath}` : `http://example.com${templatePath}`,
+        statusCode: 200,
+        resolvedPath,
+        templatePath,
+      });
+    } else {
+      collection = buildPostmanCollection(service, operation, data, null, variables);
+    }
+    await uploadPostmanCollection(collection);
+    invalidateCache();
+
+    if (apiType === 'rest') {
+      const parts = operation.split(' ');
+      const templatePath = parts.slice(1).join(' ') || '/';
+      const pathParams = [];
+      templatePath.replace(/\{(\w+)\}/g, (_, name) => { pathParams.push(name); });
+
+      let fallbackName = 'default';
+      if (resolvedOperation && pathParams.length > 0) {
+        const rParts = (resolvedOperation.split(' ').slice(1).join(' ') || '/').split('/');
+        const tParts = templatePath.split('/');
+        const vals = [];
+        for (let i = 0; i < tParts.length; i++) {
+          if (tParts[i] && tParts[i].startsWith('{') && rParts[i]) vals.push(rParts[i]);
+        }
+        if (vals.length > 0) fallbackName = vals.join('-');
+      }
+
+      if (pathParams.length > 0) {
+        try {
+          await configureOperationDispatcher(
+            service,
+            operation,
+            'FALLBACK',
+            JSON.stringify({
+              dispatcher: 'URI_PARTS',
+              dispatcherRules: pathParams.join(' && '),
+              fallback: fallbackName,
+            })
+          );
+        } catch (_) {}
+      }
+    }
+
+    res.json({ injected: true, service, operation, scenarioName: scenarioName || 'custom' });
+  } catch (err) {
+    res.json({ injected: false, error: err.message, service, operation });
+  }
 });
 
 module.exports = router;

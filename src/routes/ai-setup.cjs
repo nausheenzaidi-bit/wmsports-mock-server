@@ -31,6 +31,7 @@ const {
 const {
   importArtifactToMicrocks,
   deleteServiceFromMicrocks,
+  deleteExistingService,
   getMicrocksServiceId,
   clearServiceDispatchers,
   configureServiceDispatchers,
@@ -39,8 +40,47 @@ const {
 const { loadSchemaFiles, isValidJSON } = require('../lib/schema-loader.cjs');
 const { validateMockData, nearestEnumValue } = require('../lib/validation.cjs');
 const { SCALAR_TYPES } = require('../lib/graphql-utils.cjs');
+const { scenarioStore, workspaces, getUserScope, getWorkspaceId, registerService, markDirty } = require('../state.cjs');
+const { applyPrefix } = require('../lib/microcks-namespace.cjs');
 
 const router = express.Router();
+
+function registerWorkspaceOps(req, serviceName, operations, generatedData) {
+  const wsId = getWorkspaceId(req);
+  if (!wsId) return;
+  const user = getUserScope(req);
+  if (!workspaces[wsId]) {
+    workspaces[wsId] = {
+      id: wsId,
+      name: wsId,
+      description: '',
+      owner: user,
+      createdAt: new Date().toISOString(),
+      isolated: true,
+      scenarios: {},
+      overrides: {},
+      variableMocks: {},
+    };
+  }
+  const ws = workspaces[wsId];
+  ws.isolated = true;
+  if (!ws.scenarios) ws.scenarios = {};
+  for (const op of operations) {
+    const opName = op.name || op.operation || '';
+    if (!opName) continue;
+    const wsKey = `ws:${wsId}:${user}:${serviceName}:${opName}`;
+    const localKey = `${serviceName}:${opName}`;
+    const opData = generatedData[opName];
+    let responseBody = null;
+    if (opData && Array.isArray(opData) && opData.length > 0) {
+      const sample = opData[0];
+      responseBody = { data: { [opName]: sample } };
+    }
+    const entry = { data: responseBody, source: 'ai-setup', scenario: 'setup' };
+    scenarioStore[wsKey] = entry;
+    ws.scenarios[localKey] = entry;
+  }
+}
 
 router.post('/validate-schema', (req, res) => {
   const { schema } = req.body;
@@ -91,21 +131,18 @@ async function handleAiSetup(req, res) {
     let schemaIssues = [];
     if (schemaType === 'graphql') {
       const validation = validateGraphQLSchema(schemaText);
-      steps.push(`✓ Schema validation completed (${validation.summary.errorCount} errors, ${validation.summary.warningCount} warnings)`);
+      steps.push({ step: `Schema validation completed (${validation.summary.errorCount} errors, ${validation.summary.warningCount} warnings)`, status: 'done' });
       
-      // Collect errors as warnings to allow processing to continue
       if (!validation.valid && validation.errors.length > 0) {
-        steps.push(`⚠️ Schema issues detected:`);
         validation.errors.forEach(e => {
-          steps.push(`   - [ERROR] ${e.message}`);
+          steps.push({ step: `[ERROR] ${e.message}`, status: 'warning' });
           schemaIssues.push(e);
         });
       }
       
       if (validation.warnings.length > 0) {
-        steps.push(`⚠️ Schema warnings detected:`);
         validation.warnings.forEach(w => {
-          steps.push(`   - ${w.message}`);
+          steps.push({ step: w.message, status: 'warning' });
           schemaIssues.push(w);
         });
       }
@@ -208,6 +245,11 @@ if (trimmed.startsWith('{')) {
       steps.push({ step: 'Detected OpenAPI spec, parsing...', status: 'running' });
       const { spec, serviceName: parsedName, serviceVersion, operations } = parseOpenAPISpec(finalSchema);
       if (!serviceName) serviceName = parsedName;
+      // Apply namespace prefix so Microcks stores the service under our namespace.
+      // Must update info.title in the spec itself — Microcks derives the service name from it.
+      serviceName = applyPrefix(serviceName);
+      const microcksRestServiceName = applyPrefix(parsedName);
+      if (spec.info) spec.info.title = microcksRestServiceName;
       steps[steps.length - 1].status = 'done';
 
       if (operations.length === 0) {
@@ -225,8 +267,15 @@ if (trimmed.startsWith('{')) {
           const raw = JSON.stringify(op.responseSchema, null, 2);
           if (raw.length > 20 && raw.length < 3000) rawHint = `\n  JSON Schema:\n${raw}`;
         } catch (_) {}
+        const pathParams = (op.parameters || []).filter(p => p.in === 'path').map(p => p.name);
+        let pathParamHint = '';
+        if (pathParams.length > 0) {
+          pathParamHint = `\n  PATH PARAMETERS: ${pathParams.join(', ')}
+  IMPORTANT: Each example MUST include a top-level "_pathParams" object with distinct kebab-case slug values for each path parameter. Use realistic sports slugs like "nfl", "mlb", "patriots-vs-jets", "kansas-city-chiefs-at-buffalo-bills". NEVER use URLs.
+  Example: "_pathParams": { "${pathParams[0]}": "nfl" }`;
+        }
         return `"${op.name}" (${op.summary || 'no summary'}):
-  Response shape:\n${schemaDesc}${rawHint}`;
+  Response shape:\n${schemaDesc}${rawHint}${pathParamHint}`;
       }).join('\n\n');
 
       const batchPrompt = `Generate ${samplesPerOp} DISTINCT mock data examples for each of the following REST API operations.
@@ -235,6 +284,13 @@ ${opDescriptions}
 
 User request: ${prompt || 'Generate realistic mock data'}
 ${scenarioInstructions}
+
+CRITICAL PATH PARAMETER RULES:
+- For operations with path parameters (like {permalink}, {id}, {slug}), each example MUST include a top-level "_pathParams" field.
+- "_pathParams" is a JSON object mapping each path parameter name to a DISTINCT kebab-case slug value.
+- Use realistic sports domain slugs: "nfl", "mlb", "nba", "patriots-vs-jets", "yankees-vs-red-sox", "lakers-vs-celtics".
+- NEVER use URLs (no "https://..." values). Path parameters are URL path segments, not full URLs.
+- Each example in the array MUST have DIFFERENT "_pathParams" values.
 
 Return a JSON object where each key is the operation name (e.g. "GET /path"), and its value is an ARRAY of exactly ${samplesPerOp} examples.
 
@@ -288,7 +344,7 @@ Format:
       }
 
       steps.push({ step: 'Building Postman collection...', status: 'running' });
-      const collection = buildRestPostmanCollection(serviceName, serviceVersion, operations, generatedData);
+      const collection = buildRestPostmanCollection(microcksRestServiceName, serviceVersion, operations, generatedData);
       steps[steps.length - 1].status = 'done';
 
       steps.push({ step: 'Injecting examples into OpenAPI spec...', status: 'running' });
@@ -303,6 +359,23 @@ Format:
       fs.writeFileSync(openapiFile, JSON.stringify(updatedSpec, null, 2), 'utf-8');
       fs.writeFileSync(postmanFile, JSON.stringify(collection, null, 2), 'utf-8');
       steps[steps.length - 1].status = 'done';
+
+      // Delete existing service to prevent stale default examples
+      steps.push({ step: 'Cleaning up existing service in Microcks...', status: 'running' });
+      try {
+        let delResult = await deleteExistingService(microcksRestServiceName);
+        if (!delResult.deleted && serviceName !== microcksRestServiceName) {
+          delResult = await deleteExistingService(serviceName);
+        }
+        if (delResult.deleted) {
+          steps[steps.length - 1].status = 'done';
+          await new Promise(r => setTimeout(r, 2000));
+        } else {
+          steps[steps.length - 1] = { step: 'No existing service to clean up', status: 'done' };
+        }
+      } catch (err) {
+        steps[steps.length - 1] = { step: `Cleanup: ${err.message}`, status: 'warning' };
+      }
 
       steps.push({ step: 'Importing OpenAPI spec to Microcks...', status: 'running' });
       try {
@@ -324,7 +397,8 @@ Format:
 
       invalidateCache();
 
-      // Dispatcher config is handled via x-microcks-operation in the OpenAPI spec
+      registerWorkspaceOps(req, serviceName, operations, generatedData);
+      registerService(serviceName, getWorkspaceId(req));
 
       const mockRoutes = operations.map(op => ({
         operation: op.name,
@@ -337,6 +411,7 @@ Format:
       return res.json({
         success: true,
         serviceName,
+        microcksServiceName: microcksRestServiceName,
         schemaType: 'openapi',
         operationCount: operations.length,
         steps,
@@ -359,8 +434,12 @@ Format:
     if (!serviceName) {
       serviceName = (reqServiceName || 'AIGeneratedAPI').replace(/\s+/g, '');
     }
+    serviceName = applyPrefix(serviceName);
 
-    if (!finalSchema.includes('microcksId')) {
+    // Rewrite or inject microcksId with the prefixed name
+    if (finalSchema.includes('microcksId')) {
+      finalSchema = finalSchema.replace(/^#\s*microcksId:\s*.+$/m, `# microcksId: ${serviceName} : ${serviceVersion}`);
+    } else {
       finalSchema = `# microcksId: ${serviceName} : ${serviceVersion}\n${finalSchema}`;
     }
 
@@ -375,7 +454,7 @@ Format:
       if (userTypes.length === 0) {
         return res.status(400).json({ error: 'No types, queries, or mutations found in schema', steps });
       }
-      steps.push({ step: `Auto-generating CRUD operations for ${userTypes.join(', ')}...`, status: 'done' });
+      steps.push({ step: `Auto-generating CRUD operations for ${userTypes.join(', ')}`, status: 'done' });
       const queryFields = [];
       const mutationFields = [];
       for (const tName of userTypes) {
@@ -556,6 +635,20 @@ Format: { "opName1": [example1, ...], "opName2": [example1, ...] }`;
     // Reload type maps so the new service is immediately available for scoped queries
     loadSchemaFiles();
 
+    // Delete existing service to prevent stale default examples
+    steps.push({ step: 'Cleaning up existing service in Microcks...', status: 'running' });
+    try {
+      const delResult = await deleteExistingService(serviceName);
+      if (delResult.deleted) {
+        steps[steps.length - 1].status = 'done';
+        await new Promise(r => setTimeout(r, 2000));
+      } else {
+        steps[steps.length - 1] = { step: 'No existing service to clean up', status: 'done' };
+      }
+    } catch (err) {
+      steps[steps.length - 1] = { step: `Cleanup: ${err.message}`, status: 'warning' };
+    }
+
     // Import to Microcks
     steps.push({ step: 'Importing schema to Microcks...', status: 'running' });
     try {
@@ -595,6 +688,9 @@ Format: { "opName1": [example1, ...], "opName2": [example1, ...] }`;
     // Reload schema cache
     loadSchemaFiles();
     invalidateCache();
+
+    registerWorkspaceOps(req, serviceName, operations, generatedData);
+    registerService(serviceName, getWorkspaceId(req));
 
     const mockRoutes = operations.map(op => ({
       operation: op.name,

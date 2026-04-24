@@ -1,50 +1,158 @@
 {
   "info": {
-    "_postman_id": "statmilk-rest-examples",
+    "_postman_id": "ai-setup-rest-StatMilk-1776414863568",
     "name": "StatMilk",
-    "description": "version=1.0 - REST examples for StatMilk",
+    "description": "version=1.0 - AI-generated REST mock examples for StatMilk",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "GET /api/leagues",
+      "name": "GET /api/scores/schedules",
       "request": {
         "method": "GET",
-        "url": "/api/leagues"
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "/api/scores/schedules"
       },
       "response": [
         {
-          "name": "leagues-list",
+          "name": "example-1",
           "originalRequest": {
             "method": "GET",
-            "url": "/api/leagues"
+            "url": "/api/scores/schedules"
           },
           "code": 200,
           "header": [
-            { "key": "Content-Type", "value": "application/json" }
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
           ],
-          "body": "{\"leagues\":[{\"league_name\":\"NBA\",\"league_code\":\"nba\",\"br_tag_id\":10000,\"br_tag_permalink\":\"nba\",\"sportsbook\":\"draftkings\"},{\"league_name\":\"NFL\",\"league_code\":\"nfl\",\"br_tag_id\":10001,\"br_tag_permalink\":\"nfl\",\"sportsbook\":\"draftkings\"}],\"update_date\":\"2026-02-20T10:00:00Z\",\"processing_time\":\"12ms\",\"success\":true,\"error_message\":null}"
+          "body": "{\"surrogate_keys\":[{\"id\":\"sk-nfl-2026\",\"name\":\"NFL 2026\"}],\"success\":true,\"sport\":\"NFL\",\"site\":\"bleacherreport\",\"calendar_navigation\":{\"previous\":[{\"name\":\"Yesterday\",\"href\":\"/api/scores/schedules\",\"query_parameters\":{\"date\":\"2026-04-16\",\"league\":\"nfl\"}}],\"current\":{\"name\":\"Today\",\"href\":\"/api/scores/schedules\",\"query_parameters\":{\"date\":\"2026-04-17\",\"league\":\"nfl\"}},\"next\":[{\"name\":\"Tomorrow\",\"href\":\"/api/scores/schedules\",\"query_parameters\":{\"date\":\"2026-04-18\",\"league\":\"nfl\"}}]},\"leagues\":[{\"id\":\"league-nfl-001\",\"league\":1,\"name\":\"NFL\",\"current\":true,\"permalink\":\"nfl\",\"query_parameters\":{\"league\":\"nfl\"},\"children\":[]},{\"id\":\"league-nba-002\",\"league\":2,\"name\":\"NBA\",\"current\":false,\"permalink\":\"nba\",\"query_parameters\":{\"league\":\"nba\"},\"children\":[]}],\"game_groups\":[{\"current\":true,\"name\":\"NFL Games\",\"events\":[],\"games\":[{\"id\":\"game-001\",\"name\":\"Patriots vs Chiefs\",\"game_date\":\"2026-04-17T20:00:00.000Z\",\"sport\":\"NFL\",\"site\":\"bleacherreport\",\"league\":\"NFL\",\"status\":\"in-progress\",\"gamecast\":\"nfl-patriots-vs-chiefs-2026\",\"current\":true,\"team_one\":{\"name\":\"New England Patriots\",\"short_name\":\"Patriots\",\"abbrev\":\"NE\",\"is_winner\":false,\"logo\":\"https://sports.example.com/logos/nfl-ne.png\",\"main_score\":\"21\",\"record\":\"10-4\",\"colors\":[\"#002244\",\"#C60C30\"],\"permalink\":\"nfl-new-england-patriots\"},\"team_two\":{\"name\":\"Kansas City Chiefs\",\"short_name\":\"Chiefs\",\"abbrev\":\"KC\",\"is_winner\":false,\"logo\":\"https://sports.example.com/logos/nfl-kc.png\",\"main_score\":\"17\",\"record\":\"11-3\",\"colors\":[\"#E31837\",\"#FFB81C\"],\"permalink\":\"nfl-kansas-city-chiefs\"},\"progress\":{\"network\":\"ESPN\",\"play_period\":\"3rd Quarter\",\"play_period_condensed\":\"3rd\",\"clock\":\"8:42\",\"round\":null},\"game_state\":{\"is_red_zone\":false,\"balls\":0,\"strikes\":0,\"outs\":0,\"runners\":{\"first\":false,\"second\":false,\"third\":false}},\"meta_data\":{\"name\":\"NFL Week 16\",\"status\":\"in-progress\",\"start_date\":\"2026-04-17T20:00:00.000Z\",\"end_date\":null}},{\"id\":\"game-002\",\"name\":\"Cowboys vs Eagles\",\"game_date\":\"2026-04-17T23:30:00.000Z\",\"sport\":\"NFL\",\"site\":\"bleacherreport\",\"league\":\"NFL\",\"status\":\"scheduled\",\"gamecast\":\"nfl-cowboys-vs-eagles-2026\",\"current\":false,\"team_one\":{\"name\":\"Dallas Cowboys\",\"short_name\":\"Cowboys\",\"abbrev\":\"DAL\",\"is_winner\":false,\"logo\":\"https://sports.example.com/logos/nfl-dal.png\",\"main_score\":\"0\",\"record\":\"8-6\",\"colors\":[\"#041E42\",\"#869397\"],\"permalink\":\"nfl-dallas-cowboys\"},\"team_two\":{\"name\":\"Philadelphia Eagles\",\"short_name\":\"Eagles\",\"abbrev\":\"PHI\",\"is_winner\":false,\"logo\":\"https://sports.example.com/logos/nfl-phi.png\",\"main_score\":\"0\",\"record\":\"9-5\",\"colors\":[\"#004C54\",\"#A5ACAF\"],\"permalink\":\"nfl-philadelphia-eagles\"},\"progress\":{\"network\":\"FOX\",\"play_period\":null,\"play_period_condensed\":null,\"clock\":null,\"round\":null},\"game_state\":null,\"meta_data\":{\"name\":\"NFL Week 16\",\"status\":\"scheduled\",\"start_date\":\"2026-04-17T23:30:00.000Z\",\"end_date\":null}}]}],\"betting_link\":{\"id\":\"bet-link-001\",\"success\":true,\"cta_text\":\"Bet Now\",\"logo\":\"https://sports.example.com/logos/betting-partner.png\",\"click_url\":\"https://betting.example.com\",\"partner\":\"DraftKings\",\"betting\":true}}"
         }
       ]
     },
     {
-      "name": "GET /api/events",
+      "name": "GET /api/gamecast/{permalink}",
       "request": {
         "method": "GET",
-        "url": "/api/events"
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "/api/gamecast/{permalink}"
       },
       "response": [
         {
-          "name": "nba-events",
+          "name": "val-1",
           "originalRequest": {
             "method": "GET",
-            "url": "/api/events?league_slug=nba"
+            "url": "/api/gamecast/val-1"
           },
           "code": 200,
           "header": [
-            { "key": "Content-Type", "value": "application/json" }
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
           ],
-          "body": "{\"league\":\"nba\",\"start_date\":\"2026-01-01\",\"end_date\":\"2026-06-30\",\"events\":[{\"event_permalink\":\"nba-lakers-celtics-20260201\",\"event_name\":\"Lakers vs Celtics\",\"start_date\":\"2026-02-01\",\"end_date\":\"2026-02-01\"}],\"update_date\":\"2026-02-20T10:00:00Z\",\"processing_time\":\"15ms\",\"success\":true,\"error_message\":null}"
+          "body": "{\"update_date\":\"2026-04-17T01:46:13.349Z\",\"processing_time\":\"15ms\",\"success\":true,\"sport\":\"NFL\",\"title\":\"Patriots vs Chiefs\",\"site\":\"bleacherreport\",\"league\":\"NFL\",\"status\":\"in-progress\",\"game_date\":\"2026-04-17T20:00:00.000Z\",\"scoreboard\":{\"id\":\"sb-game-001\",\"game_date\":\"2026-04-17T20:00:00.000Z\",\"permalink\":\"nfl-patriots-vs-chiefs-2026\",\"status\":\"in-progress\",\"team_one\":{\"name\":\"New England Patriots\",\"short_name\":\"Patriots\",\"abbrev\":\"NE\",\"is_winner\":false,\"logo\":\"https://sports.example.com/logos/nfl-ne.png\",\"score\":\"21\",\"record\":\"10-4\",\"colors\":[\"#002244\",\"#C60C30\"],\"permalink\":\"nfl-new-england-patriots\"},\"team_two\":{\"name\":\"Kansas City Chiefs\",\"short_name\":\"Chiefs\",\"abbrev\":\"KC\",\"is_winner\":false,\"logo\":\"https://sports.example.com/logos/nfl-kc.png\",\"score\":\"17\",\"record\":\"11-3\",\"colors\":[\"#E31837\",\"#FFB81C\"],\"permalink\":\"nfl-kansas-city-chiefs\"},\"progress\":{\"network\":\"ESPN\",\"play_period\":\"3rd Quarter\",\"play_period_condensed\":\"3rd\",\"clock\":\"8:42\",\"round\":null}},\"linescore\":{\"title\":\"Line Score\",\"team_one\":{\"name\":\"New England Patriots\",\"logo\":\"https://sports.example.com/logos/nfl-ne.png\",\"colors\":[\"#002244\",\"#C60C30\"],\"record\":\"10-4\",\"values\":[{\"value\":\"7\"},{\"value\":\"7\"},{\"value\":\"7\"}],\"summary_values\":[{\"value\":\"21\"}]},\"team_two\":{\"name\":\"Kansas City Chiefs\",\"logo\":\"https://sports.example.com/logos/nfl-kc.png\",\"colors\":[\"#E31837\",\"#FFB81C\"],\"record\":\"11-3\",\"values\":[{\"value\":\"10\"},{\"value\":\"7\"},{\"value\":\"0\"}],\"summary_values\":[{\"value\":\"17\"}]},\"headers\":[{\"value\":\"1\"},{\"value\":\"2\"},{\"value\":\"3\"}],\"summary_headers\":[{\"value\":\"T\"}]},\"match_info_v2\":{\"stadium\":\"Arrowhead Stadium\",\"location\":\"Kansas City, MO\",\"weather_primary\":\"Clear\",\"weather_secondary\":\"68°F\",\"weather_emoji\":\"☀️\"},\"score_leaderboard\":null,\"race_info\":null,\"podium\":null}"
+        }
+      ]
+    },
+    {
+      "name": "GET /api/standings/{permalink}",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "/api/standings/{permalink}"
+      },
+      "response": [
+        {
+          "name": "val-1",
+          "originalRequest": {
+            "method": "GET",
+            "url": "/api/standings/val-1"
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"permalink\":\"nfl-standings\",\"season\":2026,\"name\":\"NFL 2026 Standings\",\"sport\":\"NFL\",\"league\":\"NFL\",\"standings_groupings\":[{\"title\":\"AFC East\",\"entries\":[{\"title\":\"AFC East\",\"teams\":[{\"name\":\"New England Patriots\",\"logo\":\"https://sports.example.com/logos/nfl-ne.png\",\"slug\":\"nfl-new-england-patriots\",\"permalink\":\"nfl-new-england-patriots\",\"values\":[{\"value\":\"10\"},{\"value\":\"4\"},{\"value\":\".714\"}]},{\"name\":\"Buffalo Bills\",\"logo\":\"https://sports.example.com/logos/nfl-buf.png\",\"slug\":\"nfl-buffalo-bills\",\"permalink\":\"nfl-buffalo-bills\",\"values\":[{\"value\":\"9\"},{\"value\":\"5\"},{\"value\":\".643\"}]}],\"headers\":[{\"title\":\"W\"},{\"title\":\"L\"},{\"title\":\"PCT\"}]}]}]}"
+        }
+      ]
+    },
+    {
+      "name": "GET /api/standings/gamecast/{permalink}",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "/api/standings/gamecast/{permalink}"
+      },
+      "response": [
+        {
+          "name": "val-1",
+          "originalRequest": {
+            "method": "GET",
+            "url": "/api/standings/gamecast/val-1"
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"permalink\":\"nfl-patriots-vs-chiefs-standings\",\"season\":2026,\"name\":\"NFL Standings\",\"standings_groupings\":[{\"title\":\"AFC East\",\"entries\":[{\"title\":\"AFC East\",\"teams\":[{\"name\":\"New England Patriots\",\"logo\":\"https://sports.example.com/logos/nfl-ne.png\",\"slug\":\"nfl-new-england-patriots\",\"permalink\":\"nfl-new-england-patriots\",\"values\":[{\"value\":\"10\"},{\"value\":\"4\"}]}],\"headers\":[{\"title\":\"W\"},{\"title\":\"L\"}]}]}]}"
+        }
+      ]
+    },
+    {
+      "name": "GET /api/schedules/{slug}",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "/api/schedules/{slug}"
+      },
+      "response": [
+        {
+          "name": "val-1",
+          "originalRequest": {
+            "method": "GET",
+            "url": "/api/schedules/val-1"
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"permalink\":\"nfl-patriots-schedule\",\"season\":2026,\"name\":\"New England Patriots Schedule\",\"league\":\"NFL\",\"schedule_groupings\":[{\"title\":\"Week 16\",\"current\":true,\"link\":{\"title\":\"Full Schedule\",\"type\":\"link\",\"value\":\"/nfl/schedule\"},\"entries\":[{\"current\":true,\"date\":\"2026-04-17T20:00:00.000Z\",\"home_away\":\"Away\",\"opponent\":\"Kansas City Chiefs\",\"opponent_logo\":\"https://sports.example.com/logos/nfl-kc.png\",\"result_description\":\"In Progress\",\"result_code\":{\"color\":\"#333\",\"value\":\"-\"},\"gamecast_permalink\":\"nfl-patriots-vs-chiefs-2026\",\"status\":\"in-progress\",\"iso_utc_datetime\":\"2026-04-17T20:00:00.000Z\",\"start_time_tbd\":false,\"location\":{\"name\":\"Arrowhead Stadium\",\"city\":\"Kansas City\",\"state\":\"Missouri\",\"country\":\"USA\"}}]}],\"ad_placement\":[]}"
         }
       ]
     }

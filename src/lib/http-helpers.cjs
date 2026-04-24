@@ -2,35 +2,72 @@ const http = require('http');
 const https = require('https');
 const zlib = require('zlib');
 const { MICROCKS_URL } = require('../config.cjs');
+const { authHeaders, invalidateToken, isAuthEnabled } = require('./microcks-auth.cjs');
 
-function httpGet(url) {
+// True when the given URL points at the configured Microcks server.
+// We only inject auth headers on calls that leave the building for Microcks.
+function isMicrocksUrl(targetUrl) {
+  try {
+    const u = new URL(targetUrl);
+    const m = new URL(MICROCKS_URL);
+    return u.host === m.host;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function buildHeadersForUrl(targetUrl, extra = {}) {
+  if (!isAuthEnabled() || !isMicrocksUrl(targetUrl)) return { ...extra };
+  const auth = await authHeaders();
+  return { ...extra, ...auth };
+}
+
+function doGet(url, timeout, headers) {
   return new Promise((resolve, reject) => {
     const mod = url.startsWith('https') ? https : http;
-    mod.get(url, { timeout: 5000 }, (res) => {
+    const req = mod.get(url, { timeout, headers }, (res) => {
       let data = '';
       res.on('data', (c) => data += c);
-      res.on('end', () => resolve(data));
-    }).on('error', reject);
+      res.on('end', () => resolve({ status: res.statusCode, body: data }));
+    });
+    req.on('error', reject);
+    req.on('timeout', function () { req.destroy(); reject(new Error('timeout')); });
   });
 }
 
-function httpGetLong(targetUrl, timeout = 30000) {
-  return new Promise((resolve, reject) => {
-    const mod = targetUrl.startsWith('https') ? https : http;
-    mod.get(targetUrl, { timeout }, (res) => {
-      let data = '';
-      res.on('data', (c) => data += c);
-      res.on('end', () => resolve(data));
-    }).on('error', reject).on('timeout', function() { this.destroy(); reject(new Error('timeout')); });
-  });
+async function httpGet(url) {
+  const headers = await buildHeadersForUrl(url);
+  let { status, body } = await doGet(url, 5000, headers);
+  if (status === 401 && isAuthEnabled() && isMicrocksUrl(url)) {
+    invalidateToken();
+    const retryHeaders = await buildHeadersForUrl(url);
+    ({ status, body } = await doGet(url, 5000, retryHeaders));
+  }
+  return body;
 }
 
-function proxyToMicrocks(req, res, targetPath) {
+async function httpGetLong(targetUrl, timeout = 30000) {
+  const headers = await buildHeadersForUrl(targetUrl);
+  let { status, body } = await doGet(targetUrl, timeout, headers);
+  if (status === 401 && isAuthEnabled() && isMicrocksUrl(targetUrl)) {
+    invalidateToken();
+    const retryHeaders = await buildHeadersForUrl(targetUrl);
+    ({ status, body } = await doGet(targetUrl, timeout, retryHeaders));
+  }
+  return body;
+}
+
+async function proxyToMicrocks(req, res, targetPath) {
   const url = new URL(targetPath, MICROCKS_URL);
   const mod = url.protocol === 'https:' ? https : http;
 
   const headers = { ...req.headers, host: url.host };
   delete headers['content-length'];
+
+  if (isAuthEnabled()) {
+    const auth = await authHeaders();
+    Object.assign(headers, auth);
+  }
 
   const bodyStr = req.body ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body)) : null;
   if (bodyStr) headers['content-length'] = Buffer.byteLength(bodyStr);
@@ -70,12 +107,16 @@ function proxyToMicrocks(req, res, targetPath) {
   proxyReq.end();
 }
 
-function proxyToMicrocksAsText(req, res, targetPath) {
+async function proxyToMicrocksAsText(req, res, targetPath) {
   const url = new URL(targetPath, MICROCKS_URL);
   const mod = url.protocol === 'https:' ? https : http;
   const headers = { ...req.headers, host: url.host };
   delete headers['content-length'];
   delete headers['accept-encoding'];
+  if (isAuthEnabled()) {
+    const auth = await authHeaders();
+    Object.assign(headers, auth);
+  }
   const options = {
     hostname: url.hostname, port: url.port,
     path: url.pathname + url.search,
@@ -106,15 +147,23 @@ function proxyToMicrocksAsText(req, res, targetPath) {
   proxyReq.end();
 }
 
-function fetchFromMicrocks(targetPath, body) {
+async function fetchFromMicrocks(targetPath, body) {
+  const url = new URL(targetPath, MICROCKS_URL);
+  const mod = url.protocol === 'https:' ? https : http;
+  const postData = typeof body === 'string' ? body : JSON.stringify(body);
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(postData),
+  };
+  if (isAuthEnabled()) {
+    const auth = await authHeaders();
+    Object.assign(headers, auth);
+  }
   return new Promise((resolve, reject) => {
-    const url = new URL(targetPath, MICROCKS_URL);
-    const mod = url.protocol === 'https:' ? https : http;
-    const postData = typeof body === 'string' ? body : JSON.stringify(body);
     const opts = {
       hostname: url.hostname, port: url.port, path: url.pathname + url.search,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
+      headers,
       timeout: 10000,
     };
     const r = mod.request(opts, (resp) => {

@@ -1,12 +1,33 @@
 const express = require('express');
 const router = express.Router();
 const { MICROCKS_URL, SCHEMA_CACHE_TTL } = require('../config.cjs');
-const { responseOverrides, aiRemovedFields, scenarioStore, getUserScope } = require('../state.cjs');
+const { responseOverrides, aiRemovedFields, scenarioStore, getUserScope, getWorkspaceId, proxyUrls, workspaces, markDirty } = require('../state.cjs');
 const { httpGet, fetchFromMicrocks, proxyToMicrocks } = require('../lib/http-helpers.cjs');
+const http = require('http');
+const https = require('https');
 const { extractSelectionSet, filterResponseBySelection, extractOperationName } = require('../lib/graphql-utils.cjs');
 const { fullTypeMap } = require('../lib/schema-loader.cjs');
-const { fetchMicrocksServices } = require('../lib/microcks-service.cjs');
+const { fetchMicrocksServices, getMicrocksExamples } = require('../lib/microcks-service.cjs');
 const { resolveTypeName, validateFieldsAgainstSchema } = require('../lib/validation.cjs');
+
+function deepMerge(base, overlay) {
+  if (overlay === null || overlay === undefined) return overlay;
+  if (typeof overlay !== 'object' || Array.isArray(overlay)) return overlay;
+  if (typeof base !== 'object' || Array.isArray(base) || base === null) return overlay;
+
+  const result = { ...base };
+  for (const key of Object.keys(overlay)) {
+    if (overlay[key] === null) {
+      result[key] = null;
+    } else if (typeof overlay[key] === 'object' && !Array.isArray(overlay[key]) &&
+               typeof result[key] === 'object' && !Array.isArray(result[key]) && result[key] !== null) {
+      result[key] = deepMerge(result[key], overlay[key]);
+    } else {
+      result[key] = overlay[key];
+    }
+  }
+  return result;
+}
 
 const serverSchemaCache = {};
 
@@ -37,7 +58,80 @@ async function getServiceSchema(service) {
   return null;
 }
 
-router.post('/graphql/:service', async (req, res) => {
+function findBestMatchingExample(examples, variables) {
+  if (!variables || Object.keys(variables).length === 0) return null;
+  
+  const varStr = JSON.stringify(variables, Object.keys(variables).sort());
+  let bestMatch = null;
+  let bestScore = -1;
+
+  for (const ex of examples) {
+    if (!ex.variables) continue;
+    const exVarStr = JSON.stringify(ex.variables, Object.keys(ex.variables).sort());
+    
+    if (exVarStr === varStr) return ex;
+
+    let score = 0;
+    for (const [key, val] of Object.entries(variables)) {
+      if (ex.variables[key] !== undefined) {
+        if (JSON.stringify(ex.variables[key]) === JSON.stringify(val)) {
+          score += 2;
+        } else {
+          score += 1;
+        }
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = ex;
+    }
+  }
+
+  return bestScore > 0 ? bestMatch : null;
+}
+
+function forwardToProxy(proxyUrl, body, originalReq) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(proxyUrl);
+    const mod = url.protocol === 'https:' ? https : http;
+    const payload = typeof body === 'string' ? body : JSON.stringify(body);
+    const fwdHeaders = {};
+    if (originalReq && originalReq.headers) {
+      const skip = new Set(['host', 'connection', 'content-length', 'x-user', 'x-workspace', 'x-probe', 'x-microcks-example']);
+      for (const [k, v] of Object.entries(originalReq.headers)) {
+        if (!skip.has(k.toLowerCase())) fwdHeaders[k] = v;
+      }
+    }
+    fwdHeaders['content-type'] = 'application/json';
+    fwdHeaders['content-length'] = Buffer.byteLength(payload);
+    const opts = {
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: url.pathname + url.search,
+      method: (originalReq && originalReq.method) || 'POST',
+      headers: fwdHeaders,
+      timeout: 15000,
+    };
+    const r = mod.request(opts, (resp) => {
+      let data = '';
+      resp.on('data', c => data += c);
+      resp.on('end', () => resolve({ status: resp.statusCode, body: data, headers: resp.headers }));
+    });
+    r.on('error', reject);
+    r.on('timeout', () => { r.destroy(); reject(new Error('proxy timeout')); });
+    r.write(payload);
+    r.end();
+  });
+}
+
+function isWorkspaceIsolated(req) {
+  const wsId = getWorkspaceId(req);
+  if (!wsId) return false;
+  const ws = workspaces[wsId];
+  return ws && ws.isolated;
+}
+
+async function handleGraphqlService(req, res) {
   const service = req.params.service;
   
   let serviceVersion = '1.0';
@@ -56,13 +150,24 @@ router.post('/graphql/:service', async (req, res) => {
   }
 
   const isProbe = req.headers['x-probe'] === 'true';
+  const isolated = isWorkspaceIsolated(req);
   const opName = extractOperationName(queryStr);
   if (opName) {
     const userScope = getUserScope(req);
+    const wsId = getWorkspaceId(req);
+    const wsPrefix = wsId ? `ws:${wsId}:${userScope}:` : null;
     const wsKey = `${userScope}:${service}:${opName}`;
     const globalKey = `global:${service}:${opName}`;
-    const override = responseOverrides[wsKey] || responseOverrides[globalKey];
-    const activeKey = responseOverrides[wsKey] ? wsKey : globalKey;
+    const wsOverrideKey = wsPrefix ? `${wsPrefix}${service}:${opName}` : null;
+
+    let override, activeKey;
+    if (isolated) {
+      override = wsOverrideKey ? responseOverrides[wsOverrideKey] : null;
+      activeKey = wsOverrideKey;
+    } else {
+      override = (wsOverrideKey && responseOverrides[wsOverrideKey]) || responseOverrides[wsKey] || responseOverrides[globalKey];
+      activeKey = (wsOverrideKey && responseOverrides[wsOverrideKey]) ? wsOverrideKey : (responseOverrides[wsKey] ? wsKey : globalKey);
+    }
     if (override && override.remaining > 0) {
       if (!isProbe) {
         override.remaining--;
@@ -73,12 +178,49 @@ router.post('/graphql/:service', async (req, res) => {
       return res.json(override.data);
     }
 
+    const wsScenarioKey = wsPrefix ? `${wsPrefix}${service}:${opName}` : null;
     const scenarioWsKey = `${userScope}:${service}:${opName}`;
     const scenarioGlobalKey = `global:${service}:${opName}`;
-    const scenarioEntry = scenarioStore[scenarioWsKey] || scenarioStore[scenarioGlobalKey];
-    if (scenarioEntry) {
+    let scenarioEntry;
+    if (isolated) {
+      scenarioEntry = wsScenarioKey ? scenarioStore[wsScenarioKey] : null;
+    } else {
+      scenarioEntry = (wsScenarioKey && scenarioStore[wsScenarioKey]) || scenarioStore[scenarioWsKey] || scenarioStore[scenarioGlobalKey];
+    }
+    if (scenarioEntry && scenarioEntry.data) {
+      if (scenarioEntry.source === 'ai-setup') {
+        res.setHeader('X-Source', 'ai-setup-workspace');
+        return res.json(scenarioEntry.data);
+      }
+      try {
+        const baseResp = await fetchFromMicrocks(microcksPath, req.body);
+        if (baseResp.status === 200) {
+          const baseParsed = JSON.parse(baseResp.body);
+          const merged = deepMerge(baseParsed, scenarioEntry.data);
+          res.setHeader('X-Source', 'ai-scenario-overlay');
+          return res.json(merged);
+        }
+      } catch (_) {}
       res.setHeader('X-Source', 'ai-scenario');
       return res.json(scenarioEntry.data);
+    }
+
+    if (isolated && !scenarioEntry) {
+      const proxyUrl = proxyUrls[service.toLowerCase()];
+      if (proxyUrl) {
+        try {
+          const proxyResp = await forwardToProxy(proxyUrl, req.body, req);
+          res.setHeader('X-Mock-Source', 'proxy');
+          for (const [hk, hv] of Object.entries(proxyResp.headers)) {
+            if (!['transfer-encoding', 'connection'].includes(hk.toLowerCase())) res.setHeader(hk, hv);
+          }
+          res.status(proxyResp.status);
+          return res.send(proxyResp.body);
+        } catch (err) {
+          return res.status(502).json({ error: 'Proxy forward failed', detail: err.message });
+        }
+      }
+      return res.status(404).json({ error: 'No mock data configured for this operation in the current workspace', operation: opName, service });
     }
   }
 
@@ -92,8 +234,41 @@ router.post('/graphql/:service', async (req, res) => {
   }
 
   const selectionMap = extractSelectionSet(queryStr);
+  const requestedExample = req.headers['x-microcks-example'];
+  const variables = req.body?.variables || null;
 
   try {
+    if (opName && (requestedExample || (variables && Object.keys(variables).length > 0))) {
+      try {
+        const exResult = await getMicrocksExamples(service, opName);
+        if (exResult.examples && exResult.examples.length > 1) {
+          let matched = null;
+
+          if (requestedExample) {
+            matched = exResult.examples.find(e => e.name === requestedExample);
+          }
+
+          if (!matched && variables) {
+            matched = findBestMatchingExample(exResult.examples, variables);
+          }
+
+          if (matched && matched.body) {
+            res.setHeader('X-Source', 'microcks-example');
+            res.setHeader('X-Example-Name', matched.name);
+            let result = JSON.parse(JSON.stringify(matched.body));
+            if (result && result.data && selectionMap) {
+              const userScope = getUserScope(req);
+              const removedKey = `${userScope}:${service}:${opName}`;
+              const globalRemovedKey = `global:${service}:${opName}`;
+              const removedFields = aiRemovedFields[removedKey] || aiRemovedFields[globalRemovedKey] || [];
+              result.data = filterResponseBySelection(result.data, selectionMap, removedFields);
+            }
+            return res.json(result);
+          }
+        }
+      } catch (_) {}
+    }
+
     let resp = await fetchFromMicrocks(microcksPath, req.body);
 
     if (resp.status === 500 && selectionMap) {
@@ -121,8 +296,27 @@ router.post('/graphql/:service', async (req, res) => {
     }
     res.json(parsed);
   } catch (err) {
+    const proxyUrl = proxyUrls[service.toLowerCase()];
+    if (proxyUrl) {
+      try {
+        const proxyResp = await forwardToProxy(proxyUrl, req.body, req);
+        res.setHeader('X-Mock-Source', 'proxy');
+        for (const [hk, hv] of Object.entries(proxyResp.headers)) {
+          if (!['transfer-encoding', 'connection'].includes(hk.toLowerCase())) res.setHeader(hk, hv);
+        }
+        res.status(proxyResp.status);
+        return res.send(proxyResp.body);
+      } catch (_) {}
+    }
     res.status(502).json({ error: 'Microcks proxy error', detail: err.message });
   }
+}
+
+router.post('/graphql/:service', handleGraphqlService);
+
+router.post('/ws/:workspaceId/graphql/:service', (req, res) => {
+  req.headers['x-workspace'] = req.params.workspaceId;
+  handleGraphqlService(req, res);
 });
 
 router.post('/graphql', async (req, res) => {

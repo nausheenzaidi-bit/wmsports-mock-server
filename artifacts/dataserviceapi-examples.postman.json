@@ -1,0 +1,523 @@
+{
+  "info": {
+    "_postman_id": "ai-setup-DataServiceAPI-1776243116819",
+    "name": "DataServiceAPI",
+    "description": "version=1.0 - AI-generated mock examples for DataServiceAPI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "dsModel",
+      "request": {
+        "method": "POST",
+        "url": "http://dsModel",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query dsModel($model: String) { dsModel(model: $model) { name defaultVersion } }\",\"variables\":{\"model\":\"example\"}}"
+        }
+      },
+      "response": [
+        {
+          "name": "example-1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://dsModel",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query dsModel($model: String) { dsModel(model: $model) { name defaultVersion } }\",\"variables\":{\"model\":\"example\"}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"dsModel\":{\"name\":\"SportsDataModel\",\"defaultVersion\":1}}}"
+        }
+      ]
+    },
+    {
+      "name": "trendingChannels",
+      "request": {
+        "method": "POST",
+        "url": "http://trendingChannels",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query trendingChannels($topN: Int) { trendingChannels(topN: $topN) { tagV2 { hash uuid type recommendedTags { score } recommendedArticles { type contentID rank score } } rank } }\",\"variables\":{\"topN\":1}}"
+        }
+      },
+      "response": [
+        {
+          "name": "example-1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://trendingChannels",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query trendingChannels($topN: Int) { trendingChannels(topN: $topN) { tagV2 { hash uuid type recommendedTags { score } recommendedArticles { type contentID rank score } } rank } }\",\"variables\":{\"topN\":1}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"trendingChannels\":{\"tagV2\":{\"hash\":\"1234567890abcdef\",\"uuid\":\"uuid-1234567890\",\"type\":\"Sport\",\"recommendedTags\":[{\"tagV2\":{\"hash\":\"fedcba9876543210\",\"uuid\":\"uuid-fedcba9876\",\"type\":\"Team\",\"recommendedTags\":null,\"recommendedArticles\":null},\"score\":0.8}],\"recommendedArticles\":[{\"type\":\"Article\",\"contentID\":\"article-123\",\"rank\":1,\"score\":0.9}]},\"rank\":1}}}"
+        },
+        {
+          "name": "example-2",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://trendingChannels",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query trendingChannels($topN: Int) { trendingChannels(topN: $topN) { tagV2 { hash uuid type recommendedTags { score } recommendedArticles { type contentID rank score } } rank } }\",\"variables\":{\"topN\":1}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"trendingChannels\":{\"tagV2\":{\"hash\":\"abcdef1234567890\",\"uuid\":\"uuid-abcdef1234\",\"type\":\"GameCast\",\"recommendedTags\":[{\"tagV2\":{\"hash\":\"9876543210fedcba\",\"uuid\":\"uuid-9876543210\",\"type\":\"Sport\",\"recommendedTags\":null,\"recommendedArticles\":null},\"score\":0.7}],\"recommendedArticles\":[{\"type\":\"VideoV2\",\"contentID\":\"video-123\",\"rank\":2,\"score\":0.8}]},\"rank\":2}}}"
+        }
+      ]
+    },
+    {
+      "name": "trendingArticles",
+      "request": {
+        "method": "POST",
+        "url": "http://trendingArticles",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query trendingArticles($topN: Int, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { trendingArticles(topN: $topN, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID rank } }\",\"variables\":{\"topN\":1,\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+        }
+      },
+      "response": [
+        {
+          "name": "example-1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://trendingArticles",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query trendingArticles($topN: Int, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { trendingArticles(topN: $topN, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID rank } }\",\"variables\":{\"topN\":1,\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"trendingArticles\":{\"type\":\"Article\",\"contentID\":\"article-123\",\"rank\":1}}}"
+        },
+        {
+          "name": "example-2",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://trendingArticles",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query trendingArticles($topN: Int, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { trendingArticles(topN: $topN, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID rank } }\",\"variables\":{\"topN\":1,\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"trendingArticles\":{\"type\":\"UGCPost\",\"contentID\":\"blog-post-456\",\"rank\":2}}}"
+        }
+      ]
+    },
+    {
+      "name": "trendingVideos",
+      "request": {
+        "method": "POST",
+        "url": "http://trendingVideos",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query trendingVideos($topN: Int, $countryCode: String, $aspectRatio: AspectRatio, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { trendingVideos(topN: $topN, countryCode: $countryCode, aspectRatio: $aspectRatio, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID rank } }\",\"variables\":{\"topN\":1,\"countryCode\":\"example\",\"aspectRatio\":\"example\",\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+        }
+      },
+      "response": [
+        {
+          "name": "example-1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://trendingVideos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query trendingVideos($topN: Int, $countryCode: String, $aspectRatio: AspectRatio, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { trendingVideos(topN: $topN, countryCode: $countryCode, aspectRatio: $aspectRatio, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID rank } }\",\"variables\":{\"topN\":1,\"countryCode\":\"example\",\"aspectRatio\":\"example\",\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"trendingVideos\":{\"type\":\"VideoV2\",\"contentID\":\"video-123\",\"rank\":1}}}"
+        },
+        {
+          "name": "example-2",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://trendingVideos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query trendingVideos($topN: Int, $countryCode: String, $aspectRatio: AspectRatio, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { trendingVideos(topN: $topN, countryCode: $countryCode, aspectRatio: $aspectRatio, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID rank } }\",\"variables\":{\"topN\":1,\"countryCode\":\"example\",\"aspectRatio\":\"example\",\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"trendingVideos\":{\"type\":\"Tweet\",\"contentID\":\"live-stream-456\",\"rank\":2}}}"
+        }
+      ]
+    },
+    {
+      "name": "a2v",
+      "request": {
+        "method": "POST",
+        "url": "http://a2v",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query a2v($articleUuid: String, $countryCode: String, $version: Int, $aspectRatio: AspectRatio, $limit: Int, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { a2v(articleUuid: $articleUuid, countryCode: $countryCode, version: $version, aspectRatio: $aspectRatio, limit: $limit, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID score } }\",\"variables\":{\"articleUuid\":\"example\",\"countryCode\":\"example\",\"version\":1,\"aspectRatio\":\"example\",\"limit\":1,\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+        }
+      },
+      "response": [
+        {
+          "name": "example-1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://a2v",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query a2v($articleUuid: String, $countryCode: String, $version: Int, $aspectRatio: AspectRatio, $limit: Int, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { a2v(articleUuid: $articleUuid, countryCode: $countryCode, version: $version, aspectRatio: $aspectRatio, limit: $limit, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID score } }\",\"variables\":{\"articleUuid\":\"example\",\"countryCode\":\"example\",\"version\":1,\"aspectRatio\":\"example\",\"limit\":1,\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"a2v\":{\"type\":\"Article\",\"contentID\":\"article-123\",\"score\":0.8}}}"
+        },
+        {
+          "name": "example-2",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://a2v",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query a2v($articleUuid: String, $countryCode: String, $version: Int, $aspectRatio: AspectRatio, $limit: Int, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { a2v(articleUuid: $articleUuid, countryCode: $countryCode, version: $version, aspectRatio: $aspectRatio, limit: $limit, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID score } }\",\"variables\":{\"articleUuid\":\"example\",\"countryCode\":\"example\",\"version\":1,\"aspectRatio\":\"example\",\"limit\":1,\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"a2v\":{\"type\":\"UGCPost\",\"contentID\":\"blog-post-456\",\"score\":0.7}}}"
+        }
+      ]
+    },
+    {
+      "name": "a2a",
+      "request": {
+        "method": "POST",
+        "url": "http://a2a",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query a2a($articleUuid: String, $version: Int, $limit: Int, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { a2a(articleUuid: $articleUuid, version: $version, limit: $limit, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID score } }\",\"variables\":{\"articleUuid\":\"example\",\"version\":1,\"limit\":1,\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+        }
+      },
+      "response": [
+        {
+          "name": "example-1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://a2a",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query a2a($articleUuid: String, $version: Int, $limit: Int, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { a2a(articleUuid: $articleUuid, version: $version, limit: $limit, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID score } }\",\"variables\":{\"articleUuid\":\"example\",\"version\":1,\"limit\":1,\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"a2a\":{\"type\":\"Article\",\"contentID\":\"article-123\",\"score\":0.9}}}"
+        },
+        {
+          "name": "example-2",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://a2a",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query a2a($articleUuid: String, $version: Int, $limit: Int, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { a2a(articleUuid: $articleUuid, version: $version, limit: $limit, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID score } }\",\"variables\":{\"articleUuid\":\"example\",\"version\":1,\"limit\":1,\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"a2a\":{\"type\":\"UGCPost\",\"contentID\":\"blog-post-456\",\"score\":0.8}}}"
+        }
+      ]
+    },
+    {
+      "name": "v2v",
+      "request": {
+        "method": "POST",
+        "url": "http://v2v",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query v2v($videoEventId: String, $countryCode: String, $version: Int, $aspectRatio: AspectRatio, $limit: Int, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { v2v(videoEventId: $videoEventId, countryCode: $countryCode, version: $version, aspectRatio: $aspectRatio, limit: $limit, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID score } }\",\"variables\":{\"videoEventId\":\"example\",\"countryCode\":\"example\",\"version\":1,\"aspectRatio\":\"example\",\"limit\":1,\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+        }
+      },
+      "response": [
+        {
+          "name": "example-1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://v2v",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query v2v($videoEventId: String, $countryCode: String, $version: Int, $aspectRatio: AspectRatio, $limit: Int, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { v2v(videoEventId: $videoEventId, countryCode: $countryCode, version: $version, aspectRatio: $aspectRatio, limit: $limit, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID score } }\",\"variables\":{\"videoEventId\":\"example\",\"countryCode\":\"example\",\"version\":1,\"aspectRatio\":\"example\",\"limit\":1,\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"v2v\":{\"type\":\"VideoV2\",\"contentID\":\"video-123\",\"score\":0.8}}}"
+        },
+        {
+          "name": "example-2",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://v2v",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query v2v($videoEventId: String, $countryCode: String, $version: Int, $aspectRatio: AspectRatio, $limit: Int, $primaryPrioritizedTag: String, $secondaryPrioritizedTags: [String]) { v2v(videoEventId: $videoEventId, countryCode: $countryCode, version: $version, aspectRatio: $aspectRatio, limit: $limit, primaryPrioritizedTag: $primaryPrioritizedTag, secondaryPrioritizedTags: $secondaryPrioritizedTags) { type contentID score } }\",\"variables\":{\"videoEventId\":\"example\",\"countryCode\":\"example\",\"version\":1,\"aspectRatio\":\"example\",\"limit\":1,\"primaryPrioritizedTag\":\"example\",\"secondaryPrioritizedTags\":[\"example\"]}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"v2v\":{\"type\":\"Tweet\",\"contentID\":\"live-stream-456\",\"score\":0.7}}}"
+        }
+      ]
+    },
+    {
+      "name": "articleBlocklist",
+      "request": {
+        "method": "POST",
+        "url": "http://articleBlocklist",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query articleBlocklist($sinceDate: Date, $beforeDate: Date, $limit: Int) { articleBlocklist(sinceDate: $sinceDate, beforeDate: $beforeDate, limit: $limit) { type contentID insertedAt } }\",\"variables\":{\"sinceDate\":\"example\",\"beforeDate\":\"example\",\"limit\":1}}"
+        }
+      },
+      "response": [
+        {
+          "name": "example-1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://articleBlocklist",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query articleBlocklist($sinceDate: Date, $beforeDate: Date, $limit: Int) { articleBlocklist(sinceDate: $sinceDate, beforeDate: $beforeDate, limit: $limit) { type contentID insertedAt } }\",\"variables\":{\"sinceDate\":\"example\",\"beforeDate\":\"example\",\"limit\":1}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"articleBlocklist\":{\"type\":\"Article\",\"contentID\":\"article-123\",\"insertedAt\":\"2022-01-01T00:00:00.000Z\"}}}"
+        },
+        {
+          "name": "example-2",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://articleBlocklist",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query articleBlocklist($sinceDate: Date, $beforeDate: Date, $limit: Int) { articleBlocklist(sinceDate: $sinceDate, beforeDate: $beforeDate, limit: $limit) { type contentID insertedAt } }\",\"variables\":{\"sinceDate\":\"example\",\"beforeDate\":\"example\",\"limit\":1}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"articleBlocklist\":{\"type\":\"UGCPost\",\"contentID\":\"blog-post-456\",\"insertedAt\":\"2022-01-02T00:00:00.000Z\"}}}"
+        }
+      ]
+    },
+    {
+      "name": "videoBlocklist",
+      "request": {
+        "method": "POST",
+        "url": "http://videoBlocklist",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query videoBlocklist($sinceDate: Date, $beforeDate: Date, $limit: Int) { videoBlocklist(sinceDate: $sinceDate, beforeDate: $beforeDate, limit: $limit) { type contentID insertedAt } }\",\"variables\":{\"sinceDate\":\"example\",\"beforeDate\":\"example\",\"limit\":1}}"
+        }
+      },
+      "response": [
+        {
+          "name": "example-1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://videoBlocklist",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query videoBlocklist($sinceDate: Date, $beforeDate: Date, $limit: Int) { videoBlocklist(sinceDate: $sinceDate, beforeDate: $beforeDate, limit: $limit) { type contentID insertedAt } }\",\"variables\":{\"sinceDate\":\"example\",\"beforeDate\":\"example\",\"limit\":1}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"videoBlocklist\":[{\"type\":\"VideoV2\",\"contentID\":\"NFL-20220101\",\"insertedAt\":\"2022-01-01T12:00:00.000Z\"},{\"type\":\"UGCPost\",\"contentID\":\"NBA-20220102\",\"insertedAt\":\"2022-01-02T13:00:00.000Z\"}]}}"
+        }
+      ]
+    },
+    {
+      "name": "alertRanks",
+      "request": {
+        "method": "POST",
+        "url": "http://alertRanks",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"query\":\"query alertRanks($limit: Int, $offset: Int) { alertRanks(limit: $limit, offset: $offset) { rank pushNotification { id } } }\",\"variables\":{\"limit\":1,\"offset\":1}}"
+        }
+      },
+      "response": [
+        {
+          "name": "example-1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "http://alertRanks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\":\"query alertRanks($limit: Int, $offset: Int) { alertRanks(limit: $limit, offset: $offset) { rank pushNotification { id } } }\",\"variables\":{\"limit\":1,\"offset\":1}}"
+            }
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"data\":{\"alertRanks\":[{\"rank\":1,\"pushNotification\":{\"id\":\"PN-12345\"}},{\"rank\":2,\"pushNotification\":{\"id\":\"PN-67890\"}}]}}"
+        }
+      ]
+    }
+  ]
+}

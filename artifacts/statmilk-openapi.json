@@ -1,219 +1,336 @@
 {
   "openapi": "3.0.0",
-  "info": { "title": "StatMilk", "version": "1.0" },
+  "info": {
+    "title": "StatMilk",
+    "version": "1.0",
+    "description": "StatMilk REST API endpoints with datatypes (no example values)"
+  },
   "paths": {
-    "/api/gamecast/{gamePermalink}": {
-      "get": {
-        "operationId": "getGamecast",
-        "x-microcks-operation": {
-          "dispatcher": "FALLBACK",
-          "dispatcherRules": "{\"dispatcher\":\"URI_PARTS\",\"dispatcherRules\":\"gamePermalink\",\"fallback\":\"example-1\"}"
-        },
-        "parameters": [
-          { "name": "gamePermalink", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "Gamecast",
-            "content": {
-              "application/json": {
-                "examples": {
-                  "example-1": {
-                    "value": {
-                      "update_date": "2025-01-15T20:30:00Z",
-                      "processing_time": "00:00:00.150",
-                      "success": true,
-                      "sport": "football",
-                      "title": "KC @ BUF",
-                      "site": "NFL",
-                      "league": "nfl",
-                      "status": "closed",
-                      "game_date": "2025-01-15T20:00:00Z",
-                      "scoreboard": {
-                        "id": "abc123def456",
-                        "game_date": "2025-01-15T20:00:00Z",
-                        "permalink": "kansas-city-chiefs-vs-buffalo-bills-2025-1-15",
-                        "status": "closed",
-                        "team_one": {
-                          "name": "Kansas City Chiefs",
-                          "short_name": "Kansas City",
-                          "abbrev": "KC",
-                          "is_winner": true,
-                          "logo": "https://example.com/kc.png",
-                          "score": "27",
-                          "record": "12-5",
-                          "colors": ["#E31837", "#FFB81C"],
-                          "permalink": "kansas-city-chiefs"
-                        },
-                        "team_two": {
-                          "name": "Buffalo Bills",
-                          "short_name": "Buffalo",
-                          "abbrev": "BUF",
-                          "is_winner": false,
-                          "logo": "https://example.com/buf.png",
-                          "score": "24",
-                          "record": "13-4",
-                          "colors": ["#00338D", "#C60C30"],
-                          "permalink": "buffalo-bills"
-                        },
-                        "progress": {
-                          "network": "CBS",
-                          "play_period": "Final",
-                          "play_period_condensed": null,
-                          "clock": null,
-                          "round": "Divisional"
-                        }
-                      },
-                      "linescore": {
-                        "title": "Line Score",
-                        "team_one": {
-                          "name": "Kansas City",
-                          "logo": "https://example.com/kc.png",
-                          "colors": ["#E31837", "#FFB81C"],
-                          "record": "12-5",
-                          "values": [{"value": "7"}, {"value": "10"}, {"value": "3"}, {"value": "7"}],
-                          "summary_values": [{"value": "27"}]
-                        },
-                        "team_two": {
-                          "name": "Buffalo",
-                          "logo": "https://example.com/buf.png",
-                          "colors": ["#00338D", "#C60C30"],
-                          "record": "13-4",
-                          "values": [{"value": "10"}, {"value": "7"}, {"value": "0"}, {"value": "7"}],
-                          "summary_values": [{"value": "24"}]
-                        },
-                        "headers": [{"value": "1"}, {"value": "2"}, {"value": "3"}, {"value": "4"}],
-                        "summary_headers": [{"value": "T"}]
-                      },
-                      "match_info_v2": {
-                        "stadium": "Arrowhead Stadium",
-                        "location": "Kansas City, MO",
-                        "weather_primary": "32F",
-                        "weather_secondary": "Wind: 10 mph NW",
-                        "weather_emoji": "snow"
-                      },
-                      "score_leaderboard": null,
-                      "race_info": null,
-                      "podium": null
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/scores/schedules": {
       "get": {
-        "operationId": "getScoresSchedules",
-        "x-microcks-operation": {
-          "dispatcher": "FALLBACK",
-          "dispatcherRules": "{\"dispatcher\":\"URI_PARAMS\",\"dispatcherRules\":\"league && tz\",\"fallback\":\"example-1\"}"
-        },
+        "summary": "Get Scores and Schedules",
+        "operationId": "getScores",
         "parameters": [
-          { "name": "league", "in": "query", "schema": { "type": "string" } },
-          { "name": "tz", "in": "query", "schema": { "type": "integer" } }
+          {
+            "name": "league",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
         ],
         "responses": {
           "200": {
-            "description": "Scores",
+            "description": "Scores response",
             "content": {
               "application/json": {
-                "examples": {
-                  "example-1": {
-                    "value": {
-                      "surrogate_keys": [{"id": "nfl", "name": "NFL"}],
-                      "success": true,
-                      "sport": "football",
-                      "site": "nfl",
-                      "calendar_navigation": {
-                        "previous": [
-                          {"name": "Jan 14", "href": "/scores?date=2025-01-14", "query_parameters": {"date": "2025-01-14", "league": "NFL"}}
-                        ],
-                        "current": {
-                          "name": "Jan 15",
-                          "href": "/scores?date=2025-01-15",
-                          "query_parameters": {"date": "2025-01-15", "league": "NFL"}
-                        },
-                        "next": [
-                          {"name": "Jan 16", "href": "/scores?date=2025-01-16", "query_parameters": {"date": "2025-01-16", "league": "NFL"}}
-                        ]
-                      },
-                      "leagues": [
-                        {
-                          "id": "nfl",
-                          "league": 1,
-                          "name": "NFL",
-                          "current": true,
-                          "permalink": "nfl",
-                          "query_parameters": {"date": "2025-01-15", "league": "NFL", "context": "scores"},
-                          "children": []
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "surrogate_keys": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
                         }
-                      ],
-                      "game_groups": [
-                        {
-                          "current": true,
-                          "name": "AFC Divisional Round",
-                          "events": [],
-                          "games": [
-                            {
-                              "id": "sr:match:48291",
-                              "name": "KC @ BUF",
-                              "game_date": "2025-01-15T20:00:00Z",
-                              "sport": "football",
-                              "site": "NFL",
-                              "league": "nfl",
-                              "status": "closed",
-                              "gamecast": "kansas-city-chiefs-vs-buffalo-bills-2025-1-15",
-                              "current": false,
-                              "team_one": {
-                                "name": "Kansas City Chiefs",
-                                "short_name": "Kansas City",
-                                "abbrev": "KC",
-                                "is_winner": true,
-                                "logo": "https://example.com/kc.png",
-                                "main_score": "27",
-                                "record": "12-5",
-                                "colors": ["#E31837", "#FFB81C"],
-                                "permalink": "kansas-city-chiefs"
+                      }
+                    },
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "sport": {
+                      "type": "string"
+                    },
+                    "site": {
+                      "type": "string"
+                    },
+                    "calendar_navigation": {
+                      "type": "object",
+                      "properties": {
+                        "previous": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
                               },
-                              "team_two": {
-                                "name": "Buffalo Bills",
-                                "short_name": "Buffalo",
-                                "abbrev": "BUF",
-                                "is_winner": false,
-                                "logo": "https://example.com/buf.png",
-                                "main_score": "24",
-                                "record": "13-4",
-                                "colors": ["#00338D", "#C60C30"],
-                                "permalink": "buffalo-bills"
+                              "href": {
+                                "type": "string"
                               },
-                              "progress": {
-                                "network": "CBS",
-                                "play_period": "Final",
-                                "clock": null,
-                                "round": "Divisional"
-                              },
-                              "game_state": null,
-                              "meta_data": {
-                                "name": "AFC Divisional",
-                                "status": "closed",
-                                "start_date": "2025-01-15",
-                                "end_date": "2025-01-15"
+                              "query_parameters": {
+                                "type": "object"
                               }
                             }
-                          ]
+                          }
+                        },
+                        "current": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "href": {
+                              "type": "string"
+                            },
+                            "query_parameters": {
+                              "type": "object"
+                            }
+                          }
+                        },
+                        "next": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "href": {
+                                "type": "string"
+                              },
+                              "query_parameters": {
+                                "type": "object"
+                              }
+                            }
+                          }
                         }
-                      ],
-                      "betting_link": {
-                        "id": "dk-1",
-                        "success": true,
-                        "cta_text": "Bet Now",
-                        "logo": "https://example.com/dk.png",
-                        "click_url": "https://example.com/bet",
-                        "partner": "DraftKings",
-                        "betting": true
+                      }
+                    },
+                    "leagues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "league": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          },
+                          "permalink": {
+                            "type": "string"
+                          },
+                          "query_parameters": {
+                            "type": "object"
+                          },
+                          "children": {
+                            "type": "array"
+                          }
+                        }
+                      }
+                    },
+                    "game_groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "current": {
+                            "type": "boolean"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "events": {
+                            "type": "array"
+                          },
+                          "games": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "game_date": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "sport": {
+                                  "type": "string"
+                                },
+                                "site": {
+                                  "type": "string"
+                                },
+                                "league": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "gamecast": {
+                                  "type": "string"
+                                },
+                                "current": {
+                                  "type": "boolean"
+                                },
+                                "team_one": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "short_name": {
+                                      "type": "string"
+                                    },
+                                    "abbrev": {
+                                      "type": "string"
+                                    },
+                                    "is_winner": {
+                                      "type": "boolean"
+                                    },
+                                    "logo": {
+                                      "type": "string"
+                                    },
+                                    "main_score": {
+                                      "type": "string"
+                                    },
+                                    "record": {
+                                      "type": "string"
+                                    },
+                                    "colors": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "permalink": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "team_two": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "short_name": {
+                                      "type": "string"
+                                    },
+                                    "abbrev": {
+                                      "type": "string"
+                                    },
+                                    "is_winner": {
+                                      "type": "boolean"
+                                    },
+                                    "logo": {
+                                      "type": "string"
+                                    },
+                                    "main_score": {
+                                      "type": "string"
+                                    },
+                                    "record": {
+                                      "type": "string"
+                                    },
+                                    "colors": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "permalink": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "progress": {
+                                  "type": "object",
+                                  "properties": {
+                                    "network": {
+                                      "type": "string"
+                                    },
+                                    "play_period": {
+                                      "type": "string"
+                                    },
+                                    "clock": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "round": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "game_state": {
+                                  "type": [
+                                    "object",
+                                    "null"
+                                  ]
+                                },
+                                "meta_data": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "type": "string"
+                                    },
+                                    "start_date": {
+                                      "type": "string",
+                                      "format": "date"
+                                    },
+                                    "end_date": {
+                                      "type": "string",
+                                      "format": "date"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "betting_link": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "success": {
+                          "type": "boolean"
+                        },
+                        "cta_text": {
+                          "type": "string"
+                        },
+                        "logo": {
+                          "type": "string"
+                        },
+                        "click_url": {
+                          "type": "string"
+                        },
+                        "partner": {
+                          "type": "string"
+                        },
+                        "betting": {
+                          "type": "boolean"
+                        }
                       }
                     }
                   }
@@ -221,48 +338,328 @@
               }
             }
           }
+        },
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": "{\"dispatcher\":\"URI_PARAMS\",\"dispatcherRules\":\"league && tz\",\"fallback\":\"example-1\"}"
         }
       }
     },
-    "/api/standings/{permalink}/{season}": {
+    "/api/gamecast/{permalink}": {
       "get": {
-        "operationId": "getStandings",
-        "x-microcks-operation": {
-          "dispatcher": "FALLBACK",
-          "dispatcherRules": "{\"dispatcher\":\"URI_PARTS\",\"dispatcherRules\":\"permalink && season\",\"fallback\":\"example-1\"}"
-        },
+        "summary": "Get Gamecast Details",
+        "operationId": "getGamecast",
         "parameters": [
-          { "name": "permalink", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "season", "in": "path", "required": true, "schema": { "type": "integer" } }
+          {
+            "name": "permalink",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
           "200": {
-            "description": "Standings",
+            "description": "Gamecast response",
             "content": {
               "application/json": {
-                "examples": {
-                  "example-1": {
-                    "value": {
-                      "permalink": "nfl",
-                      "season": 2024,
-                      "name": "NFL Standings",
-                      "sport": "football",
-                      "league": "NFL",
-                      "standings_groupings": [
-                        {
-                          "title": "AFC East",
-                          "entries": [
-                            {
-                              "title": "AFC East",
-                              "teams": [
-                                {"name": "Buffalo Bills", "logo": "https://example.com/buf.png", "slug": "buffalo-bills", "permalink": "buffalo-bills", "values": [{"value": "13"}, {"value": "4"}, {"value": ".765"}]},
-                                {"name": "Miami Dolphins", "logo": "https://example.com/mia.png", "slug": "miami-dolphins", "permalink": "miami-dolphins", "values": [{"value": "11"}, {"value": "6"}, {"value": ".647"}]},
-                                {"name": "New York Jets", "logo": "https://example.com/nyj.png", "slug": "new-york-jets", "permalink": "new-york-jets", "values": [{"value": "5"}, {"value": "12"}, {"value": ".294"}]}
-                              ],
-                              "headers": [{"title": "W"}, {"title": "L"}, {"title": "PCT"}]
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "update_date": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "processing_time": {
+                      "type": "string"
+                    },
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "sport": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "site": {
+                      "type": "string"
+                    },
+                    "league": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "game_date": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "scoreboard": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "game_date": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "permalink": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "team_one": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "short_name": {
+                              "type": "string"
+                            },
+                            "abbrev": {
+                              "type": "string"
+                            },
+                            "is_winner": {
+                              "type": "boolean"
+                            },
+                            "logo": {
+                              "type": "string"
+                            },
+                            "score": {
+                              "type": "string"
+                            },
+                            "record": {
+                              "type": "string"
+                            },
+                            "colors": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "permalink": {
+                              "type": "string"
                             }
-                          ]
+                          }
+                        },
+                        "team_two": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "short_name": {
+                              "type": "string"
+                            },
+                            "abbrev": {
+                              "type": "string"
+                            },
+                            "is_winner": {
+                              "type": "boolean"
+                            },
+                            "logo": {
+                              "type": "string"
+                            },
+                            "score": {
+                              "type": "string"
+                            },
+                            "record": {
+                              "type": "string"
+                            },
+                            "colors": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "permalink": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "progress": {
+                          "type": "object",
+                          "properties": {
+                            "network": {
+                              "type": "string"
+                            },
+                            "play_period": {
+                              "type": "string"
+                            },
+                            "play_period_condensed": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "clock": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "round": {
+                              "type": "string"
+                            }
+                          }
                         }
+                      }
+                    },
+                    "linescore": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "team_one": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "logo": {
+                              "type": "string"
+                            },
+                            "colors": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "record": {
+                              "type": "string"
+                            },
+                            "values": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "summary_values": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "team_two": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "logo": {
+                              "type": "string"
+                            },
+                            "colors": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "record": {
+                              "type": "string"
+                            },
+                            "values": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "summary_values": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "headers": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "value": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "summary_headers": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "value": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "match_info_v2": {
+                      "type": "object",
+                      "properties": {
+                        "stadium": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "weather_primary": {
+                          "type": "string"
+                        },
+                        "weather_secondary": {
+                          "type": "string"
+                        },
+                        "weather_emoji": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "score_leaderboard": {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "race_info": {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "podium": {
+                      "type": [
+                        "object",
+                        "null"
                       ]
                     }
                   }
@@ -270,93 +667,324 @@
               }
             }
           }
+        },
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": "{\"dispatcher\":\"URI_PARTS\",\"dispatcherRules\":\"permalink\",\"fallback\":\"val-1\"}"
         }
       }
     },
-    "/api/schedules/{permalink}/{season}": {
+    "/api/standings/{permalink}": {
       "get": {
-        "operationId": "getSchedules",
-        "x-microcks-operation": {
-          "dispatcher": "FALLBACK",
-          "dispatcherRules": "{\"dispatcher\":\"URI_PARTS\",\"dispatcherRules\":\"permalink && season\",\"fallback\":\"example-1\"}"
-        },
+        "summary": "Get Standings",
+        "operationId": "getStandings",
         "parameters": [
-          { "name": "permalink", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "season", "in": "path", "required": true, "schema": { "type": "integer" } }
+          {
+            "name": "permalink",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
           "200": {
-            "description": "Schedule",
+            "description": "Standings response",
             "content": {
               "application/json": {
-                "examples": {
-                  "example-1": {
-                    "value": {
-                      "permalink": "golden-state-warriors",
-                      "season": 2024,
-                      "name": "Golden State Warriors Schedule",
-                      "league": "NBA",
-                      "schedule_groupings": [
-                        {
-                          "title": "October 2024",
-                          "current": true,
-                          "link": {"title": "Tickets", "type": "url", "value": "https://example.com/tickets"},
-                          "entries": [
-                            {
-                              "current": false,
-                              "date": "Tue, Oct 22",
-                              "home_away": "vs",
-                              "opponent": "Portland Trail Blazers",
-                              "opponent_logo": "https://example.com/por.png",
-                              "result_description": "W 120-109",
-                              "result_code": {"color": "#066521", "value": "W"},
-                              "gamecast_permalink": "warriors-vs-blazers-2024-10-22",
-                              "status": "Complete",
-                              "iso_utc_datetime": "2024-10-23T02:00:00Z",
-                              "start_time_tbd": false,
-                              "location": {"name": "Chase Center", "city": "San Francisco", "state": "CA", "country": "US"}
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "permalink": {
+                      "type": "string"
+                    },
+                    "season": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "sport": {
+                      "type": "string"
+                    },
+                    "league": {
+                      "type": "string"
+                    },
+                    "standings_groupings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string"
+                          },
+                          "entries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "string"
+                                },
+                                "teams": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "logo": {
+                                        "type": "string"
+                                      },
+                                      "slug": {
+                                        "type": "string"
+                                      },
+                                      "permalink": {
+                                        "type": "string"
+                                      },
+                                      "values": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "value": {
+                                              "type": "string"
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "headers": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
                             }
-                          ]
+                          }
                         }
-                      ],
-                      "ad_placement": []
+                      }
                     }
                   }
                 }
               }
             }
           }
+        },
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": "{\"dispatcher\":\"URI_PARTS\",\"dispatcherRules\":\"permalink\",\"fallback\":\"val-1\"}"
         }
       }
     },
     "/api/standings/gamecast/{permalink}": {
       "get": {
-        "operationId": "getStandingsGamecast",
-        "x-microcks-operation": {
-          "dispatcher": "FALLBACK",
-          "dispatcherRules": "{\"dispatcher\":\"URI_PARTS\",\"dispatcherRules\":\"permalink\",\"fallback\":\"example-1\"}"
-        },
+        "summary": "Get Standings by Gamecast Slug",
+        "operationId": "getStandingsByGamecastSlug",
         "parameters": [
-          { "name": "permalink", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "permalink",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
           "200": {
-            "description": "Standings gamecast",
+            "description": "Standings gamecast response",
             "content": {
               "application/json": {
-                "examples": {
-                  "example-1": {
-                    "value": {
-                      "permalink": "nfl",
-                      "season": 2024,
-                      "name": "NFL Standings",
-                      "standings_groupings": [{"title": "AFC", "entries": []}]
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "permalink": {
+                      "type": "string"
+                    },
+                    "season": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "standings_groupings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string"
+                          },
+                          "entries": {
+                            "type": "array"
+                          }
+                        }
+                      }
                     }
                   }
                 }
               }
             }
           }
+        },
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": "{\"dispatcher\":\"URI_PARTS\",\"dispatcherRules\":\"permalink\",\"fallback\":\"val-1\"}"
+        }
+      }
+    },
+    "/api/schedules/{slug}": {
+      "get": {
+        "summary": "Get Schedule",
+        "operationId": "getSchedule",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schedule response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "permalink": {
+                      "type": "string"
+                    },
+                    "season": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "league": {
+                      "type": "string"
+                    },
+                    "schedule_groupings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          },
+                          "link": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "entries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "current": {
+                                  "type": "boolean"
+                                },
+                                "date": {
+                                  "type": "string"
+                                },
+                                "home_away": {
+                                  "type": "string"
+                                },
+                                "opponent": {
+                                  "type": "string"
+                                },
+                                "opponent_logo": {
+                                  "type": "string"
+                                },
+                                "result_description": {
+                                  "type": "string"
+                                },
+                                "result_code": {
+                                  "type": "object",
+                                  "properties": {
+                                    "color": {
+                                      "type": "string"
+                                    },
+                                    "value": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "gamecast_permalink": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "iso_utc_datetime": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "start_time_tbd": {
+                                  "type": "boolean"
+                                },
+                                "location": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "city": {
+                                      "type": "string"
+                                    },
+                                    "state": {
+                                      "type": "string"
+                                    },
+                                    "country": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "ad_placement": {
+                      "type": "array"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": "{\"dispatcher\":\"URI_PARTS\",\"dispatcherRules\":\"slug\",\"fallback\":\"val-1\"}"
         }
       }
     }

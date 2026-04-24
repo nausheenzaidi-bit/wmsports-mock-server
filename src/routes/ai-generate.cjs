@@ -3,9 +3,10 @@ const fs = require('fs');
 const path = require('path');
 const { parse: gqlParse, Kind } = require('graphql');
 const { SCALAR_TYPES } = require('../lib/graphql-utils.cjs');
-const { responseOverrides, getUserScope } = require('../state.cjs');
+const { responseOverrides, variableMockStore, getUserScope, getEffectiveScope, markDirty } = require('../state.cjs');
 const { callLLM, AI_SYSTEM_PROMPT, FAILURE_SCENARIOS, buildScenarioPrompt } = require('../lib/ai-client.cjs');
-const { fullTypeMap, queryServiceMap, richTypeMap, serviceRichTypeMap } = require('../lib/schema-loader.cjs');
+const { fullTypeMap, queryServiceMap, queryArgsMap, richTypeMap, serviceRichTypeMap } = require('../lib/schema-loader.cjs');
+const { parseOpenAPISpec, describeSchema } = require('../lib/schema-parser.cjs');
 
 const ARTIFACTS_DIR = path.join(__dirname, '..', '..', 'artifacts');
 
@@ -129,6 +130,168 @@ router.delete('/ai/overrides', (req, res) => {
     if (k.startsWith(userPrefix)) { delete responseOverrides[k]; cleared++; }
   });
   res.json({ message: `${cleared} override(s) cleared` });
+});
+
+function loadRestSchemaContext(serviceName, operationName) {
+  const norm = serviceName.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const files = fs.readdirSync(ARTIFACTS_DIR).filter(f => f.endsWith('-openapi.json') || f.endsWith('-openapi.yaml'));
+  let specFile = null;
+  for (const f of files) {
+    const fn = f.toLowerCase().replace(/-openapi\.(json|yaml)$/, '').replace(/-/g, '');
+    if (fn === norm || fn.includes(norm) || norm.includes(fn)) { specFile = f; break; }
+  }
+  if (!specFile) return { schemaCtx: '', params: [] };
+
+  try {
+    const specText = fs.readFileSync(path.join(ARTIFACTS_DIR, specFile), 'utf-8');
+    const { spec, operations } = parseOpenAPISpec(specText);
+    const parts = operationName.split(' ');
+    const method = (parts[0] || '').toUpperCase();
+    const opPath = parts.slice(1).join(' ');
+    const op = operations.find(o => o.method === method && o.path === opPath)
+            || operations.find(o => o.name === operationName);
+
+    if (!op) {
+      const allSchemas = operations.map(o => {
+        const resp = o.responseSchema ? describeSchema(o.responseSchema, spec, 0, '') : '';
+        return `${o.name}: ${resp || 'unknown'}`;
+      }).join('\n');
+      return { schemaCtx: `Service: ${serviceName}\nAll operations:\n${allSchemas}`, params: [] };
+    }
+
+    let ctx = `Service: ${serviceName}\nEndpoint: ${op.method} ${op.path}\n`;
+    if (op.summary) ctx += `Summary: ${op.summary}\n`;
+    if (op.responseSchema) ctx += `Response schema:\n${describeSchema(op.responseSchema, spec, 0, '')}\n`;
+    if (op.requestSchema) ctx += `Request body schema:\n${describeSchema(op.requestSchema, spec, 0, '')}\n`;
+
+    const params = (op.parameters || []).map(p => ({
+      name: p.name,
+      in: p.in,
+      type: p.schema?.type || 'string',
+      required: !!p.required,
+    }));
+    if (params.length > 0) ctx += `Parameters: ${params.map(p => `${p.name} (${p.in}, ${p.type}${p.required ? ', required' : ''})`).join(', ')}\n`;
+
+    return { schemaCtx: ctx, params };
+  } catch (_) {
+    return { schemaCtx: '', params: [] };
+  }
+}
+
+router.post('/ai/suggest-scenarios', async (req, res) => {
+  const { service, operation, apiType } = req.body;
+  if (!operation) return res.status(400).json({ error: 'Provide "operation"' });
+
+  const isRest = apiType === 'rest';
+  let schemaCtx = '';
+  let argsInfo = [];
+
+  if (isRest) {
+    const restCtx = loadRestSchemaContext(service, operation);
+    schemaCtx = restCtx.schemaCtx;
+    argsInfo = restCtx.params.map(p => ({ name: p.name, type: p.type, isList: false }));
+  } else {
+    const retType = getOperationReturnType(operation);
+    const svcName = queryServiceMap[operation] || service || null;
+    if (retType) schemaCtx = buildTypeSchema(retType, 0, new Set(), svcName);
+    const args = queryArgsMap[operation];
+    if (args) argsInfo = args.map(a => ({ name: a.name, type: a.typeName, isList: a.isList }));
+  }
+
+  const prompt = `Analyze this API operation and suggest specific, actionable test scenarios.
+
+Operation: ${operation}
+Type: ${isRest ? 'REST' : 'GraphQL'}
+${argsInfo.length > 0 ? `Arguments: ${argsInfo.map(a => `${a.name}: ${a.isList ? '[' + a.type + ']' : a.type}`).join(', ')}` : ''}
+${schemaCtx ? `Schema:\n${schemaCtx}` : ''}
+
+Return JSON with this structure:
+{
+  "scenarios": [
+    {
+      "id": "unique-kebab-id",
+      "name": "Short Name",
+      "category": "one of: edge-case, error-handling, data-integrity, performance, security, business-logic",
+      "severity": "one of: critical, high, medium, low",
+      "description": "What this tests and why it matters",
+      "prompt": "Exact prompt to generate this mock data",
+      "variables": ${argsInfo.length > 0 ? 'suggested variable values as an object or null' : 'null'}
+    }
+  ]
+}
+
+Generate 8-12 specific scenarios that are tailored to this particular operation and schema. Include:
+- Edge cases specific to the field types (e.g., empty team names, negative scores, future dates)
+- Business logic violations (e.g., game score where both teams have 0 points, impossible win/loss records)
+- Null/missing data patterns specific to which fields consumers likely depend on
+- Variable-specific scenarios (different variable inputs producing different edge cases)
+- Real-world failure modes for sports APIs (delayed data, provisional results, rain delays)`;
+
+  try {
+    const result = await callLLM(AI_SYSTEM_PROMPT, prompt);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/ai/generate-with-variables', async (req, res) => {
+  const { service, operation, variables, prompt, scenario, selectedFields } = req.body;
+  if (!service || !operation) return res.status(400).json({ error: 'Provide "service" and "operation"' });
+  if (!variables || Object.keys(variables).length === 0) return res.status(400).json({ error: 'Provide "variables" object' });
+
+  const varKey = JSON.stringify(variables, Object.keys(variables).sort());
+  const scope = getEffectiveScope(req);
+  const storeKey = `${scope}:${service}:${operation}:${varKey}`;
+
+  if (!prompt && !scenario && variableMockStore[storeKey]) {
+    return res.json({ data: variableMockStore[storeKey].data, cached: true, variables });
+  }
+
+  const retType = getOperationReturnType(operation);
+  const svcName = queryServiceMap[operation] || service;
+  const schemaCtx = retType ? buildTypeSchema(retType, 0, new Set(), svcName) : '';
+
+  const variableDesc = Object.entries(variables).map(([k, v]) => `${k} = ${JSON.stringify(v)}`).join(', ');
+  const fieldConstraint = selectedFields && selectedFields.length > 0
+    ? `\nInclude ONLY these fields in the response: ${selectedFields.join(', ')}.`
+    : '';
+
+  const scenarioDef = scenario ? FAILURE_SCENARIOS[scenario] : null;
+  const basePrompt = scenarioDef ? scenarioDef.prompt : (prompt || 'Generate realistic mock data');
+
+  const userMsg = `${basePrompt}
+
+Operation: ${operation}
+Variables: ${variableDesc}
+${fieldConstraint}
+IMPORTANT: The mock data MUST be contextually appropriate for these specific variable values. For example, if slug="nfl-chiefs-vs-bills", generate data about Chiefs vs Bills. If gameId="123", use that ID.
+
+Schema:
+${schemaCtx}
+
+Return ONLY valid JSON as: {"data": {"${operation}": {...}}}`;
+
+  try {
+    const result = await callLLM(AI_SYSTEM_PROMPT, userMsg);
+    variableMockStore[storeKey] = { data: result, variables, timestamp: Date.now() };
+    res.json({ data: result, variables, cached: false, storeKey });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/ai/variable-mocks', (req, res) => {
+  const { service, operation } = req.query;
+  const scope = getEffectiveScope(req);
+  const prefix = `${scope}:${service || ''}:${operation || ''}`;
+  const mocks = {};
+  for (const [k, v] of Object.entries(variableMockStore)) {
+    if (k.startsWith(prefix)) {
+      mocks[k] = { variables: v.variables, timestamp: v.timestamp };
+    }
+  }
+  res.json({ mocks });
 });
 
 module.exports = router;

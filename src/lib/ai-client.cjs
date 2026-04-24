@@ -1,5 +1,75 @@
+const http = require('http');
 const https = require('https');
-const { AI_API_KEY, AI_BASE_URL, AI_MODEL } = require('../config.cjs');
+const { AI_API_KEY, AI_BASE_URL, AI_MODEL, AI_PROVIDER } = require('../config.cjs');
+
+/** Local Ollama is much slower than hosted APIs for large JSON batches; Groq-style 60s caps cause false timeouts. */
+function chatTimeoutMs(kind, maxTokens) {
+  if (kind === 'high') {
+    const batchOverride = process.env.AI_LLM_BATCH_TIMEOUT_MS;
+    if (batchOverride) {
+      const b = parseInt(batchOverride, 10);
+      if (!Number.isNaN(b) && b > 0) return b;
+    }
+    if (AI_PROVIDER === 'ollama') {
+      return Math.min(600_000, Math.max(240_000, maxTokens * 25));
+    }
+    return maxTokens > 8000 ? 120_000 : 60_000;
+  }
+  const defOverride = process.env.AI_LLM_TIMEOUT_MS;
+  if (defOverride) {
+    const n = parseInt(defOverride, 10);
+    if (!Number.isNaN(n) && n > 0) return n;
+  }
+  if (AI_PROVIDER === 'ollama') return 180_000;
+  return 30_000;
+}
+
+function postChatCompletions(baseUrl, apiKey, payload, timeoutMs) {
+  const root = String(baseUrl).replace(/\/$/, '');
+  const url = new URL(`${root}/chat/completions`);
+  const isHttps = url.protocol === 'https:';
+  const lib = isHttps ? https : http;
+  const port = url.port ? Number(url.port) : (isHttps ? 443 : 80);
+  const postData = JSON.stringify(payload);
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(postData),
+  };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
+  return new Promise((resolve, reject) => {
+    const opts = {
+      hostname: url.hostname,
+      port,
+      path: url.pathname + url.search,
+      method: 'POST',
+      headers,
+      timeout: timeoutMs,
+    };
+    const req = lib.request(opts, (resp) => {
+      let d = '';
+      resp.on('data', (c) => (d += c));
+      resp.on('end', () => {
+        try {
+          const parsed = JSON.parse(d);
+          if (parsed.error) return reject(new Error(parsed.error.message || 'LLM error'));
+          const content = parsed.choices?.[0]?.message?.content;
+          if (!content) return reject(new Error('Empty LLM response'));
+          resolve(JSON.parse(content));
+        } catch (e) {
+          reject(new Error('LLM parse error: ' + e.message));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('LLM timeout'));
+    });
+    req.write(postData);
+    req.end();
+  });
+}
 
 const FAILURE_SCENARIOS = {
   'success': { name: 'Success (Happy Path)', prompt: 'Generate correct, realistic data with ALL fields present, proper types, and realistic values. This should be a perfect, valid API response with no issues — real team names, correct scores, valid dates, proper nested structures, and all arrays populated with 1-2 items.' },
@@ -43,6 +113,7 @@ CRITICAL RULES — FOLLOW EXACTLY:
 - NULL VALUES means: set every field value to null.
 - EMPTY ARRAYS means: set any field that could be an array to [], and set string fields to "".
 - Use real sports content (NFL, NBA, MLB teams/players) when generating valid-looking values.
+- For permalink/slug fields, use kebab-case slugs like "nfl", "patriots-vs-jets", "kansas-city-chiefs". NEVER use full URLs for permalink/slug fields.
 
 NULL vs EMPTY OBJECT (CRITICAL):
 - For optional/empty nested objects (podium, race_info, score_leaderboard, ad_placement, etc.), ALWAYS use null — NEVER use an empty object {}.
@@ -73,7 +144,8 @@ STRUCTURE AND NAMING RULES:
 - Generate ALL levels of nesting shown in the schema description. Do NOT flatten or skip nested objects.
 - For arrays, generate 1-2 items to show the structure without excessive data.
 - Every field in the schema must appear in the output with a realistic value of the correct type.
-- If a field name suggests a specific domain (e.g. permalink, slug), generate url-friendly kebab-case strings.
+- If a field name suggests a specific domain (e.g. permalink, slug), generate url-friendly kebab-case strings like "nfl", "patriots-vs-jets", "kansas-city-chiefs". NEVER use full URLs (no "https://..." values) for permalink/slug fields.
+- When a "_pathParams" field is requested, include it as a top-level key with distinct slug values for each path parameter.
 
 NULL vs EMPTY OBJECT RULES (CRITICAL for parser compatibility):
 - If a field is optional or represents data that may not exist (e.g. podium, race_info, score_leaderboard, ad_placement), use null — NEVER use an empty object {}.
@@ -106,12 +178,16 @@ When the user requests scenarios or failure cases, generate examples that match.
 When mixing scenarios, LABEL each example clearly by using the requested pattern. For instance, if asked for "3 success, 2 wrong-types, 1 null-values", produce exactly that mix.`;
 
 async function callLLM(systemPrompt, userPrompt) {
-  if (!AI_API_KEY) {
-    throw new Error('No AI_API_KEY set. Export GROQ_API_KEY or AI_API_KEY.');
+  if (!AI_API_KEY && AI_PROVIDER !== 'ollama') {
+    throw new Error('No AI_API_KEY set. Export GROQ_API_KEY, TOGETHER_API_KEY, or use AI_PROVIDER=ollama.');
   }
-  const keyPreview = AI_API_KEY.substring(0, 20) + '...' + AI_API_KEY.substring(AI_API_KEY.length - 10);
-  console.log(`🔑 Using API Key: ${keyPreview}`);
-  
+  if (AI_PROVIDER !== 'ollama') {
+    const keyPreview = AI_API_KEY.substring(0, 20) + '...' + AI_API_KEY.substring(AI_API_KEY.length - 10);
+    console.log(`🔑 Using API Key: ${keyPreview}`);
+  } else {
+    console.log(`🔑 Using Ollama at ${AI_BASE_URL} (model ${AI_MODEL})`);
+  }
+
   const payload = {
     model: AI_MODEL,
     messages: [
@@ -122,41 +198,11 @@ async function callLLM(systemPrompt, userPrompt) {
     max_tokens: 4096,
     response_format: { type: 'json_object' },
   };
-  return new Promise((resolve, reject) => {
-    const url = new URL(`${AI_BASE_URL}/chat/completions`);
-    const postData = JSON.stringify(payload);
-    const opts = {
-      hostname: url.hostname, port: url.port || 443, path: url.pathname,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AI_API_KEY}`,
-        'Content-Length': Buffer.byteLength(postData),
-      },
-      timeout: 30000,
-    };
-    const r = https.request(opts, (resp) => {
-      let d = '';
-      resp.on('data', c => d += c);
-      resp.on('end', () => {
-        try {
-          const parsed = JSON.parse(d);
-          if (parsed.error) return reject(new Error(parsed.error.message || 'LLM error'));
-          const content = parsed.choices?.[0]?.message?.content;
-          if (!content) return reject(new Error('Empty LLM response'));
-          resolve(JSON.parse(content));
-        } catch (e) { reject(new Error('LLM parse error: ' + e.message)); }
-      });
-    });
-    r.on('error', reject);
-    r.on('timeout', () => { r.destroy(); reject(new Error('LLM timeout')); });
-    r.write(postData);
-    r.end();
-  });
+  return postChatCompletions(AI_BASE_URL, AI_API_KEY, payload, chatTimeoutMs('default', 4096));
 }
 
 async function callLLMWithHighTokens(systemPrompt, userPrompt, maxTokens = 4000) {
-  if (!AI_API_KEY) throw new Error('No AI_API_KEY set.');
+  if (!AI_API_KEY && AI_PROVIDER !== 'ollama') throw new Error('No AI_API_KEY set.');
   const payload = {
     model: AI_MODEL,
     messages: [
@@ -167,33 +213,8 @@ async function callLLMWithHighTokens(systemPrompt, userPrompt, maxTokens = 4000)
     max_tokens: maxTokens,
     response_format: { type: 'json_object' },
   };
-  return new Promise((resolve, reject) => {
-    const url = new URL(`${AI_BASE_URL}/chat/completions`);
-    const postData = JSON.stringify(payload);
-    const opts = {
-      hostname: url.hostname, port: url.port || 443, path: url.pathname,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AI_API_KEY}`, 'Content-Length': Buffer.byteLength(postData) },
-      timeout: maxTokens > 8000 ? 120000 : 60000,
-    };
-    const r = https.request(opts, (resp) => {
-      let d = '';
-      resp.on('data', c => d += c);
-      resp.on('end', () => {
-        try {
-          const parsed = JSON.parse(d);
-          if (parsed.error) return reject(new Error(parsed.error.message || 'LLM error'));
-          const content = parsed.choices?.[0]?.message?.content;
-          if (!content) return reject(new Error('Empty LLM response'));
-          resolve(JSON.parse(content));
-        } catch (e) { reject(new Error('LLM parse error: ' + e.message)); }
-      });
-    });
-    r.on('error', reject);
-    r.on('timeout', () => { r.destroy(); reject(new Error('LLM timeout')); });
-    r.write(postData);
-    r.end();
-  });
+  const timeoutMs = chatTimeoutMs('high', maxTokens);
+  return postChatCompletions(AI_BASE_URL, AI_API_KEY, payload, timeoutMs);
 }
 
 function buildScenarioPrompt(scenario, fieldList, fNames, apiLabel) {

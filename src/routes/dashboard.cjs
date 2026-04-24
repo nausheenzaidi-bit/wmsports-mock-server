@@ -2,9 +2,25 @@ const express = require('express');
 const router = express.Router();
 const { MICROCKS_URL } = require('../config.cjs');
 const { fetchMicrocksServices } = require('../lib/microcks-service.cjs');
+const { isServiceVisibleInWorkspace } = require('../state.cjs');
+const { isInNamespace } = require('../lib/microcks-namespace.cjs');
+
+function parseCookies(cookieHeader) {
+  const cookies = {};
+  if (!cookieHeader) return cookies;
+  cookieHeader.split(';').forEach(c => {
+    const [k, ...v] = c.split('=');
+    if (k) cookies[k.trim()] = decodeURIComponent(v.join('=').trim());
+  });
+  return cookies;
+}
 
 router.get('/', async (req, res) => {
-  const services = await fetchMicrocksServices();
+  const allServices = await fetchMicrocksServices();
+  const cookies = parseCookies(req.headers.cookie);
+  const activeWs = cookies.mock_workspace || null;
+
+  const services = allServices.filter(s => isServiceVisibleInWorkspace(s.name, activeWs));
 
   if (req.headers.accept && req.headers.accept.includes('application/json')) {
     return res.json({ services, microcks: MICROCKS_URL });
@@ -17,6 +33,10 @@ router.get('/', async (req, res) => {
 
   const host = `${req.protocol}://${req.get('host')}`;
   const microcksUp = services.length > 0;
+
+  const delIcon = (name) => isInNamespace(name)
+    ? `<span class="delete-icon" title="Delete from Microcks" onclick="event.stopPropagation();deleteService('${name.replace(/'/g, "\\'")}')">🗑</span>`
+    : '';
 
   // Build structured service data for the client-side explorer
   const svcData = {};
@@ -38,7 +58,7 @@ router.get('/', async (req, res) => {
       const opPath = parts.slice(1).join(' ') || '/';
       return `<div class="rest-ep"><span class="method ${method.toLowerCase()}">${method}</span><code>${host}/rest/${s.name}/${s.version}${opPath}</code><button onclick="tryRest('${method}','${host}/rest/${s.name}/${s.version}${opPath}')">Try</button></div>`;
     }).join('\n');
-    return `<div class="rest-svc"><h3>${s.name} <span class="badge rest">REST</span> <span class="ops-count">${s.operations?.length || 0}</span></h3>${ops}</div>`;
+    return `<div class="rest-svc" data-svc="${s.name}"><h3>${s.name} <span class="badge rest">REST</span> <span class="ops-count">${s.operations?.length || 0}</span></h3>${ops}</div>`;
   }).join('\n');
 
   const eventRows = eventSvcs.map(s => {
@@ -53,84 +73,153 @@ router.get('/', async (req, res) => {
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>WM Sports Mock Server</title>
 <style>
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1c2128;--border:#21262d;--border2:#30363d;--fg:#e1e4e8;--fg2:#c9d1d9;--fg3:#8b949e;--fg4:#484f58;--accent:#58a6ff;--accent2:#1f6feb;--green:#238636;--green2:#3fb950;--red:#da3633;--red2:#f85149;--purple:#8957e5;--purple2:#a371f7;--orange:#f0883e;--yellow:#d29922;--pink:#e535ab;--code-bg:#0d1117;--card-bg:#161b22}
+[data-theme="light"]{--bg:#ffffff;--bg2:#f6f8fa;--bg3:#eaeef2;--border:#d0d7de;--border2:#d0d7de;--fg:#1f2328;--fg2:#1f2328;--fg3:#656d76;--fg4:#8b949e;--accent:#0969da;--accent2:#0969da;--green:#1a7f37;--green2:#1a7f37;--red:#cf222e;--red2:#cf222e;--purple:#8250df;--purple2:#8250df;--orange:#bc4c00;--yellow:#9a6700;--pink:#bf3989;--code-bg:#f6f8fa;--card-bg:#ffffff}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0d1117;color:#e1e4e8}
-.header{background:#161b22;border-bottom:1px solid #30363d;padding:1rem 1.5rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
-.header h1{font-size:1.3rem;color:#fff}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+.header{background:var(--bg2);border-bottom:1px solid var(--border2);padding:1rem 1.5rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.header h1{font-size:1.3rem;color:var(--fg2)}
 .status-badge{padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:600}
-.status-badge.online{background:#238636;color:#fff}
-.status-badge.offline{background:#da3633;color:#fff}
-.user-badge{display:flex;align-items:center;gap:.35rem;padding:3px 10px;border-radius:12px;background:#1f2937;border:1px solid #30363d;cursor:pointer;transition:border-color .15s}
-.user-badge:hover{border-color:#58a6ff}
-.user-badge strong{color:#58a6ff}
-.stats-bar{display:flex;gap:1.5rem;margin-left:auto;font-size:.8rem;color:#8b949e}
-.stats-bar strong{color:#58a6ff}
+.status-badge.online{background:var(--green);color:#fff}
+.status-badge.offline{background:var(--red);color:#fff}
+.user-badge{display:flex;align-items:center;gap:.35rem;padding:3px 10px;border-radius:12px;background:var(--bg2);border:1px solid var(--border2);cursor:pointer;transition:border-color .15s}
+.user-badge:hover{border-color:var(--accent)}
+.user-badge strong{color:var(--accent)}
+.stats-bar{display:flex;gap:1.5rem;margin-left:auto;font-size:.8rem;color:var(--fg3)}
+.stats-bar strong{color:var(--accent)}
+.theme-btn{background:none;border:1px solid var(--border2);border-radius:12px;padding:3px 10px;cursor:pointer;font-size:.75rem;color:var(--fg3);transition:all .15s}
+.theme-btn:hover{border-color:var(--accent);color:var(--accent)}
 .layout{display:flex;height:calc(100vh - 56px)}
-.sidebar{width:280px;min-width:280px;background:#0d1117;border-right:1px solid #21262d;overflow-y:auto;display:flex;flex-direction:column}
-.sidebar-section{padding:.5rem 0}
-.sidebar-section h3{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#484f58;padding:.4rem 1rem;user-select:none}
-.svc-btn{display:flex;align-items:center;gap:.5rem;padding:.45rem 1rem;cursor:pointer;font-size:.85rem;color:#c9d1d9;border:none;background:none;width:100%;text-align:left}
-.svc-btn:hover{background:#161b22}
-.svc-btn.active{background:#1f6feb22;color:#58a6ff;border-left:2px solid #58a6ff}
-.svc-btn .cnt{margin-left:auto;font-size:.7rem;color:#484f58;background:#21262d;padding:1px 6px;border-radius:8px}
+.sidebar{width:240px;min-width:0;background:var(--bg);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;transition:width .2s ease}
+.sidebar.collapsed{width:0;overflow:hidden;border-right:none}
+.sidebar-toggle{position:relative;z-index:10;background:var(--bg2);border:1px solid var(--border2);border-left:none;border-radius:0 4px 4px 0;padding:0;cursor:pointer;color:var(--fg3);font-size:.65rem;transition:all .2s;line-height:1;width:14px;text-align:center;align-self:stretch;flex-shrink:0}
+.sidebar-toggle:hover{color:var(--accent);border-color:var(--accent)}
+.sidebar-section{padding:.3rem 0}
+.sidebar-section h3{font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:var(--fg4);padding:.3rem .8rem;user-select:none;cursor:pointer;display:flex;align-items:center;gap:.3rem}
+.sidebar-section h3 .section-arrow{font-size:.55rem;transition:transform .15s;color:var(--fg4)}
+.sidebar-section h3 .section-arrow.collapsed{transform:rotate(-90deg)}
+.sidebar-section .section-items{overflow:hidden;transition:max-height .2s ease}
+.sidebar-section .section-items.collapsed{max-height:0 !important}
+.svc-btn{display:flex;align-items:center;gap:.4rem;padding:.35rem .8rem;cursor:pointer;font-size:.78rem;color:var(--fg2);border:none;background:none;width:100%;text-align:left}
+.svc-btn:hover{background:var(--bg2)}
+.svc-btn.active{background:color-mix(in srgb, var(--accent) 12%, transparent);color:var(--accent);border-left:2px solid var(--accent)}
+.svc-btn .cnt{margin-left:auto;font-size:.65rem;color:var(--fg4);background:var(--border);padding:1px 5px;border-radius:8px}
 .badge{padding:1px 6px;border-radius:3px;font-size:.6rem;font-weight:700;text-transform:uppercase}
-.badge.graphql{background:#e535ab22;color:#e535ab}
-.badge.rest{background:#1f6feb22;color:#58a6ff}
-.badge.event{background:#f0883e22;color:#f0883e}
-.badge.query{background:#23863622;color:#7ee787}.badge.mutation{background:#da363322;color:#f85149}
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.badge.graphql{background:color-mix(in srgb, var(--pink) 15%, transparent);color:var(--pink)}
+.badge.rest{background:color-mix(in srgb, var(--accent) 15%, transparent);color:var(--accent)}
+.badge.event{background:color-mix(in srgb, var(--orange) 15%, transparent);color:var(--orange)}
+.badge.query{background:color-mix(in srgb, var(--green2) 15%, transparent);color:var(--green2)}.badge.mutation{background:color-mix(in srgb, var(--red2) 15%, transparent);color:var(--red2)}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
 .explorer{display:none;flex:1;overflow:hidden}
 .explorer.active{display:flex}
-.explorer .ops-panel{width:260px;min-width:220px;background:#0d1117;border-right:1px solid #21262d;overflow-y:auto;padding:.5rem 0}
-.ops-panel h4{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:#484f58;padding:.5rem .8rem .3rem;margin-top:.3rem}
-.op-btn{display:flex;align-items:center;gap:.4rem;padding:.35rem .8rem;cursor:pointer;font-size:.82rem;color:#c9d1d9;border:none;background:none;width:100%;text-align:left}
-.op-btn:hover{background:#161b22}
-.op-btn.active{background:#1f6feb15;color:#58a6ff}
-.op-btn .ret{margin-left:auto;color:#484f58;font-size:.72rem;font-family:"SF Mono",Menlo,monospace;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.explorer .ops-panel{width:240px;min-width:200px;background:var(--bg);border-right:1px solid var(--border);overflow-y:auto;padding:.5rem 0;display:flex;flex-direction:column}
+.ops-panel h4{font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--fg4);padding:.4rem .8rem .2rem;margin-top:.2rem}
+.ops-panel-back{display:flex;align-items:center;gap:.3rem;padding:.4rem .8rem;cursor:pointer;font-size:.72rem;color:var(--accent);border:none;background:none;width:100%;text-align:left;border-bottom:1px solid var(--border);margin-bottom:.3rem;font-weight:600}
+.ops-panel-back:hover{background:var(--bg2)}
+.ops-fields-header{display:flex;align-items:center;gap:.4rem;padding:.3rem .6rem;border-bottom:1px solid var(--border);font-size:.65rem;text-transform:uppercase;letter-spacing:.04em;color:var(--fg4)}
+.ops-fields-header button{background:var(--border);color:var(--fg3);border:none;padding:1px 6px;border-radius:3px;font-size:.6rem;cursor:pointer}
+.ops-fields-header button:hover{background:var(--border2);color:var(--fg2)}
+.op-btn{display:flex;align-items:center;gap:.4rem;padding:.3rem .8rem;cursor:pointer;font-size:.78rem;color:var(--fg2);border:none;background:none;width:100%;text-align:left}
+.op-btn:hover{background:var(--bg2)}
+.op-btn.active{background:color-mix(in srgb, var(--accent) 10%, transparent);color:var(--accent)}
+.op-btn .ret{margin-left:auto;color:var(--fg4);font-size:.68rem;font-family:"SF Mono",Menlo,monospace;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .editor-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.editor-header{background:#161b22;border-bottom:1px solid #21262d;padding:.5rem 1rem;display:flex;align-items:center;gap:.5rem;font-size:.85rem}
-.editor-header strong{color:#fff}
-.editor-header .run-btn{margin-left:auto;background:#238636;color:#fff;border:none;padding:5px 16px;border-radius:4px;cursor:pointer;font-size:.85rem;font-weight:600}
-.editor-header .run-btn:hover{background:#2ea043}
-.editor-header .timing{color:#8b949e;font-size:.8rem;margin-right:.5rem}
+.editor-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:.4rem 1rem;display:flex;align-items:center;gap:.5rem;font-size:.85rem}
+.editor-header strong{color:var(--fg2)}
+.editor-header .run-btn{margin-left:auto;background:var(--green);color:#fff;border:none;padding:5px 16px;border-radius:4px;cursor:pointer;font-size:.85rem;font-weight:600}
+.editor-header .run-btn:hover{background:color-mix(in srgb, var(--green) 85%, white)}
+.editor-header .timing{color:var(--fg3);font-size:.8rem;margin-right:.5rem}
 .editor-body{display:flex;flex:1;overflow:hidden}
-.editor-left{flex:1;display:flex;flex-direction:column;border-right:1px solid #21262d}
-.editor-left label,.editor-right label{display:block;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:#484f58;padding:.4rem .8rem;background:#0d1117;border-bottom:1px solid #21262d}
-.editor-left textarea{flex:1;width:100%;background:#0d1117;border:none;color:#c9d1d9;font-family:"SF Mono",Menlo,monospace;font-size:.85rem;padding:.8rem;resize:none;outline:none}
+.editor-left{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border)}
+.editor-left label,.editor-right label{display:block;font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--fg4);padding:.4rem .8rem;background:var(--bg);border-bottom:1px solid var(--border)}
+.editor-left textarea{flex:1;width:100%;background:var(--code-bg);border:none;color:var(--fg2);font-family:"SF Mono",Menlo,monospace;font-size:.85rem;padding:.8rem;resize:none;outline:none}
 .editor-right{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.editor-right pre{flex:1;margin:0;padding:.8rem;font-family:"SF Mono",Menlo,monospace;font-size:.82rem;color:#7ee787;overflow:auto;white-space:pre-wrap;background:#0d1117}
-.editor-right pre.error{color:#f85149}
+#bottom-panel-wrap{resize:vertical;overflow:auto}
+.editor-right pre{flex:1;margin:0;padding:.8rem;font-family:"SF Mono",Menlo,monospace;font-size:.82rem;color:var(--green2);overflow:auto;white-space:pre-wrap;background:var(--code-bg)}
+.editor-right pre.error{color:var(--red2)}
 .pg-status{padding:1px 6px;border-radius:3px;font-size:.72rem;font-weight:600;margin-right:.3rem}
-.pg-status.s2{background:#238636;color:#fff}.pg-status.s206{background:#d29922;color:#fff}.pg-status.s4{background:#da3633;color:#fff}.pg-status.s5{background:#da3633;color:#fff}.pg-status.ai{background:#8957e5;color:#fff}
-.welcome{padding:3rem;color:#484f58;font-size:1rem;text-align:center;margin:auto}
-.welcome h2{color:#c9d1d9;margin-bottom:.5rem;font-size:1.2rem}
+.pg-status.s2{background:var(--green);color:#fff}.pg-status.s206{background:var(--yellow);color:#fff}.pg-status.s4{background:var(--red);color:#fff}.pg-status.s5{background:var(--red);color:#fff}.pg-status.ai{background:var(--purple);color:#fff}
+.welcome{padding:3rem;color:var(--fg4);font-size:1rem;text-align:center;margin:auto}
+.welcome h2{color:var(--fg2);margin-bottom:.5rem;font-size:1.2rem}
 .rest-section,.event-section{display:none;padding:1.5rem;overflow-y:auto;flex:1}
 .rest-section.active,.event-section.active{display:block}
-.rest-svc{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem}
-.rest-svc h3{font-size:.95rem;margin-bottom:.5rem;color:#c9d1d9}
+.rest-svc{background:var(--card-bg);border:1px solid var(--border2);border-radius:8px;padding:1rem;margin-bottom:1rem}
+.rest-svc h3{font-size:.95rem;margin-bottom:.5rem;color:var(--fg2)}
 .rest-ep{display:flex;align-items:center;gap:.5rem;padding:.3rem 0;font-size:.85rem;flex-wrap:wrap}
-.rest-ep button{margin-left:auto;background:#238636;color:#fff;border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:.75rem}
-.rest-ep button:hover{background:#2ea043}
+.rest-ep button{margin-left:auto;background:var(--green);color:#fff;border:none;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:.75rem}
+.rest-ep button:hover{background:color-mix(in srgb, var(--green) 85%, white)}
 .method{padding:2px 6px;border-radius:3px;font-weight:700;font-size:.65rem;min-width:40px;text-align:center}
-.get{background:#1f6feb;color:#fff}.post{background:#238636;color:#fff}.put{background:#f0883e;color:#fff}.delete{background:#da3633;color:#fff}
-code{background:#1c2128;padding:1px 5px;border-radius:3px;font-size:.8rem;color:#79c0ff}
-.ops-count{background:#1f6feb22;color:#58a6ff;padding:1px 6px;border-radius:8px;font-size:.72rem;font-weight:600}
-table{width:100%;border-collapse:collapse;background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}
-th{background:#1c2128;text-align:left;padding:.5rem .8rem;color:#8b949e;font-size:.75rem;text-transform:uppercase}
-td{padding:.5rem .8rem;border-top:1px solid #21262d;font-size:.85rem}
-a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
-.footer-bar{background:#161b22;border-top:1px solid #21262d;padding:.4rem 1rem;font-size:.72rem;color:#484f58;display:flex;gap:1rem;align-items:center}
+.get{background:var(--accent2);color:#fff}.post{background:var(--green);color:#fff}.put{background:var(--orange);color:#fff}.delete{background:var(--red);color:#fff}
+code{background:var(--bg3);padding:1px 5px;border-radius:3px;font-size:.8rem;color:var(--accent)}
+.ops-count{background:color-mix(in srgb, var(--accent) 15%, transparent);color:var(--accent);padding:1px 6px;border-radius:8px;font-size:.72rem;font-weight:600}
+table{width:100%;border-collapse:collapse;background:var(--card-bg);border:1px solid var(--border2);border-radius:8px;overflow:hidden}
+th{background:var(--bg3);text-align:left;padding:.5rem .8rem;color:var(--fg3);font-size:.75rem;text-transform:uppercase}
+td{padding:.5rem .8rem;border-top:1px solid var(--border);font-size:.85rem}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.footer-bar{background:var(--bg2);border-top:1px solid var(--border);padding:.4rem 1rem;font-size:.72rem;color:var(--fg4);display:flex;gap:1rem;align-items:center}
 .svc-btn{display:flex;align-items:center;justify-content:space-between}
 .svc-btn .svc-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:left}
 .svc-btn .svc-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
-.regen-icon{display:none;width:18px;height:18px;line-height:18px;text-align:center;border-radius:4px;font-size:12px;color:#8b949e;cursor:pointer;transition:all .15s}
+.regen-icon{display:none;width:18px;height:18px;line-height:18px;text-align:center;border-radius:4px;font-size:12px;color:var(--fg3);cursor:pointer;transition:all .15s}
 .svc-btn:hover .regen-icon{display:inline-block}
-.regen-icon:hover{background:#23863644;color:#3fb950}
-.regen-icon.spinning{display:inline-block;animation:spin .8s linear infinite;color:#3fb950}
+.regen-icon:hover{background:color-mix(in srgb, var(--green2) 25%, transparent);color:var(--green2)}
+.regen-icon.spinning{display:inline-block;animation:spin .8s linear infinite;color:var(--green2)}
+.delete-icon{display:none;width:18px;height:18px;line-height:18px;text-align:center;border-radius:4px;font-size:11px;color:var(--fg3);cursor:pointer;transition:all .15s}
+.svc-btn:hover .delete-icon{display:inline-block}
+.delete-icon:hover{background:color-mix(in srgb, #da3633 25%, transparent);color:#da3633}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-#setup-dropzone.drag-active{border-color:#3fb950 !important;background:#23863611 !important}
+#setup-dropzone.drag-active{border-color:var(--green2) !important;background:color-mix(in srgb, var(--green2) 5%, transparent) !important}
 .regen-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:1000;display:flex;align-items:center;justify-content:center}
-.regen-modal{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:1.5rem;width:460px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+.regen-modal{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:1.5rem;width:460px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+.field-tree{font-size:.78rem;font-family:"SF Mono",Menlo,monospace;overflow-y:auto;flex:1}
+.ft-node{padding:1px 0}
+.ft-toggle{display:inline-flex;align-items:center;gap:4px;cursor:pointer;padding:2px 4px;border-radius:3px;border:none;background:none;color:var(--fg2);font-family:inherit;font-size:inherit;width:100%;text-align:left}
+.ft-toggle:hover{background:var(--bg2)}
+.ft-toggle .ft-arrow{color:var(--fg4);font-size:.7rem;width:14px;text-align:center;transition:transform .15s;flex-shrink:0}
+.ft-toggle .ft-arrow.open{transform:rotate(90deg)}
+.ft-toggle .ft-check{width:14px;height:14px;border-radius:3px;border:1px solid var(--border2);background:none;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--green2);transition:all .15s}
+.ft-toggle .ft-check.checked{background:color-mix(in srgb, var(--green2) 25%, transparent);border-color:var(--green2)}
+.ft-toggle .ft-fname{color:var(--fg2)}
+.ft-toggle .ft-type{color:var(--fg4);margin-left:auto;font-size:.68rem}
+.ft-toggle .ft-type.scalar{color:var(--accent)}
+.ft-toggle .ft-type.object{color:var(--pink)}
+.ft-toggle .ft-type.list{color:var(--orange)}
+.ft-children{padding-left:14px;border-left:1px solid var(--border);margin-left:7px}
+.var-panel{border-top:1px solid var(--border);padding:.5rem .8rem;max-height:200px;overflow-y:auto}
+.var-row{display:flex;align-items:center;gap:.5rem;padding:3px 0;font-size:.8rem}
+.var-row label{color:var(--accent);font-family:"SF Mono",Menlo,monospace;min-width:80px;font-size:.78rem}
+.var-row input{flex:1;background:var(--code-bg);border:1px solid var(--border2);border-radius:4px;color:var(--fg2);padding:3px 6px;font-size:.78rem;font-family:"SF Mono",Menlo,monospace}
+.var-row .var-type{color:var(--fg4);font-size:.68rem;min-width:50px}
+.scenario-suggest{overflow-y:auto;padding:.5rem .8rem;flex:1}
+.suggest-card{background:var(--card-bg);border:1px solid var(--border2);border-radius:6px;padding:.5rem .6rem;margin-bottom:.4rem;cursor:pointer;transition:border-color .15s}
+.suggest-card:hover{border-color:var(--accent)}
+.suggest-card.active-scenario{border-color:var(--purple);background:color-mix(in srgb, var(--purple) 8%, transparent)}
+.suggest-card .sc-name{color:var(--fg2);font-size:.78rem;font-weight:600}
+.suggest-card .sc-cat{padding:1px 5px;border-radius:3px;font-size:.55rem;font-weight:600;text-transform:uppercase}
+.suggest-card .sc-cat.edge-case{background:color-mix(in srgb, var(--yellow) 15%, transparent);color:var(--yellow)}
+.suggest-card .sc-cat.error-handling{background:color-mix(in srgb, var(--red2) 15%, transparent);color:var(--red2)}
+.suggest-card .sc-cat.data-integrity{background:color-mix(in srgb, var(--green2) 15%, transparent);color:var(--green2)}
+.suggest-card .sc-cat.business-logic{background:color-mix(in srgb, var(--purple2) 15%, transparent);color:var(--purple2)}
+.suggest-card .sc-cat.performance{background:color-mix(in srgb, var(--accent) 15%, transparent);color:var(--accent)}
+.suggest-card .sc-cat.security{background:color-mix(in srgb, var(--orange) 15%, transparent);color:var(--orange)}
+.suggest-card .sc-desc{color:var(--fg3);font-size:.68rem;margin-top:2px}
+.suggest-card .sc-sev{font-size:.55rem;font-weight:700;padding:1px 5px;border-radius:3px}
+.suggest-card .sc-sev.critical{background:color-mix(in srgb, var(--red2) 15%, transparent);color:var(--red2)}
+.suggest-card .sc-sev.high{background:color-mix(in srgb, var(--yellow) 15%, transparent);color:var(--yellow)}
+.suggest-card .sc-sev.medium{background:color-mix(in srgb, var(--accent) 15%, transparent);color:var(--accent)}
+.suggest-card .sc-sev.low{background:var(--border);color:var(--fg3)}
+.ws-switcher{display:flex;align-items:center;gap:.35rem;padding:3px 10px;border-radius:12px;background:var(--bg2);border:1px solid var(--border2);cursor:pointer;transition:border-color .15s;font-size:.78rem}
+.ws-switcher:hover{border-color:var(--purple2)}
+.ws-switcher strong{color:var(--purple2)}
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg)}
+.tab-bar button{background:none;border:none;border-bottom:2px solid transparent;color:var(--fg3);padding:5px 10px;font-size:.68rem;cursor:pointer;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.tab-bar button:hover{color:var(--fg2)}
+.tab-bar button.active{color:var(--accent);border-bottom-color:var(--accent)}
+.fields-sidebar{display:none}
+.fields-sidebar.visible{display:none}
+.apply-btn{background:var(--purple);color:#fff;border:none;padding:3px 10px;border-radius:3px;font-size:.65rem;cursor:pointer;font-weight:600;transition:opacity .15s}
+.apply-btn:hover{opacity:.85}
+.apply-btn:disabled{opacity:.4;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -141,30 +230,42 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
     <span style="font-size:.7rem;opacity:.6">User:</span>
     <strong id="user-display" style="font-size:.78rem"></strong>
   </div>
+  <div class="ws-switcher" id="ws-switcher" onclick="toggleWorkspaceMenu()" title="Workspaces — isolate scenarios">
+    <span style="font-size:.7rem;opacity:.6">Workspace:</span>
+    <strong id="ws-display">Default</strong>
+    <span style="font-size:.6rem;color:var(--fg4)">▼</span>
+  </div>
   <div class="stats-bar">
     <span><strong>${graphqlSvcs.length}</strong> GraphQL</span>
     <span><strong>${restSvcs.length}</strong> REST</span>
     <span><strong>${eventSvcs.length}</strong> Event</span>
     <span><strong>${totalOps}</strong> ops</span>
   </div>
+  <button class="theme-btn" onclick="toggleTheme()" id="theme-toggle-btn" title="Toggle light/dark theme">Light</button>
 </div>
 <div class="layout">
-  <div class="sidebar">
-    <div class="sidebar-section">
-      <h3>GraphQL Services</h3>
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-section" id="section-graphql">
+      <h3 onclick="toggleSection(this)"><span class="section-arrow">▼</span> GraphQL Services</h3>
+      <div class="section-items" style="max-height:2000px">
       ${graphqlSvcs.map(s => {
         const qc = (s.operations||[]).filter(o=>o.method==='QUERY').length;
         const mc = (s.operations||[]).filter(o=>o.method==='MUTATION').length;
-        return `<button class="svc-btn" data-svc="${s.name}" data-type="graphql" onclick="selectService('${s.name}')"><span class="svc-name">${s.name}</span><span class="svc-actions"><span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService('${s.name}','graphql')">↻</span><span class="cnt">${qc}Q${mc?'/'+mc+'M':''}</span></span></button>`;
+        return `<button class="svc-btn" data-svc="${s.name}" data-type="graphql" onclick="selectService('${s.name}')"><span class="svc-name">${s.name}</span><span class="svc-actions">${delIcon(s.name)}<span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService('${s.name}','graphql')">↻</span><span class="cnt">${qc}Q${mc?'/'+mc+'M':''}</span></span></button>`;
       }).join('\n')}
+      </div>
     </div>
-    <div class="sidebar-section">
-      <h3>REST APIs</h3>
-      ${restSvcs.map(s => `<button class="svc-btn" data-type="rest" onclick="showRest()"><span class="svc-name">${s.name}</span><span class="svc-actions"><span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService('${s.name}','rest')">↻</span><span class="cnt">${s.operations?.length||0}</span></span></button>`).join('\n')}
+    <div class="sidebar-section" id="section-rest">
+      <h3 onclick="toggleSection(this)"><span class="section-arrow">▼</span> REST APIs</h3>
+      <div class="section-items" style="max-height:2000px">
+      ${restSvcs.map(s => `<button class="svc-btn" data-svc="${s.name}" data-type="rest" onclick="showRest()"><span class="svc-name">${s.name}</span><span class="svc-actions">${delIcon(s.name)}<span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService('${s.name}','rest')">↻</span><span class="cnt">${s.operations?.length||0}</span></span></button>`).join('\n')}
+      </div>
     </div>
-    <div class="sidebar-section">
-      <h3>Event / Async</h3>
-      ${eventSvcs.map(s => `<button class="svc-btn" data-type="event" onclick="showEvents()">${s.name}<span class="cnt">${s.operations?.length||0}</span></button>`).join('\n')}
+    <div class="sidebar-section" id="section-event">
+      <h3 onclick="toggleSection(this)"><span class="section-arrow">▼</span> Event / Async</h3>
+      <div class="section-items" style="max-height:2000px">
+      ${eventSvcs.map(s => `<button class="svc-btn" data-svc="${s.name}" data-type="event" onclick="showEvents()"><span class="svc-name">${s.name}</span><span class="svc-actions">${delIcon(s.name)}<span class="cnt">${s.operations?.length||0}</span></span></button>`).join('\n')}
+      </div>
     </div>
     <div class="sidebar-section" style="border-top:1px solid #30363d;margin-top:auto">
       <button class="svc-btn" data-type="routes" onclick="showRoutes()" style="color:#58a6ff;font-weight:600">
@@ -177,56 +278,87 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
       </button>
     </div>
   </div>
-  <div class="main">
+  <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()">◂</button>
+  <div class="main" id="main-panel">
     <div id="welcome" class="welcome" style="display:flex;flex-direction:column">
       <h2>Select a service from the sidebar</h2>
       <p>Click any GraphQL service to explore its queries and mutations, or click REST/Event to browse endpoints.</p>
     </div>
 
     <div id="explorer" class="explorer">
-      <div class="ops-panel" id="ops-panel"></div>
+      <div class="ops-panel" id="ops-panel">
+        <div id="ops-list"></div>
+        <div id="ops-fields-view" style="display:none;flex-direction:column;overflow:hidden">
+          <button class="ops-panel-back" onclick="showOpsList()">← Operations</button>
+          <div class="ops-fields-header">
+            <span style="flex:1">Fields</span>
+            <button onclick="fieldTreeSelectAll()">All</button>
+            <button onclick="fieldTreeSelectNone()">None</button>
+            <button onclick="applyFieldSelection()" style="background:var(--green);color:#fff;font-weight:600">Apply</button>
+          </div>
+          <div id="field-tree-root" class="field-tree" style="padding:.3rem .5rem;flex:1;overflow-y:auto">
+            <div style="color:var(--fg4);font-size:.75rem;padding:.5rem">Select an operation</div>
+          </div>
+        </div>
+      </div>
       <div class="editor-area">
         <div class="editor-header">
           <span class="badge graphql" id="editor-type-badge">GraphQL</span>
           <strong id="editor-svc"></strong>
           <span class="timing" id="editor-timing"></span>
+          <select id="inline-ai-scenario" style="display:none"></select>
+          <input id="inline-ai-prompt" style="display:none">
+          <input type="checkbox" id="inline-ai-global" style="display:none">
+          <span id="inline-ai-global-wrap" style="display:none"></span>
+          <span id="inline-ai-btn" style="display:none"></span>
+          <span id="inline-ai-clear" style="display:none"></span>
           <div style="display:flex;gap:.4rem;align-items:center;margin-left:auto">
-            <select id="inline-ai-scenario" style="background:#21262d;color:#a371f7;border:1px solid #8957e544;border-radius:4px;padding:3px 6px;font-size:.72rem;cursor:pointer;display:none">
-              <option value="">AI Scenario...</option>
-              <option value="wrong-types">Wrong Types</option>
-              <option value="missing-fields">Missing Fields</option>
-              <option value="null-values">Null Values</option>
-              <option value="empty-arrays">Empty Arrays</option>
-              <option value="malformed-dates">Malformed Dates</option>
-              <option value="deprecated-fields">Deprecated Fields</option>
-              <option value="extra-fields">Extra Unknown Fields</option>
-              <option value="encoding-issues">Encoding/Special Chars</option>
-              <option value="boundary-values">Boundary Values</option>
-              <option value="partial-response">Partial/Truncated</option>
-              <option value="mixed-good-bad">Mixed Good & Bad</option>
-            </select>
-            <input id="inline-ai-prompt" placeholder="or describe..." style="background:#21262d;color:#c9d1d9;border:1px solid #8957e544;border-radius:4px;padding:3px 6px;font-size:.72rem;width:180px;display:none">
-            <label id="inline-ai-global-wrap" style="display:none;align-items:center;gap:3px;font-size:.68rem;color:#d29922;cursor:pointer" title="Apply scenario globally (affects all users)">
-              <input type="checkbox" id="inline-ai-global" style="accent-color:#d29922;width:12px;height:12px">
-              <span>Global</span>
-            </label>
-            <button id="inline-ai-btn" onclick="inlineAIInject()" style="background:#8957e5;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:.72rem;font-weight:600;display:none">Apply Scenario</button>
-            <button id="inline-ai-clear" onclick="inlineAIClear()" style="background:#da363322;color:#f85149;border:1px solid #da363344;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:.72rem;display:none">Clear</button>
+            <button id="clear-scenario-btn" onclick="inlineAIClear()" style="display:none;background:#da363322;color:#f85149;border:1px solid #da363344;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:.72rem">Clear Scenario</button>
             <button class="run-btn" onclick="runQuery()">Run</button>
           </div>
         </div>
+        <div id="ws-endpoint-bar" style="display:none;padding:.35rem .8rem;background:var(--code-bg);border-bottom:1px solid var(--border);font-size:.72rem;display:none;align-items:center;gap:.5rem">
+          <span style="color:var(--fg4)">Endpoint:</span>
+          <code id="ws-endpoint-url" style="color:var(--blue);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></code>
+          <button onclick="copyWsEndpoint()" style="background:var(--bg2);color:var(--fg3);border:1px solid var(--border2);padding:2px 8px;border-radius:3px;font-size:.65rem;cursor:pointer">Copy</button>
+        </div>
         <div class="editor-body">
-          <div class="editor-left">
-            <label>Operation</label>
-            <textarea id="editor-query" spellcheck="false" placeholder="Select a query from the left panel..."></textarea>
+          <div class="editor-left" style="display:flex;flex-direction:column;min-width:320px">
+            <div style="display:flex;flex:1;overflow:hidden">
+              <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+                <textarea id="editor-query" spellcheck="false" placeholder="Select a query from the left panel..." style="flex:1;width:100%;background:var(--code-bg);border:none;color:var(--fg2);font-family:'SF Mono',Menlo,monospace;font-size:.85rem;padding:.8rem;resize:none;outline:none"></textarea>
+              </div>
+            </div>
+            <div style="border-top:1px solid var(--border);display:flex;flex-direction:column;min-height:160px;max-height:45%;" id="bottom-panel-wrap">
+              <div class="tab-bar" id="bottom-tabs">
+                <button class="active" onclick="switchBottomTab('variables')">Variables</button>
+                <button onclick="switchBottomTab('scenarios')">AI Scenarios</button>
+              </div>
+              <div id="bottom-tab-variables" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+                <div id="variables-panel" style="flex:1;padding:.5rem .8rem;overflow-y:auto">
+                  <div style="color:var(--fg4);font-size:.8rem;padding:1rem">Select an operation to configure variables</div>
+                </div>
+              </div>
+              <div id="bottom-tab-scenarios" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+                <div style="padding:.3rem .8rem;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                  <span style="font-size:.68rem;color:var(--fg4)">AI test scenarios</span>
+                  <input id="custom-scenario-prompt" placeholder="Describe a custom scenario..." style="flex:1;min-width:150px;background:var(--code-bg);border:1px solid var(--border2);border-radius:4px;color:var(--fg2);padding:3px 8px;font-size:.72rem">
+                  <button onclick="applyCustomScenario()" style="background:var(--green);color:#fff;border:none;padding:2px 10px;border-radius:3px;font-size:.65rem;cursor:pointer;font-weight:600">Apply Custom</button>
+                  <button id="suggest-btn" onclick="loadAISuggestions()" style="background:var(--purple);color:#fff;border:none;padding:2px 10px;border-radius:3px;font-size:.65rem;cursor:pointer;font-weight:600">Suggest</button>
+                </div>
+                <div id="scenario-suggestions" class="scenario-suggest">
+                  <div style="color:var(--fg4);font-size:.8rem;padding:1rem">Enter a custom scenario above or click "Suggest" for AI-generated scenarios</div>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="editor-right">
-            <label>Response <span id="response-source" style="font-size:.6rem;color:#30363d">(from Microcks)</span></label>
+            <label>Response <span id="response-source" style="font-size:.6rem;color:var(--fg4)">(from Microcks)</span></label>
             <pre id="editor-result">Select a query and click Run</pre>
-            <div id="validation-panel" style="display:none;background:#1c1208;border-top:1px solid #533d11;padding:.5rem .8rem;max-height:180px;overflow-y:auto">
+            <div id="validation-panel" style="display:none;background:color-mix(in srgb, var(--yellow) 5%, var(--bg));border-top:1px solid color-mix(in srgb, var(--yellow) 30%, var(--border));padding:.5rem .8rem;max-height:180px;overflow-y:auto">
               <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem">
-                <span style="color:#d29922;font-weight:600;font-size:.75rem">⚠ Schema Violations</span>
-                <span id="validation-count" style="background:#d2992233;color:#d29922;padding:1px 6px;border-radius:8px;font-size:.68rem;font-weight:600"></span>
+                <span style="color:var(--yellow);font-weight:600;font-size:.75rem">⚠ Schema Violations</span>
+                <span id="validation-count" style="background:color-mix(in srgb, var(--yellow) 15%, transparent);color:var(--yellow);padding:1px 6px;border-radius:8px;font-size:.68rem;font-weight:600"></span>
               </div>
               <div id="validation-list" style="font-family:'SF Mono',Menlo,monospace;font-size:.75rem"></div>
             </div>
@@ -236,13 +368,13 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
     </div>
 
     <div id="rest-view" class="rest-section">
-      <h2 style="color:#c9d1d9;margin-bottom:1rem">REST APIs</h2>
+      <h2 style="color:var(--fg2);margin-bottom:1rem">REST APIs</h2>
       ${restRows}
     </div>
 
     <div id="event-view" class="event-section">
-      <h2 style="color:#c9d1d9;margin-bottom:1rem">Event / Async APIs <span class="badge event">Messages</span></h2>
-      <p style="color:#8b949e;font-size:.85rem;margin-bottom:1rem">View message schemas and examples from AsyncAPI specs. Generate AI test data for Kafka/RabbitMQ payloads.</p>
+      <h2 style="color:var(--fg2);margin-bottom:1rem">Event / Async APIs <span class="badge event">Messages</span></h2>
+      <p style="color:var(--fg3);font-size:.85rem;margin-bottom:1rem">View message schemas and examples from AsyncAPI specs. Generate AI test data for Kafka/RabbitMQ payloads.</p>
 
       <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
         <div style="flex:1;min-width:320px">
@@ -358,58 +490,62 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}
     </div>
 
     <div id="setup-view" class="rest-section">
-      <h2 style="color:#c9d1d9;margin-bottom:.5rem">AI-Driven Mock Setup <span class="badge" style="background:#23863622;color:#3fb950">Auto</span></h2>
-      <p style="color:#8b949e;font-size:.85rem;margin-bottom:1.5rem">Upload or drop a schema file — AI generates all mock data and deploys it to Microcks instantly.</p>
+      <h2 style="color:var(--fg2);margin-bottom:.5rem">AI-Driven Mock Setup <span class="badge" style="background:color-mix(in srgb, var(--green) 15%, transparent);color:var(--green2)">Auto</span></h2>
+      <p style="color:var(--fg3);font-size:.85rem;margin-bottom:1.5rem">Upload or drop a schema file — AI generates all mock data and deploys it to Microcks instantly.</p>
 
       <!-- Drag-and-drop zone -->
-      <div id="setup-dropzone" style="background:#161b22;border:2px dashed #30363d;border-radius:8px;padding:2rem;margin-bottom:1rem;text-align:center;cursor:pointer;transition:all .2s"
-        ondragover="event.preventDefault();this.style.borderColor='#3fb950';this.style.background='#23863611'"
-        ondragleave="this.style.borderColor='#30363d';this.style.background='#161b22'"
+      <div id="setup-dropzone" style="background:var(--bg2);border:2px dashed var(--border2);border-radius:8px;padding:2rem;margin-bottom:1rem;text-align:center;cursor:pointer;transition:all .2s"
+        ondragover="event.preventDefault();this.style.borderColor='var(--green2)';this.style.background='color-mix(in srgb, var(--green) 5%, transparent)'"
+        ondragleave="this.style.borderColor='var(--border2)';this.style.background='var(--bg2)'"
         ondrop="handleFileDrop(event)"
         onclick="document.getElementById('setup-file-input').click()">
         <div style="font-size:2rem;margin-bottom:.5rem;opacity:.5">📂</div>
-        <div style="color:#c9d1d9;font-size:.85rem;font-weight:600;margin-bottom:.25rem">Drop a schema file here or click to browse</div>
-        <div style="color:#484f58;font-size:.75rem">.graphql, .gql, .json, .yaml, .yml, .txt</div>
-        <div id="setup-file-name" style="display:none;color:#3fb950;font-size:.78rem;margin-top:.5rem;font-weight:600"></div>
+        <div style="color:var(--fg2);font-size:.85rem;font-weight:600;margin-bottom:.25rem">Drop a schema file here or click to browse</div>
+        <div style="color:var(--fg4);font-size:.75rem">.graphql, .gql, .json, .yaml, .yml, .txt</div>
+        <div id="setup-file-name" style="display:none;color:var(--green2);font-size:.78rem;margin-top:.5rem;font-weight:600"></div>
         <input type="file" id="setup-file-input" accept=".graphql,.gql,.json,.yaml,.yml,.txt" style="display:none" onchange="handleFileSelect(this)">
       </div>
 
       <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem">
-        <div style="flex:1;height:1px;background:#30363d"></div>
-        <span style="color:#484f58;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">or paste directly</span>
-        <div style="flex:1;height:1px;background:#30363d"></div>
+        <div style="flex:1;height:1px;background:var(--border2)"></div>
+        <span style="color:var(--fg4);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">or paste directly</span>
+        <div style="flex:1;height:1px;background:var(--border2)"></div>
       </div>
 
-      <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem">
+      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:1rem;margin-bottom:1rem">
         <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem">
-          <h3 style="color:#3fb950;font-size:.85rem">Schema</h3>
-          <span style="color:#484f58;font-size:.72rem">Plain types, JSON, GraphQL SDL, or OpenAPI 3.x</span>
+          <h3 style="color:var(--green2);font-size:.85rem">Schema</h3>
+          <span style="color:var(--fg4);font-size:.72rem">Plain types, JSON, GraphQL SDL, or OpenAPI 3.x</span>
         </div>
-        <textarea id="setup-schema" placeholder="Paste a schema here, or use the drop zone above&#10;&#10;1. Plain types:  name: string, age: int&#10;2. JSON types:   { &quot;name&quot;: &quot;string&quot; }&#10;3. GraphQL SDL:  type Query { ... }&#10;4. OpenAPI 3.x JSON/YAML" style="width:100%;height:180px;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-family:monospace;font-size:.78rem;padding:.5rem;resize:vertical"></textarea>
+        <textarea id="setup-schema" placeholder="Paste a schema here, or use the drop zone above&#10;&#10;1. Plain types:  name: string, age: int&#10;2. JSON types:   { &quot;name&quot;: &quot;string&quot; }&#10;3. GraphQL SDL:  type Query { ... }&#10;4. OpenAPI 3.x JSON/YAML" style="width:100%;height:180px;background:var(--code-bg);border:1px solid var(--border2);border-radius:6px;color:var(--fg2);font-family:monospace;font-size:.78rem;padding:.5rem;resize:vertical"></textarea>
       </div>
 
-      <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem">
+      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:1rem;margin-bottom:1rem">
         <div style="display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap">
           <div style="flex:1;min-width:200px">
-            <label style="color:#8b949e;font-size:.78rem;display:block;margin-bottom:.35rem">Prompt / Instructions <span style="color:#484f58">(optional)</span></label>
-            <input id="setup-prompt" type="text" placeholder="e.g. Generate mock data for 10 games with realistic NFL scores and team names" style="width:100%;padding:.5rem;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:.85rem">
+            <label style="color:var(--fg3);font-size:.78rem;display:block;margin-bottom:.35rem">Prompt / Instructions <span style="color:var(--fg4)">(optional)</span></label>
+            <input id="setup-prompt" type="text" placeholder="e.g. Generate mock data for 10 games with realistic NFL scores and team names" style="width:100%;padding:.5rem;background:var(--code-bg);border:1px solid var(--border2);border-radius:6px;color:var(--fg2);font-size:.85rem">
           </div>
           <div>
-            <label style="color:#8b949e;font-size:.78rem;display:block;margin-bottom:.35rem">Service Name <span style="color:#484f58">(optional)</span></label>
-            <input id="setup-service-name" type="text" placeholder="e.g. SportsAPI" style="width:180px;padding:.5rem;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:.85rem">
+            <label style="color:var(--fg3);font-size:.78rem;display:block;margin-bottom:.35rem">Service Name <span style="color:var(--fg4)">(optional)</span></label>
+            <input id="setup-service-name" type="text" placeholder="e.g. SportsAPI" style="width:180px;padding:.5rem;background:var(--code-bg);border:1px solid var(--border2);border-radius:6px;color:var(--fg2);font-size:.85rem">
           </div>
-          <button onclick="runSetup()" id="setup-deploy-btn" style="background:#238636;color:#fff;border:none;padding:.55rem 1.5rem;border-radius:6px;cursor:pointer;font-size:.85rem;font-weight:600;white-space:nowrap">Generate &amp; Deploy</button>
+          <button onclick="runSetup()" id="setup-deploy-btn" style="background:var(--green);color:#fff;border:none;padding:.55rem 1.5rem;border-radius:6px;cursor:pointer;font-size:.85rem;font-weight:600;white-space:nowrap">Generate &amp; Deploy</button>
+        </div>
+        <div style="margin-top:.75rem">
+          <label style="color:var(--fg3);font-size:.78rem;display:block;margin-bottom:.35rem">Real API URL <span style="color:var(--fg4)">(optional — the mock server transparently replaces this API; unmocked requests forward here)</span></label>
+          <input id="setup-proxy-url" type="text" placeholder="e.g. https://api.staging.example.com/graphql" style="width:100%;padding:.5rem;background:var(--code-bg);border:1px solid var(--border2);border-radius:6px;color:var(--fg2);font-size:.85rem">
         </div>
       </div>
 
-      <div id="setup-progress" style="display:none;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem">
-        <h4 style="color:#c9d1d9;font-size:.85rem;margin-bottom:.5rem">Progress</h4>
-        <div id="setup-steps" style="font-family:monospace;font-size:.78rem;color:#8b949e"></div>
+      <div id="setup-progress" style="display:none;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:1rem;margin-bottom:1rem">
+        <h4 style="color:var(--fg2);font-size:.85rem;margin-bottom:.5rem">Progress</h4>
+        <div id="setup-steps" style="font-family:monospace;font-size:.78rem;color:var(--fg3)"></div>
       </div>
 
-      <div id="setup-result" style="display:none;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem">
-        <h4 style="color:#3fb950;font-size:.85rem;margin-bottom:.5rem">✓ Mock API Deployed</h4>
-        <div id="setup-result-content" style="font-size:.82rem;color:#c9d1d9"></div>
+      <div id="setup-result" style="display:none;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:1rem">
+        <h4 style="color:var(--green2);font-size:.85rem;margin-bottom:.5rem">✓ Mock API Deployed</h4>
+        <div id="setup-result-content" style="font-size:.82rem;color:var(--fg2)"></div>
       </div>
     </div>
   </div>
@@ -452,14 +588,62 @@ function changeUser() {
   }
 }
 
+let currentWorkspace = getCookie('mock_workspace') || null;
+
 function getHeaders(extra) {
   const h = { 'Content-Type': 'application/json', 'X-User': mockUser };
+  if (currentWorkspace) h['X-Workspace'] = currentWorkspace;
   if (extra) Object.assign(h, extra);
   return h;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function getGraphqlPath(service) {
+  if (currentWorkspace) return '/ws/' + currentWorkspace + '/graphql/' + service;
+  return '/graphql/' + service;
+}
+
+function getRestPath(service, version, subPath) {
+  var base = currentWorkspace ? '/ws/' + currentWorkspace + '/rest/' : '/rest/';
+  return base + service + '/' + (version || '1.0') + (subPath || '');
+}
+
+function updateEndpointBar() {
+  var bar = document.getElementById('ws-endpoint-bar');
+  var urlEl = document.getElementById('ws-endpoint-url');
+  if (!currentWorkspace || !currentService) {
+    bar.style.display = 'none';
+    return;
+  }
+  var endpoint = window.location.origin + getGraphqlPath(currentService);
+  urlEl.textContent = endpoint;
+  bar.style.display = 'flex';
+}
+
+function copyWsEndpoint() {
+  var url = document.getElementById('ws-endpoint-url').textContent;
+  navigator.clipboard.writeText(url).then(function() {
+    var btn = event.target;
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('user-display').textContent = mockUser;
+  if (currentWorkspace) {
+    try {
+      var r = await fetch('/workspaces/' + currentWorkspace, { headers: getHeaders() });
+      if (!r.ok) throw new Error('gone');
+      var wsData = await r.json();
+      document.getElementById('ws-display').textContent = wsData.name || currentWorkspace;
+      try { await fetch('/workspaces/' + currentWorkspace + '/activate', { method: 'POST', headers: getHeaders() }); } catch(_) {}
+      await filterSidebarByWorkspace();
+    } catch(_) {
+      currentWorkspace = null;
+      document.cookie = 'mock_workspace=; path=/; max-age=0';
+      document.getElementById('ws-display').textContent = 'Default';
+    }
+  }
 });
 
 const SVC_DATA = ${svcDataJson};
@@ -482,6 +666,7 @@ function selectService(name) {
   const data = SVC_DATA[name];
   if (!data) return;
   currentService = name;
+  window.__restCtx = null;
 
   document.querySelector('.svc-btn[data-svc="'+name+'"]').classList.add('active');
   document.getElementById('explorer').classList.add('active');
@@ -490,7 +675,11 @@ function selectService(name) {
   document.getElementById('editor-result').className = '';
   document.getElementById('editor-timing').innerHTML = '';
 
-  const panel = document.getElementById('ops-panel');
+  var typeBadge = document.getElementById('editor-type-badge');
+  typeBadge.textContent = 'GraphQL';
+  typeBadge.className = 'badge graphql';
+
+  const panel = document.getElementById('ops-list');
   let html = '';
   if (data.queries.length) {
     html += '<h4>Queries (' + data.queries.length + ')</h4>';
@@ -507,6 +696,23 @@ function selectService(name) {
     });
   }
   panel.innerHTML = html;
+  showOpsList();
+  updateEndpointBar();
+
+  document.getElementById('scenario-suggestions').innerHTML = '<div style="color:var(--fg4);font-size:.8rem;padding:1rem">Enter a custom scenario above or click "Suggest" for AI-generated scenarios</div>';
+  _suggestedScenarios = [];
+}
+
+function showOpsList() {
+  document.getElementById('ops-list').style.display = 'block';
+  document.getElementById('ops-fields-view').style.display = 'none';
+}
+
+function showFieldsInOpsPanel() {
+  document.getElementById('ops-list').style.display = 'none';
+  var fv = document.getElementById('ops-fields-view');
+  fv.style.display = 'flex';
+  fv.style.flex = '1';
 }
 
 function cleanRetType(s) {
@@ -626,15 +832,10 @@ async function selectOp(name, type) {
   result.textContent = 'Loading...';
   result.className = '';
   timingEl.innerHTML = '';
-  srcLabel.style.color = '#30363d';
+  srcLabel.style.color = 'var(--fg4)';
   srcLabel.textContent = '(from Microcks)';
 
-  ['inline-ai-scenario','inline-ai-prompt','inline-ai-btn','inline-ai-clear','inline-ai-global-wrap'].forEach(id => {
-    document.getElementById(id).style.display = '';
-  });
-  document.getElementById('inline-ai-scenario').value = '';
-  document.getElementById('inline-ai-prompt').value = '';
-  document.getElementById('inline-ai-global').checked = false;
+  document.getElementById('clear-scenario-btn').style.display = 'none';
 
   const schema = await fetchSchema(currentService);
   const prefix = type === 'MUTATION' ? 'mutation ' : '';
@@ -710,6 +911,16 @@ async function selectOp(name, type) {
 
   result.textContent = 'Click Run (Cmd+Enter) to execute, or select an AI scenario and click Apply Scenario.';
   timingEl.innerHTML = '';
+
+  loadFieldTree(currentService, name).then(function() {
+    if (fieldTreeData && fieldTreeData.arguments) {
+      queryArgsData[name] = fieldTreeData.arguments;
+    }
+    loadVariablesPanel(name);
+  });
+
+  document.getElementById('scenario-suggestions').innerHTML = '<div style="color:var(--fg4);font-size:.8rem;padding:1rem">Click "Suggest" to get AI-generated test scenarios specific to this operation</div>';
+  _suggestedScenarios = [];
 }
 
 function showRest() {
@@ -972,20 +1183,20 @@ function tryRest(method, fullUrl) {
     restServiceName = restMatch[1].replace(/\\+/g, ' ');
     restOpPath = '/' + restMatch[3];
   }
-  window.__restCtx = { method, url: resolvedUrl, serviceName: restServiceName, operationName: method + ' ' + restOpPath };
+  const resolvedUrlPath = new URL(resolvedUrl.startsWith('http') ? resolvedUrl : window.location.origin + resolvedUrl).pathname;
+  const resolvedDecoded = decodeURIComponent(resolvedUrlPath);
+  const resolvedMatch = resolvedDecoded.match(/\\/rest\\/([^/]+)\\/([^/]+)\\/(.*)/);
+  const resolvedOpPath = resolvedMatch ? '/' + resolvedMatch[3] : restOpPath;
+  window.__restCtx = { method, url: resolvedUrl, serviceName: restServiceName, operationName: method + ' ' + restOpPath, resolvedOperationName: method + ' ' + resolvedOpPath, _templateUrl: fullUrl };
 
   document.getElementById('editor-svc').textContent = method + ' ' + urlPath;
   const typeBadge = document.getElementById('editor-type-badge');
   typeBadge.textContent = 'REST';
   typeBadge.className = 'badge rest';
 
-  // Show AI controls for REST
-  ['inline-ai-scenario','inline-ai-prompt','inline-ai-btn','inline-ai-clear','inline-ai-global-wrap'].forEach(id => {
-    document.getElementById(id).style.display = '';
-  });
-  document.getElementById('inline-ai-scenario').value = '';
-  document.getElementById('inline-ai-prompt').value = '';
-  document.getElementById('inline-ai-global').checked = false;
+  document.getElementById('clear-scenario-btn').style.display = 'none';
+  var fsSb = document.getElementById('fields-sidebar');
+  if (fsSb) fsSb.classList.remove('visible');
 
   const hasParams = /\\{[^}]+\\}/.test(templateUrl);
   let panelHtml = '<div style="padding:1rem;color:#8b949e;font-size:.82rem">';
@@ -993,18 +1204,20 @@ function tryRest(method, fullUrl) {
   panelHtml += '<span class="badge ' + method.toLowerCase() + '" style="font-size:.7rem">' + method + '</span>';
   panelHtml += ' <span style="color:#58a6ff;font-size:.78rem">' + restServiceName + '</span><br><br>';
   if (hasParams) {
-    panelHtml += '<strong style="color:#f0883e;font-size:.75rem">Path Parameters</strong><br>';
+    panelHtml += '<strong style="color:var(--orange);font-size:.75rem">Path Parameters</strong><br>';
     const params = templateUrl.match(/\\{([^}]+)\\}/g) || [];
     params.forEach(p => {
       const name = p.replace(/[{}]/g, '');
       const val = REST_PARAM_DEFAULTS[name] || REST_PARAM_DEFAULTS[name.replace(/-/g,'_')] || 'example';
-      panelHtml += '<span style="color:#79c0ff">{' + name + '}</span> = <span style="color:#7ee787">' + val + '</span><br>';
+      panelHtml += '<span style="color:var(--accent)">{' + name + '}</span> = <span id="ops-param-' + name + '" style="color:var(--green2)">' + val + '</span><br>';
     });
     panelHtml += '<br>';
   }
-  panelHtml += '<div style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid #21262d"><strong style="color:#a371f7;font-size:.72rem">AI Agent</strong><br><span style="font-size:.72rem;color:#484f58">Select a scenario above and click Apply Scenario to generate test data for this REST endpoint via AI.</span></div>';
+  panelHtml += '<div style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border)"><strong style="color:var(--purple2);font-size:.72rem">AI Agent</strong><br><span style="font-size:.72rem;color:var(--fg4)">Select a scenario above and click Apply Scenario to generate test data for this REST endpoint via AI.</span></div>';
   panelHtml += '</div>';
-  document.getElementById('ops-panel').innerHTML = panelHtml;
+  document.getElementById('ops-list').innerHTML = panelHtml;
+  document.getElementById('ops-list').style.display = 'block';
+  document.getElementById('ops-fields-view').style.display = 'none';
 
   document.getElementById('editor-query').value = resolvedUrl;
   document.getElementById('editor-result').textContent = 'Click Run to send the request, or select an AI scenario and click Apply Scenario.';
@@ -1012,8 +1225,13 @@ function tryRest(method, fullUrl) {
   document.getElementById('editor-timing').innerHTML = '';
 
   const srcLabel = document.getElementById('response-source');
-  srcLabel.style.color = '#30363d';
+  srcLabel.style.color = 'var(--border2)';
   srcLabel.textContent = '(from Microcks)';
+
+  document.getElementById('scenario-suggestions').innerHTML = '<div style="color:var(--fg4);font-size:.8rem;padding:1rem">Click "Suggest" to get AI-generated test scenarios specific to this REST endpoint</div>';
+  _suggestedScenarios = [];
+
+  loadRestVariablesPanel(templateUrl);
 }
 
 async function runQuery() {
@@ -1054,14 +1272,16 @@ async function runQuery() {
     body.variables = window.__graphqlVariables;
   }
   try {
-    const r = await fetch('/graphql/' + currentService, {
+    const r = await fetch(getGraphqlPath(currentService), {
       method:'POST', headers: getHeaders(),
       body: JSON.stringify(body)
     });
     const ms = Math.round(performance.now() - start);
     const xSource = r.headers.get('X-Source') || '';
     const isAI = xSource === 'ai-override';
-    const isScenario = xSource === 'ai-scenario';
+    const isScenario = xSource === 'ai-scenario' || xSource === 'ai-scenario-overlay';
+    const isExample = xSource === 'microcks-example';
+    const exampleName = r.headers.get('X-Example-Name') || '';
     const aiLeft = parseInt(r.headers.get('X-Override-Remaining') || '0', 10);
     const text = await r.text();
     let parsed = null;
@@ -1074,9 +1294,12 @@ async function runQuery() {
     if (r.status === 200 && hasErrors && !hasData) logicalStatus = 400;
     if (r.status === 200 && hasErrors && hasData) logicalStatus = 206;
     const sc = logicalStatus === 206 ? 's206' : (logicalStatus < 300 ? 's2' : (logicalStatus < 500 ? 's4' : 's5'));
-    const sourceHint = isScenario ? '(scenario for ' + mockUser + ')' : isAI ? '(ai-override)' : '(via Microcks)';
-    timingEl.innerHTML = '<span class="pg-status '+sc+'">'+logicalStatus+'</span> '+ms+'ms <span style="font-size:.7rem;color:#484f58">' + sourceHint + '</span>';
+    const sourceHint = isExample ? '(example: ' + exampleName + ')' : isScenario ? '(scenario for ' + mockUser + ')' : isAI ? '(ai-override)' : '(via Microcks)';
+    const sourceColor = isExample ? 'var(--blue)' : '#484f58';
+    timingEl.innerHTML = '<span class="pg-status '+sc+'">'+logicalStatus+'</span> '+ms+'ms <span style="font-size:.7rem;color:' + sourceColor + '">' + sourceHint + '</span>';
     el.textContent = display;
+    if (isExample) { srcLabel.textContent = '(example: ' + exampleName + ')'; srcLabel.style.color = 'var(--blue)'; }
+    else { srcLabel.textContent = sourceHint; srcLabel.style.color = 'var(--fg4)'; }
     if (hasErrors) el.className = 'error';
     if (parsed && currentOpName) {
       validateResponse(currentService, currentOpName, parsed, 'graphql');
@@ -1144,6 +1367,940 @@ document.getElementById('editor-query').addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runQuery(); }
 });
 
+// ── Bottom panel tab switching ──────────────────────────────────
+function switchBottomTab(tab) {
+  ['variables','scenarios'].forEach(t => {
+    const el = document.getElementById('bottom-tab-' + t);
+    if (el) el.style.display = t === tab ? 'flex' : 'none';
+  });
+  document.querySelectorAll('#bottom-tabs button').forEach((b, i) => {
+    var tabs = ['variables','scenarios'];
+    b.classList.toggle('active', tabs[i] === tab);
+  });
+}
+function switchLeftTab(tab) {
+  if (tab === 'query') return;
+  switchBottomTab(tab);
+}
+
+// ── Sidebar toggle ──────────────────────────────────
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  sb.classList.toggle('collapsed');
+  var btn = document.getElementById('sidebar-toggle');
+  btn.textContent = sb.classList.contains('collapsed') ? '▸' : '◂';
+}
+
+// ── Sidebar section collapse ──────────────────────────────────
+function toggleSection(h3) {
+  const items = h3.nextElementSibling;
+  const arrow = h3.querySelector('.section-arrow');
+  if (items.classList.contains('collapsed')) {
+    items.classList.remove('collapsed');
+    if (arrow) { arrow.classList.remove('collapsed'); arrow.textContent = '▼'; }
+  } else {
+    items.classList.add('collapsed');
+    if (arrow) { arrow.classList.add('collapsed'); arrow.textContent = '▶'; }
+  }
+}
+
+// ── Theme toggle ──────────────────────────────────
+function toggleTheme() {
+  const html = document.documentElement;
+  const current = html.getAttribute('data-theme');
+  const next = current === 'light' ? '' : 'light';
+  if (next) html.setAttribute('data-theme', 'light');
+  else html.removeAttribute('data-theme');
+  document.getElementById('theme-toggle-btn').textContent = next === 'light' ? 'Dark' : 'Light';
+  try { localStorage.setItem('wm-theme', next || 'dark'); } catch(_) {}
+}
+(function initTheme() {
+  try {
+    const saved = localStorage.getItem('wm-theme');
+    if (saved === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+      var btn = document.getElementById('theme-toggle-btn');
+      if (btn) btn.textContent = 'Dark';
+    }
+  } catch(_) {}
+})();
+
+// ── Apollo-style Field Tree ──────────────────────────────────
+let fieldTreeData = null;
+let fieldTreeSelection = {};
+
+async function loadFieldTree(service, operation) {
+  try {
+    const r = await fetch('/schema/type-tree?operation=' + encodeURIComponent(operation) + '&service=' + encodeURIComponent(service));
+    const data = await r.json();
+    if (!data.tree || data.tree.length === 0) {
+      document.getElementById('field-tree-root').innerHTML = '<div style="color:var(--fg4);padding:.5rem;font-size:.75rem">No schema type info available</div>';
+      showFieldsInOpsPanel();
+      return;
+    }
+    fieldTreeData = data;
+    fieldTreeSelection = {};
+    selectAllFields(data.tree, '');
+    renderFieldTree(data.tree, document.getElementById('field-tree-root'), '');
+    showFieldsInOpsPanel();
+  } catch (e) {
+    document.getElementById('field-tree-root').innerHTML = '<div style="color:var(--red2);padding:.5rem;font-size:.75rem">Error: ' + e.message + '</div>';
+    showFieldsInOpsPanel();
+  }
+}
+
+function selectAllFields(nodes, prefix) {
+  for (const n of nodes) {
+    const path = prefix ? prefix + '.' + n.name : n.name;
+    fieldTreeSelection[path] = true;
+    if (n.children) selectAllFields(n.children, path);
+  }
+}
+
+function renderFieldTree(nodes, container, prefix) {
+  container.innerHTML = '';
+  for (const node of nodes) {
+    const path = prefix ? prefix + '.' + node.name : node.name;
+    const div = document.createElement('div');
+    div.className = 'ft-node';
+
+    const toggle = document.createElement('button');
+    toggle.className = 'ft-toggle';
+
+    const checked = fieldTreeSelection[path];
+    const typeClass = node.isScalar ? 'scalar' : (node.isList ? 'list' : 'object');
+    const typeLabel = node.isList ? '[' + node.type + ']' : node.type;
+
+    let html = '';
+    if (node.hasChildren && node.children) {
+      html += '<span class="ft-arrow" data-path="' + path + '">&#9654;</span>';
+    } else {
+      html += '<span style="width:14px;display:inline-block"></span>';
+    }
+    html += '<span class="ft-check ' + (checked ? 'checked' : '') + '" data-path="' + path + '">' + (checked ? '&#10003;' : '') + '</span>';
+    html += '<span class="ft-fname">' + node.name + '</span>';
+    html += (node.required ? '<span style="color:#da3633;font-size:.7rem">!</span>' : '');
+    html += '<span class="ft-type ' + typeClass + '">' + typeLabel + '</span>';
+    toggle.innerHTML = html;
+
+    toggle.addEventListener('click', function(e) {
+      const target = e.target.closest('.ft-check');
+      const arrow = e.target.closest('.ft-arrow');
+      if (target) {
+        toggleFieldSelection(path, node);
+        renderFieldTree(nodes, container, prefix);
+      } else if (arrow || (node.hasChildren && node.children)) {
+        const childDiv = div.querySelector('.ft-children');
+        if (childDiv) {
+          const visible = childDiv.style.display !== 'none';
+          childDiv.style.display = visible ? 'none' : 'block';
+          const arrowEl = div.querySelector('.ft-arrow');
+          if (arrowEl) arrowEl.classList.toggle('open', !visible);
+        }
+      }
+    });
+
+    div.appendChild(toggle);
+
+    if (node.hasChildren && node.children && node.children.length > 0) {
+      const childDiv = document.createElement('div');
+      childDiv.className = 'ft-children';
+      childDiv.style.display = 'block';
+      renderFieldTree(node.children, childDiv, path);
+      div.appendChild(childDiv);
+      const arrowEl = toggle.querySelector('.ft-arrow');
+      if (arrowEl) arrowEl.classList.add('open');
+    }
+
+    container.appendChild(div);
+  }
+}
+
+function toggleFieldSelection(path, node) {
+  const current = !!fieldTreeSelection[path];
+  fieldTreeSelection[path] = !current;
+  if (node && node.children) {
+    setChildrenSelection(node.children, path, !current);
+  }
+}
+
+function setChildrenSelection(nodes, prefix, selected) {
+  for (const n of nodes) {
+    const p = prefix + '.' + n.name;
+    fieldTreeSelection[p] = selected;
+    if (n.children) setChildrenSelection(n.children, p, selected);
+  }
+}
+
+function fieldTreeSelectAll() {
+  if (fieldTreeData) {
+    selectAllFields(fieldTreeData.tree, '');
+    renderFieldTree(fieldTreeData.tree, document.getElementById('field-tree-root'), '');
+  }
+}
+
+function fieldTreeSelectNone() {
+  fieldTreeSelection = {};
+  if (fieldTreeData) {
+    renderFieldTree(fieldTreeData.tree, document.getElementById('field-tree-root'), '');
+  }
+}
+
+function buildQueryFromSelection(tree, prefix, depth) {
+  const parts = [];
+  for (const node of tree) {
+    const path = prefix ? prefix + '.' + node.name : node.name;
+    if (!fieldTreeSelection[path]) continue;
+    if (node.isScalar || !node.children || node.children.length === 0) {
+      parts.push(node.name);
+    } else {
+      const nested = buildQueryFromSelection(node.children, path, depth + 1);
+      if (nested) {
+        parts.push(node.name + ' { ' + nested + ' }');
+      } else {
+        parts.push(node.name + ' { __typename }');
+      }
+    }
+  }
+  return parts.join(' ');
+}
+
+function applyFieldSelection() {
+  if (!fieldTreeData || !currentOpName) return;
+  const fieldsStr = buildQueryFromSelection(fieldTreeData.tree, '', 0);
+  if (!fieldsStr) return;
+
+  const prefix = currentOpType === 'MUTATION' ? 'mutation ' : 'query ';
+  let variableDefs = '';
+  let argStr = '';
+  if (window.__graphqlVariables && Object.keys(window.__graphqlVariables).length > 0) {
+    const vRes = fieldTreeData.arguments || [];
+    if (vRes.length > 0) {
+      variableDefs = '(' + vRes.map(a => '$' + a.name + ': ' + a.typeStr).join(', ') + ')';
+      argStr = '(' + vRes.map(a => a.name + ': $' + a.name).join(', ') + ')';
+    }
+  }
+
+  function formatFieldsStr(str) {
+    let indent = 2;
+    let result = '';
+    const tokens = str.split(/([{}])/);
+    for (const tok of tokens) {
+      const trimmed = tok.trim();
+      if (!trimmed) continue;
+      if (trimmed === '{') { result += ' {\\n' + '  '.repeat(++indent); }
+      else if (trimmed === '}') { result += '\\n' + '  '.repeat(--indent) + '}'; }
+      else {
+        const fields = trimmed.split(/\\s+/).filter(f => f);
+        result += fields.join('\\n' + '  '.repeat(indent));
+      }
+    }
+    return result;
+  }
+
+  const opLine = prefix.trim() + ' ' + currentOpName + (variableDefs ? ' ' + variableDefs : '');
+  const callPart = currentOpName + argStr;
+  const formatted = fieldsStr.includes('{') ? formatFieldsStr(fieldsStr) : fieldsStr.split(/\\s+/).filter(f=>f).join('\\n    ');
+  document.getElementById('editor-query').value = opLine + ' {\\n  ' + callPart + ' {\\n    ' + formatted + '\\n  }\\n}';
+}
+
+// ── Variables Panel ──────────────────────────────────
+let currentVariablesDef = [];
+
+function loadVariablesPanel(operation) {
+  const panel = document.getElementById('variables-panel');
+  if (!fieldTreeData || !fieldTreeData.arguments || fieldTreeData.arguments.length === 0) {
+    const args = queryArgsData[operation];
+    if (!args || args.length === 0) {
+      panel.innerHTML = '<div style="color:var(--fg4);font-size:.8rem;padding:1rem">This operation has no arguments</div>';
+      return;
+    }
+  }
+
+  const args = (fieldTreeData && fieldTreeData.arguments) || queryArgsData[operation] || [];
+  if (args.length === 0) {
+    panel.innerHTML = '<div style="color:var(--fg4);font-size:.8rem;padding:1rem">This operation has no arguments</div>';
+    return;
+  }
+
+  currentVariablesDef = args;
+  const currentVars = window.__graphqlVariables || {};
+  let html = '<div style="font-size:.68rem;color:var(--fg4);padding:0 0 .4rem;border-bottom:1px solid var(--border);margin-bottom:.4rem">Set variable values below. These are sent as query parameters when you click Run.</div>';
+  for (const arg of args) {
+    const val = currentVars[arg.name] !== undefined ? (typeof currentVars[arg.name] === 'object' ? JSON.stringify(currentVars[arg.name]) : currentVars[arg.name]) : '';
+    html += '<div class="var-row">';
+    html += '<label>$' + escHtml(arg.name) + '</label>';
+    html += '<input id="var-input-' + arg.name + '" value="' + escHtml(String(val)) + '" placeholder="Enter value..." onchange="updateVariable(\\'' + arg.name + '\\', this.value)">';
+    html += '<span class="var-type">' + escHtml(arg.typeStr || arg.type) + '</span>';
+    html += '</div>';
+  }
+  panel.innerHTML = html;
+}
+
+function updateVariable(name, value) {
+  if (!window.__graphqlVariables) window.__graphqlVariables = {};
+  try {
+    window.__graphqlVariables[name] = JSON.parse(value);
+  } catch (_) {
+    window.__graphqlVariables[name] = value;
+  }
+}
+
+function loadRestVariablesPanel(templateUrl) {
+  const panel = document.getElementById('variables-panel');
+  const params = (templateUrl.match(/\{([^}]+)\}/g) || []).map(p => p.replace(/[{}]/g, ''));
+  if (params.length === 0) {
+    panel.innerHTML = '<div style="color:var(--fg4);font-size:.8rem;padding:1rem">This endpoint has no path parameters</div>';
+    return;
+  }
+
+  window.__restPathParams = {};
+  let html = '<div style="font-size:.68rem;color:var(--fg4);padding:0 0 .4rem;border-bottom:1px solid var(--border);margin-bottom:.4rem">Edit path parameter values below. Changes update the URL when you click Run.</div>';
+  for (const name of params) {
+    const val = REST_PARAM_DEFAULTS[name] || REST_PARAM_DEFAULTS[name.replace(/-/g,'_')] || 'example';
+    window.__restPathParams[name] = val;
+    html += '<div class="var-row">';
+    html += '<label>{' + escHtml(name) + '}</label>';
+    html += '<input id="rest-param-' + name + '" value="' + escHtml(val) + '" placeholder="Enter value..." onchange="updateRestParam(\\'' + escHtml(name) + '\\', this.value)">';
+    html += '<span class="var-type">path</span>';
+    html += '</div>';
+  }
+  html += '<div id="rest-available-examples" style="margin-top:.6rem;padding-top:.5rem;border-top:1px solid var(--border)"><div style="color:var(--fg4);font-size:.68rem">Loading available examples...</div></div>';
+  panel.innerHTML = html;
+
+  if (window.__restCtx) {
+    fetchRestExamples(window.__restCtx.serviceName, window.__restCtx.operationName, params);
+  }
+}
+
+async function fetchRestExamples(serviceName, operationName, paramNames) {
+  const container = document.getElementById('rest-available-examples');
+  if (!container) return;
+  try {
+    const r = await fetch('/api/microcks-examples?service=' + encodeURIComponent(serviceName) + '&operation=' + encodeURIComponent(operationName), { headers: getHeaders() });
+    const data = await r.json();
+    if (!data.examples || data.examples.length === 0) {
+      container.innerHTML = '<div style="color:var(--fg4);font-size:.68rem">No examples found in Microcks</div>';
+      return;
+    }
+    let html = '<div style="font-size:.68rem;color:var(--fg4);margin-bottom:.3rem;font-weight:600">Available Examples <span style="color:var(--fg5)">(' + data.examples.length + ')</span> — click to load:</div>';
+    const seen = new Set();
+    for (const ex of data.examples) {
+      if (seen.has(ex.name)) continue;
+      seen.add(ex.name);
+      const dispCriteria = ex.dispatchCriteria || '';
+      const paramVal = dispCriteria.startsWith('/') ? dispCriteria.slice(1) : (ex.name || 'default');
+      html += '<button onclick="selectRestExample(\\'' + escHtml(paramVal) + '\\')" style="display:inline-block;margin:2px 3px;padding:2px 8px;background:var(--code-bg);border:1px solid var(--border2);border-radius:4px;color:var(--accent);font-family:SF Mono,Menlo,monospace;font-size:.72rem;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\\'var(--accent)\\'" onmouseout="this.style.borderColor=\\'var(--border2)\\'">' + escHtml(ex.name) + (dispCriteria ? ' <span style=\\"color:var(--fg4)\\">' + escHtml(dispCriteria) + '</span>' : '') + '</button>';
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '<div style="color:var(--fg4);font-size:.68rem">Could not load examples</div>';
+  }
+}
+
+function selectRestExample(paramVal) {
+  if (!window.__restCtx || !window.__restCtx._templateUrl) return;
+  const params = (window.__restCtx._templateUrl.match(/\{([^}]+)\}/g) || []).map(p => p.replace(/[{}]/g, ''));
+  if (params.length === 1) {
+    const input = document.getElementById('rest-param-' + params[0]);
+    if (input) input.value = paramVal;
+    updateRestParam(params[0], paramVal);
+  }
+  setTimeout(runQuery, 100);
+}
+
+function updateRestParam(name, value) {
+  if (!window.__restPathParams) window.__restPathParams = {};
+  window.__restPathParams[name] = value;
+  if (window.__restCtx && window.__restCtx._templateUrl) {
+    let url = window.__restCtx._templateUrl;
+    for (const [k, v] of Object.entries(window.__restPathParams)) {
+      url = url.replace('{' + k + '}', encodeURIComponent(v || 'example'));
+    }
+    document.getElementById('editor-query').value = url;
+    window.__restCtx.url = url;
+    try {
+      const rp = new URL(url.startsWith('http') ? url : window.location.origin + url).pathname;
+      const rd = decodeURIComponent(rp);
+      const rm = rd.match(/\\/rest\\/([^/]+)\\/([^/]+)\\/(.*)/);
+      if (rm) window.__restCtx.resolvedOperationName = window.__restCtx.method + ' /' + rm[3];
+    } catch(_) {}
+  }
+  var opsLabel = document.getElementById('ops-param-' + name);
+  if (opsLabel) opsLabel.textContent = value || 'example';
+}
+
+const queryArgsData = {};
+
+async function generateWithVariables() {
+  if (!currentService || !currentOpName) return;
+  const vars = {};
+  for (const arg of currentVariablesDef) {
+    const input = document.getElementById('var-input-' + arg.name);
+    if (input && input.value) {
+      try { vars[arg.name] = JSON.parse(input.value); } catch(_) { vars[arg.name] = input.value; }
+    }
+  }
+  if (Object.keys(vars).length === 0) {
+    document.getElementById('editor-result').textContent = 'Enter at least one variable value first';
+    return;
+  }
+
+  const el = document.getElementById('editor-result');
+  const timingEl = document.getElementById('editor-timing');
+  el.textContent = 'Generating mock for variables: ' + JSON.stringify(vars) + '...';
+  timingEl.innerHTML = '<span class="pg-status ai">AI</span> generating...';
+
+  const selectedFields = [];
+  if (fieldTreeData) {
+    for (const [path, checked] of Object.entries(fieldTreeSelection)) {
+      if (checked && !path.includes('.')) selectedFields.push(path);
+    }
+  }
+
+  try {
+    const r = await fetch('/ai/generate-with-variables', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        service: currentService,
+        operation: currentOpName,
+        variables: vars,
+        selectedFields: selectedFields.length > 0 ? selectedFields : undefined,
+      })
+    });
+    const data = await r.json();
+    if (data.error) {
+      el.textContent = 'Error: ' + data.error;
+      el.className = 'error';
+      timingEl.innerHTML = '<span class="pg-status s4">ERR</span>';
+      return;
+    }
+    el.textContent = JSON.stringify(data.data, null, 2);
+    el.className = '';
+    timingEl.innerHTML = '<span class="pg-status ai">AI</span> ' + (data.cached ? 'cached' : 'generated & injected') + ' for vars: ' + JSON.stringify(vars);
+
+    try {
+      await fetch('/ai/scenario-inject', {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify({
+          service: currentService,
+          operation: currentOpName,
+          data: data.data,
+          apiType: 'graphql',
+          scenarioName: 'variable-mock',
+          variables: vars,
+        })
+      });
+    } catch(_) {}
+
+    loadSavedVariableMocks();
+  } catch(e) {
+    el.textContent = 'Error: ' + e.message;
+    el.className = 'error';
+  }
+}
+
+async function loadSavedVariableMocks() {
+  // Variable mocks are now injected directly into Microcks
+}
+
+async function loadVariableMock(key) {
+  try {
+    const allMocks = await fetch('/ai/variable-mocks?service=' + encodeURIComponent(currentService) + '&operation=' + encodeURIComponent(currentOpName), { headers: getHeaders() }).then(r => r.json());
+    const mock = allMocks.mocks[key];
+    if (mock && mock.variables) {
+      for (const [k, v] of Object.entries(mock.variables)) {
+        const input = document.getElementById('var-input-' + k);
+        if (input) input.value = typeof v === 'object' ? JSON.stringify(v) : v;
+        updateVariable(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+      }
+    }
+    await generateWithVariables();
+  } catch(_) {}
+}
+
+// ── AI Scenario Suggestions ──────────────────────────────────
+let _suggestedScenarios = [];
+
+async function loadAISuggestions() {
+  const isRest = currentService === '__rest__' && window.__restCtx;
+  const svcName = isRest ? window.__restCtx.serviceName : currentService;
+  const opName = isRest ? window.__restCtx.operationName : currentOpName;
+  if (!svcName || !opName) return;
+  const el = document.getElementById('scenario-suggestions');
+  const btn = document.getElementById('suggest-btn');
+  btn.disabled = true;
+  btn.textContent = 'Thinking...';
+  el.innerHTML = '<div style="color:var(--accent);padding:1rem;font-size:.8rem">AI is analyzing the schema and generating tailored test scenarios...</div>';
+
+  try {
+    const r = await fetch('/ai/suggest-scenarios', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ service: svcName, operation: opName, apiType: isRest ? 'rest' : 'graphql' })
+    });
+    const data = await r.json();
+    if (data.error) { el.innerHTML = '<div style="color:var(--red2);padding:1rem">' + data.error + '</div>'; return; }
+
+    _suggestedScenarios = data.scenarios || [];
+    if (_suggestedScenarios.length === 0) { el.innerHTML = '<div style="color:var(--fg4);padding:1rem">No scenarios generated</div>'; return; }
+
+    el.innerHTML = _suggestedScenarios.map(function(s, idx) {
+      var catClass = (s.category || 'edge-case').replace(/[^a-z-]/g, '');
+      var sevClass = (s.severity || 'medium').toLowerCase();
+      return '<div class="suggest-card" data-idx="' + idx + '" onclick="applySuggestion(' + idx + ', this)">'
+        + '<div style="display:flex;align-items:center;gap:.4rem">'
+        + '<span class="sc-cat ' + catClass + '">' + escHtml(s.category || '') + '</span>'
+        + '<span class="sc-sev ' + sevClass + '">' + escHtml(s.severity || '') + '</span>'
+        + '<span class="sc-name" style="flex:1">' + escHtml(s.name) + '</span>'
+        + '<span class="apply-btn" style="font-size:.6rem;padding:2px 8px">APPLY</span>'
+        + '</div>'
+        + '<div class="sc-desc">' + escHtml(s.description || '') + '</div>'
+        + '</div>';
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--red2);padding:1rem">Error: ' + e.message + '</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Suggest';
+  }
+}
+
+async function applyCustomScenario() {
+  const promptInput = document.getElementById('custom-scenario-prompt');
+  const prompt = promptInput.value.trim();
+  if (!prompt) return;
+  const _isRestCtx = currentService === '__rest__' && window.__restCtx;
+  if (!_isRestCtx && (!currentService || !currentOpName)) return;
+
+  var result = document.getElementById('editor-result');
+  var timingEl = document.getElementById('editor-timing');
+  var srcLabel = document.getElementById('response-source');
+
+  result.textContent = 'Applying custom scenario...';
+  result.className = '';
+  timingEl.innerHTML = '<span class="pg-status ai">AI</span> generating & injecting...';
+  srcLabel.textContent = '(applying...)';
+  srcLabel.style.color = 'var(--purple2)';
+
+  try {
+    var isRest = currentService === '__rest__' && window.__restCtx;
+    var payload = {
+      service: isRest ? window.__restCtx.serviceName : currentService,
+      operation: isRest ? window.__restCtx.operationName : currentOpName,
+      prompt: prompt,
+      apiType: isRest ? 'rest' : 'graphql',
+    };
+    if (isRest && window.__restCtx.resolvedOperationName) {
+      payload.resolvedOperation = window.__restCtx.resolvedOperationName;
+    }
+    var fields = extractFieldsFromQuery(document.getElementById('editor-query').value);
+    if (fields.length > 0) payload.fields = fields;
+
+    var r = await fetch('/ai/scenario', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    var d = await r.json();
+
+    if (d.error) {
+      result.textContent = 'AI Error: ' + d.error;
+      result.className = 'error';
+      timingEl.innerHTML = '<span class="pg-status s4">ERR</span>';
+      return;
+    }
+
+    srcLabel.textContent = '(scenario: custom)';
+    srcLabel.style.color = 'var(--purple2)';
+    document.getElementById('clear-scenario-btn').style.display = '';
+
+    try {
+      var injectBody = {
+        service: payload.service,
+        operation: isRest ? window.__restCtx.operationName : currentOpName,
+        data: d.preview,
+        apiType: payload.apiType,
+        scenarioName: 'custom',
+      };
+      if (isRest && window.__restCtx.resolvedOperationName) {
+        injectBody.resolvedOperation = window.__restCtx.resolvedOperationName;
+      }
+      if (window.__graphqlVariables && Object.keys(window.__graphqlVariables).length > 0) {
+        injectBody.variables = window.__graphqlVariables;
+      }
+      await fetch('/ai/scenario-inject', {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify(injectBody)
+      });
+    } catch(_) {}
+
+    await runQuery();
+    promptInput.value = '';
+  } catch(e) {
+    result.textContent = 'Error: ' + e.message;
+    result.className = 'error';
+  }
+}
+
+async function applySuggestion(idx, cardEl) {
+  var s = _suggestedScenarios[idx];
+  if (!s) return;
+
+  if (s.variables && typeof s.variables === 'object') {
+    for (var _k of Object.keys(s.variables)) {
+      var _v = s.variables[_k];
+      var input = document.getElementById('var-input-' + _k);
+      if (input) {
+        input.value = typeof _v === 'object' ? JSON.stringify(_v) : _v;
+        updateVariable(_k, typeof _v === 'object' ? JSON.stringify(_v) : String(_v));
+      }
+    }
+  }
+
+  var result = document.getElementById('editor-result');
+  var timingEl = document.getElementById('editor-timing');
+  var srcLabel = document.getElementById('response-source');
+
+  result.textContent = 'Applying scenario "' + s.name + '" and injecting into Microcks...';
+  result.className = '';
+  timingEl.innerHTML = '<span class="pg-status ai">AI</span> generating & injecting...';
+  srcLabel.textContent = '(applying...)';
+  srcLabel.style.color = 'var(--purple2)';
+
+  document.querySelectorAll('.suggest-card').forEach(function(c) { c.classList.remove('active-scenario'); });
+  if (cardEl) cardEl.classList.add('active-scenario');
+
+  try {
+    var isRest = currentService === '__rest__' && window.__restCtx;
+    var payload = {
+      service: isRest ? window.__restCtx.serviceName : currentService,
+      operation: isRest ? window.__restCtx.operationName : currentOpName,
+      prompt: s.prompt || '',
+      apiType: isRest ? 'rest' : 'graphql',
+    };
+    if (isRest && window.__restCtx.resolvedOperationName) {
+      payload.resolvedOperation = window.__restCtx.resolvedOperationName;
+    }
+    var fields = extractFieldsFromQuery(document.getElementById('editor-query').value);
+    if (fields.length > 0) payload.fields = fields;
+
+    var r = await fetch('/ai/scenario', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify(payload)
+    });
+    var d = await r.json();
+
+    if (d.error) {
+      result.textContent = 'AI Error: ' + d.error;
+      result.className = 'error';
+      timingEl.innerHTML = '<span class="pg-status s4">ERR</span>';
+      srcLabel.textContent = '(scenario failed)';
+      if (cardEl) cardEl.classList.remove('active-scenario');
+      return;
+    }
+
+    srcLabel.textContent = '(scenario: ' + escHtml(s.name) + ')';
+    srcLabel.style.color = 'var(--purple2)';
+    document.getElementById('clear-scenario-btn').style.display = '';
+
+    try {
+      var sugInjectBody = {
+        service: payload.service,
+        operation: isRest ? window.__restCtx.operationName : currentOpName,
+        data: d.preview,
+        apiType: payload.apiType,
+        scenarioName: s.name,
+      };
+      if (isRest && window.__restCtx.resolvedOperationName) {
+        sugInjectBody.resolvedOperation = window.__restCtx.resolvedOperationName;
+      }
+      if (window.__graphqlVariables && Object.keys(window.__graphqlVariables).length > 0) {
+        sugInjectBody.variables = window.__graphqlVariables;
+      }
+      await fetch('/ai/scenario-inject', {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify(sugInjectBody)
+      });
+    } catch(_) {}
+
+    await runQuery();
+  } catch(e) {
+    result.textContent = 'Error: ' + e.message;
+    result.className = 'error';
+    if (cardEl) cardEl.classList.remove('active-scenario');
+  }
+}
+
+// ── Workspace Management ──────────────────────────────────
+
+function toggleWorkspaceMenu() {
+  const existing = document.getElementById('ws-menu');
+  if (existing) { existing.remove(); return; }
+
+  const menu = document.createElement('div');
+  menu.id = 'ws-menu';
+  menu.style.cssText = 'position:fixed;top:48px;left:0;right:0;bottom:0;z-index:999';
+  menu.onclick = function(e) { if (e.target === menu) menu.remove(); };
+
+  const box = document.createElement('div');
+  box.style.cssText = 'position:absolute;top:0;left:50%;transform:translateX(-50%);background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;width:360px;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,.4)';
+
+  box.innerHTML = '<h4 style="color:#c9d1d9;margin-bottom:.6rem;font-size:.85rem">Workspaces</h4>'
+    + '<p style="color:#8b949e;font-size:.72rem;margin-bottom:.8rem">Isolate scenarios, overrides, and variable mocks into separate workspaces</p>'
+    + '<div style="display:flex;gap:.4rem;margin-bottom:.8rem">'
+    + '<input id="ws-new-name" placeholder="New workspace name..." style="flex:1;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#c9d1d9;padding:4px 8px;font-size:.8rem">'
+    + '<button onclick="createWorkspace()" style="background:#238636;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:.78rem;font-weight:600">Create</button>'
+    + '</div>'
+    + '<div id="ws-list" style="max-height:250px;overflow-y:auto"></div>'
+    + '<div style="border-top:1px solid #21262d;margin-top:.6rem;padding-top:.6rem">'
+    + '<button onclick="switchWorkspace(null)" style="background:' + (!currentWorkspace ? '#1f6feb22' : 'none') + ';color:' + (!currentWorkspace ? '#58a6ff' : '#8b949e') + ';border:1px solid ' + (!currentWorkspace ? '#1f6feb44' : '#30363d') + ';padding:4px 12px;border-radius:4px;cursor:pointer;font-size:.78rem;width:100%">Default (no workspace)</button>'
+    + '</div>';
+
+  menu.appendChild(box);
+  document.body.appendChild(menu);
+  loadWorkspaceList();
+}
+
+async function loadWorkspaceList() {
+  try {
+    const r = await fetch('/workspaces', { headers: getHeaders() });
+    const data = await r.json();
+    const listEl = document.getElementById('ws-list');
+    if (!data.workspaces || data.workspaces.length === 0) {
+      listEl.innerHTML = '<div style="color:#484f58;font-size:.78rem;text-align:center;padding:.5rem">No workspaces yet</div>';
+      return;
+    }
+    listEl.innerHTML = data.workspaces.map(function(w) {
+      var isActive = currentWorkspace === w.id;
+      var isolatedBadge = w.isolated ? '<span style="font-size:.6rem;padding:1px 5px;border-radius:6px;background:#1f6feb22;color:#58a6ff;margin-left:.3rem">isolated</span>' : '<span style="font-size:.6rem;padding:1px 5px;border-radius:6px;background:#21262d;color:#8b949e;margin-left:.3rem">shared</span>';
+      var wsEndpoint = window.location.origin + '/ws/' + w.id + '/graphql/{service}';
+      var q = String.fromCharCode(39);
+      var card = '<div style="padding:.5rem;border-radius:4px;' + (isActive ? 'background:#1f6feb22;border:1px solid #1f6feb44' : 'border:1px solid #21262d') + ';margin-bottom:.3rem">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'
+        + '<div style="font-size:.82rem;color:' + (isActive ? '#58a6ff' : '#c9d1d9') + ';font-weight:600">' + escHtml(w.name) + isolatedBadge + '</div>'
+        + '<div style="display:flex;gap:4px;flex-shrink:0">'
+        + '<button onclick="toggleWorkspaceIsolation(' + q + w.id + q + ', ' + !w.isolated + ')" title="' + (w.isolated ? 'Switch to shared' : 'Switch to isolated') + '" style="background:#21262d;color:' + (w.isolated ? '#58a6ff' : '#8b949e') + ';border:1px solid #30363d;padding:2px 6px;border-radius:3px;font-size:.62rem;cursor:pointer">' + (w.isolated ? '🔒' : '🔓') + '</button>'
+        + '<button onclick="switchWorkspace(' + q + w.id + q + ')" style="background:' + (isActive ? '#238636' : '#21262d') + ';color:' + (isActive ? '#fff' : '#c9d1d9') + ';border:1px solid ' + (isActive ? '#238636' : '#30363d') + ';padding:2px 10px;border-radius:3px;font-size:.68rem;cursor:pointer;font-weight:600">' + (isActive ? 'Active' : 'Use') + '</button>'
+        + '<button onclick="deleteWorkspace(' + q + w.id + q + ')" style="background:#da363322;color:#f85149;border:1px solid #da363344;padding:2px 6px;border-radius:3px;font-size:.68rem;cursor:pointer">✕</button>'
+        + '</div></div>'
+        + '<div style="font-size:.58rem;color:#484f58;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + wsEndpoint + '">' + wsEndpoint + '</div>'
+        + '</div>';
+      return card;
+    }).join('');
+  } catch(_) {}
+}
+
+async function createWorkspace() {
+  const nameInput = document.getElementById('ws-new-name');
+  const name = nameInput.value.trim();
+  if (!name) return;
+  try {
+    const r = await fetch('/workspaces', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ name })
+    });
+    const data = await r.json();
+    nameInput.value = '';
+    switchWorkspace(data.id);
+    loadWorkspaceList();
+  } catch(_) {}
+}
+
+async function switchWorkspace(wsId) {
+  var menu = document.getElementById('ws-menu');
+  if (menu) menu.remove();
+
+  try {
+    var oldWs = currentWorkspace;
+    if (oldWs && oldWs !== wsId) {
+      try { await fetch('/workspaces/' + oldWs + '/deactivate', { method: 'POST', headers: getHeaders() }); } catch(_) {}
+    }
+    currentWorkspace = wsId;
+    if (wsId) {
+      setCookie('mock_workspace', wsId);
+    } else {
+      document.cookie = 'mock_workspace=; path=/; max-age=0';
+    }
+    if (wsId) {
+      try { await fetch('/workspaces/' + wsId + '/activate', { method: 'POST', headers: getHeaders() }); } catch(_) {}
+    }
+    window.location.reload();
+  } catch(e) {
+    console.error('switchWorkspace error:', e);
+  }
+}
+
+async function filterSidebarByWorkspace() {
+  var allBtns = document.querySelectorAll('.svc-btn[data-svc]');
+  var sections = ['section-graphql','section-rest','section-event'];
+
+  function showAll() {
+    allBtns.forEach(function(b) { b.style.display = ''; b.style.opacity = ''; b.title = ''; });
+    sections.forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = ''; });
+    document.querySelectorAll('.rest-svc[data-svc]').forEach(function(el) { el.style.display = ''; });
+  }
+
+  function applyFilter(visibleNames) {
+    var nameSet = {};
+    visibleNames.forEach(function(n) { nameSet[n] = true; });
+    allBtns.forEach(function(b) {
+      var svcName = b.getAttribute('data-svc');
+      b.style.display = nameSet[svcName] ? '' : 'none';
+      b.style.opacity = nameSet[svcName] ? '1' : '';
+    });
+    sections.forEach(function(id) {
+      var sec = document.getElementById(id);
+      if (!sec) return;
+      var anyVisible = false;
+      sec.querySelectorAll('.svc-btn[data-svc]').forEach(function(b) { if (b.style.display !== 'none') anyVisible = true; });
+      sec.style.display = anyVisible ? '' : 'none';
+    });
+    document.querySelectorAll('.rest-svc[data-svc]').forEach(function(el) {
+      el.style.display = nameSet[el.getAttribute('data-svc')] ? '' : 'none';
+    });
+  }
+
+  try {
+    var wsParam = currentWorkspace ? 'workspace=' + encodeURIComponent(currentWorkspace) : '';
+    var r = await fetch('/api/services-for-workspace?' + wsParam, { headers: getHeaders() });
+    if (r.ok) {
+      var data = await r.json();
+      applyFilter(data.services || []);
+      return;
+    }
+  } catch(_) {}
+
+  showAll();
+}
+
+function addServiceToSidebar(serviceName, schemaType, mockRoutes) {
+  var isGraphql = schemaType !== 'openapi';
+  var sectionId = isGraphql ? 'section-graphql' : 'section-rest';
+  var section = document.getElementById(sectionId);
+  if (!section) return;
+
+  var existing = section.querySelector('.svc-btn[data-svc="' + serviceName + '"]');
+  if (existing) return;
+
+  section.style.display = '';
+  var q = String.fromCharCode(39);
+
+  if (isGraphql) {
+    var queries = (mockRoutes || []).filter(function(r) { return r.method === 'QUERY'; });
+    var mutations = (mockRoutes || []).filter(function(r) { return r.method === 'MUTATION'; });
+    SVC_DATA[serviceName] = {
+      version: '1.0',
+      queries: queries.map(function(r) { return { name: r.operation, output: r.returnType || '' }; }),
+      mutations: mutations.map(function(r) { return { name: r.operation, output: r.returnType || '' }; }),
+    };
+    var qc = queries.length;
+    var mc = mutations.length;
+    var label = qc + 'Q' + (mc ? '/' + mc + 'M' : '');
+    var btn = document.createElement('button');
+    btn.className = 'svc-btn';
+    btn.setAttribute('data-svc', serviceName);
+    btn.setAttribute('data-type', 'graphql');
+    btn.onclick = function() { selectService(serviceName); };
+    btn.innerHTML = '<span class="svc-name">' + serviceName + '</span><span class="svc-actions"><span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService(' + q + serviceName + q + ',' + q + 'graphql' + q + ')">↻</span><span class="cnt">' + label + '</span></span>';
+    section.querySelector('.section-items').appendChild(btn);
+  } else {
+    var opCount = (mockRoutes || []).length;
+    var btn = document.createElement('button');
+    btn.className = 'svc-btn';
+    btn.setAttribute('data-svc', serviceName);
+    btn.setAttribute('data-type', 'rest');
+    btn.onclick = function() { showRest(); };
+    btn.innerHTML = '<span class="svc-name">' + serviceName + '</span><span class="svc-actions"><span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService(' + q + serviceName + q + ',' + q + 'rest' + q + ')">↻</span><span class="cnt">' + opCount + '</span></span>';
+    section.querySelector('.section-items').appendChild(btn);
+
+    var restView = document.getElementById('rest-view');
+    if (restView && mockRoutes && mockRoutes.length > 0) {
+      var existing = restView.querySelector('.rest-svc[data-svc="' + serviceName + '"]');
+      if (!existing) {
+        var svcDiv = document.createElement('div');
+        svcDiv.className = 'rest-svc';
+        svcDiv.setAttribute('data-svc', serviceName);
+        var opsHtml = mockRoutes.map(function(r) {
+          var m = (r.method || 'GET').toUpperCase();
+          var fullUrl = window.location.origin + (r.url || '/rest/' + serviceName + '/1.0' + (r.path || ''));
+          return '<div class="rest-ep"><span class="method ' + m.toLowerCase() + '">' + m + '</span><code>' + fullUrl + '</code><button onclick="tryRest(' + q + m + q + ',' + q + fullUrl + q + ')">Try</button></div>';
+        }).join('');
+        svcDiv.innerHTML = '<h3>' + serviceName + ' <span class="badge rest">REST</span> <span class="ops-count">' + opCount + '</span></h3>' + opsHtml;
+        restView.appendChild(svcDiv);
+      }
+    }
+  }
+}
+
+async function getWorkspaceName(wsId) {
+  try {
+    const r = await fetch('/workspaces/' + wsId, { headers: getHeaders() });
+    const data = await r.json();
+    return data.name || wsId;
+  } catch(_) { return wsId; }
+}
+
+async function snapshotWorkspace(wsId) {
+  try {
+    await fetch('/workspaces/' + wsId + '/snapshot', { method: 'POST', headers: getHeaders() });
+    loadWorkspaceList();
+  } catch(_) {}
+}
+
+async function deleteWorkspace(wsId) {
+  var existing = document.getElementById('ws-delete-dialog');
+  if (existing) existing.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'ws-delete-dialog';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center';
+
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#161b22;border:1px solid #30363d;border-radius:10px;padding:1.5rem;width:400px;max-width:90vw;box-shadow:0 12px 40px rgba(0,0,0,.5)';
+  box.innerHTML = '<h4 style="color:#f85149;margin-bottom:.6rem;font-size:.9rem">Delete Workspace</h4>'
+    + '<p style="color:#c9d1d9;font-size:.82rem;margin-bottom:1rem;line-height:1.5">What should happen to the services created in this workspace?</p>'
+    + '<div style="display:flex;flex-direction:column;gap:.5rem">'
+    + '<button id="ws-del-move" style="background:#1f6feb;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:600;text-align:left">Move services to Default workspace<br><span style="font-weight:400;font-size:.72rem;opacity:.8">Services stay in Microcks and become globally visible</span></button>'
+    + '<button id="ws-del-purge" style="background:#da3633;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:600;text-align:left">Delete services permanently<br><span style="font-weight:400;font-size:.72rem;opacity:.8">Removes services from Microcks entirely</span></button>'
+    + '<button id="ws-del-cancel" style="background:none;color:#8b949e;border:1px solid #30363d;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.8rem;margin-top:.2rem">Cancel</button>'
+    + '</div>';
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('ws-del-cancel').onclick = function() { overlay.remove(); };
+
+  document.getElementById('ws-del-move').onclick = async function() {
+    overlay.remove();
+    try {
+      await fetch('/workspaces/' + wsId + '?deleteServices=false', { method: 'DELETE', headers: getHeaders() });
+      if (currentWorkspace === wsId) { currentWorkspace = null; document.cookie = 'mock_workspace=; path=/; max-age=0'; }
+      window.location.reload();
+    } catch(_) {}
+  };
+
+  document.getElementById('ws-del-purge').onclick = async function() {
+    overlay.remove();
+    try {
+      await fetch('/workspaces/' + wsId + '?deleteServices=true', { method: 'DELETE', headers: getHeaders() });
+      if (currentWorkspace === wsId) { currentWorkspace = null; document.cookie = 'mock_workspace=; path=/; max-age=0'; }
+      window.location.reload();
+    } catch(_) {}
+  };
+}
+
+async function toggleWorkspaceIsolation(wsId, isolated) {
+  try {
+    await fetch('/workspaces/' + wsId, {
+      method: 'PUT', headers: getHeaders(),
+      body: JSON.stringify({ isolated: isolated })
+    });
+    loadWorkspaceList();
+  } catch(_) {}
+}
+
 function extractFieldsFromQuery(queryText) {
   const clean = queryText.replace(/^#.*$/gm, '').trim();
   const braceIdx = clean.indexOf('{', clean.indexOf('{') + 1);
@@ -1159,138 +2316,46 @@ function extractFieldsFromQuery(queryText) {
 }
 
 async function inlineAIInject() {
-  const isRest = currentService === '__rest__' && window.__restCtx;
-  if (!isRest && (!currentOpName || !currentService)) return;
-  if (isRest && !window.__restCtx.serviceName) return;
-
-  const scenario = document.getElementById('inline-ai-scenario').value;
-  const prompt = document.getElementById('inline-ai-prompt').value;
-  const isGlobal = document.getElementById('inline-ai-global').checked;
-  if (!scenario && !prompt) { document.getElementById('editor-result').textContent = 'Select a scenario or type a prompt, then click Apply Scenario'; return; }
-
-  const result = document.getElementById('editor-result');
-  const timingEl = document.getElementById('editor-timing');
-  const srcLabel = document.getElementById('response-source');
-  const editor = document.getElementById('editor-query');
-
-  if (isRest) {
-    const ctx = window.__restCtx;
-    result.textContent = 'Applying scenario for REST: ' + ctx.serviceName + ' / ' + ctx.operationName + (isGlobal ? ' (GLOBAL)' : '') + '...';
-    result.className = '';
-    timingEl.innerHTML = '<span class="pg-status ai">AI</span> applying scenario...';
-    srcLabel.textContent = '(applying...)';
-    srcLabel.style.color = '#a371f7';
-
-    try {
-      const payload = {
-        service: ctx.serviceName,
-        operation: ctx.operationName,
-        apiType: 'rest',
-      };
-      if (scenario) payload.scenario = scenario;
-      if (prompt) payload.prompt = prompt;
-      if (isGlobal) payload.global = true;
-
-      const r = await fetch('/ai/scenario', {
-        method: 'POST', headers: getHeaders(),
-        body: JSON.stringify(payload)
-      });
-      const d = await r.json();
-
-      if (d.error) {
-        result.textContent = 'AI Error: ' + d.error;
-        result.className = 'error';
-        timingEl.innerHTML = '<span class="pg-status s4">ERR</span>';
-        srcLabel.textContent = '(scenario failed)';
-        return;
-      }
-
-      srcLabel.textContent = isGlobal ? '(scenario applied globally)' : '(scenario applied for ' + mockUser + ')';
-      srcLabel.style.color = '#a371f7';
-
-      result.textContent = JSON.stringify(d.preview, null, 2);
-      timingEl.innerHTML = '<span class="pg-status ai">AI</span> scenario active — click Run to verify';
-      await runQuery();
-    } catch(e) {
-      result.textContent = 'Error: ' + e.message;
-      result.className = 'error';
-    }
-    return;
-  }
-
-  // GraphQL scenario
-  const fields = extractFieldsFromQuery(editor.value);
-  result.textContent = 'Applying scenario for: ' + (fields.length ? fields.join(', ') : 'all fields') + (isGlobal ? ' (GLOBAL)' : '') + '...';
-  result.className = '';
-  timingEl.innerHTML = '<span class="pg-status ai">AI</span> applying scenario...';
-  srcLabel.textContent = '(applying...)';
-  srcLabel.style.color = '#a371f7';
-
-  try {
-    const payload = { service: currentService, operation: currentOpName };
-    if (scenario) payload.scenario = scenario;
-    if (prompt) payload.prompt = prompt;
-    if (fields.length > 0) payload.fields = fields;
-    if (isGlobal) payload.global = true;
-
-    const r = await fetch('/ai/scenario', {
-      method: 'POST', headers: getHeaders(),
-      body: JSON.stringify(payload)
-    });
-    const d = await r.json();
-
-    if (d.error) {
-      result.textContent = 'AI Error: ' + d.error;
-      result.className = 'error';
-      timingEl.innerHTML = '<span class="pg-status s4">ERR</span>';
-      srcLabel.textContent = '(scenario failed)';
-      return;
-    }
-
-    srcLabel.textContent = isGlobal ? '(scenario applied globally)' : '(scenario applied for ' + mockUser + ')';
-    srcLabel.style.color = '#a371f7';
-
-    await runQuery();
-  } catch(e) {
-    result.textContent = 'Error: ' + e.message;
-    result.className = 'error';
-  }
+  // No-op: scenarios are now applied directly from the AI Scenarios tab
 }
 
 async function inlineAIClear() {
   const isRest = currentService === '__rest__' && window.__restCtx;
   if (!isRest && (!currentOpName || !currentService)) return;
 
+  document.getElementById('clear-scenario-btn').style.display = 'none';
+  document.querySelectorAll('.suggest-card').forEach(function(c) { c.classList.remove('active-scenario'); });
+
   const serviceName = isRest ? window.__restCtx.serviceName : currentService;
-  if (!serviceName) return;
+  const opName = isRest ? window.__restCtx.operationName : currentOpName;
+  if (!serviceName || !opName) return;
 
   const result = document.getElementById('editor-result');
   const timingEl = document.getElementById('editor-timing');
   const srcLabel = document.getElementById('response-source');
 
-  result.textContent = 'Restoring original Microcks examples for ' + serviceName + '...';
-  timingEl.innerHTML = '<span class="pg-status s206">...</span> restoring';
+  result.textContent = 'Clearing scenario for ' + opName + '...';
+  timingEl.innerHTML = '<span class="pg-status s206">...</span> clearing';
 
   try {
-    await fetch('/ai/overrides', { method: 'DELETE', headers: getHeaders() });
-    await fetch('/ai/scenarios/active', { method: 'DELETE', headers: getHeaders() });
-    const r = await fetch('/ai/restore', {
-      method: 'POST', headers: getHeaders(),
-      body: JSON.stringify({ service: serviceName })
-    });
-    const d = await r.json();
+    var clearOps = [opName];
+    if (isRest && window.__restCtx.resolvedOperationName && window.__restCtx.resolvedOperationName !== opName) {
+      clearOps.push(window.__restCtx.resolvedOperationName);
+    }
+    for (var _clearOp of clearOps) {
+      await fetch('/ai/scenario/clear', {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify({ service: serviceName, operation: _clearOp, apiType: isRest ? 'rest' : 'graphql' })
+      });
+    }
 
     srcLabel.textContent = '(from Microcks)';
-    srcLabel.style.color = '#30363d';
+    srcLabel.style.color = 'var(--fg4)';
 
-    document.getElementById('inline-ai-scenario').value = '';
-    document.getElementById('inline-ai-prompt').value = '';
-    document.getElementById('inline-ai-global').checked = false;
-
-    result.textContent = d.restored ? 'Scenarios & overrides cleared. Click Run to verify.' : d.reason || 'Cleared.';
+    result.textContent = 'Scenario cleared for ' + opName + '. Click Run to get the original response.';
     timingEl.innerHTML = '';
   } catch(e) {
-    result.textContent = 'Restore error: ' + e.message;
+    result.textContent = 'Clear error: ' + e.message;
   }
 }
 
@@ -1304,6 +2369,7 @@ async function runSetup() {
   const schema = document.getElementById('setup-schema').value.trim();
   const prompt = document.getElementById('setup-prompt').value.trim();
   const serviceName = document.getElementById('setup-service-name').value.trim();
+  const proxyUrl = document.getElementById('setup-proxy-url').value.trim();
 
   if (!schema) {
     alert('Please paste a GraphQL SDL or OpenAPI spec.');
@@ -1321,13 +2387,14 @@ async function runSetup() {
   const resultContent = document.getElementById('setup-result-content');
   progressDiv.style.display = 'block';
   resultDiv.style.display = 'none';
-  stepsDiv.innerHTML = '<div style="color:#58a6ff">⏳ Starting AI setup...</div>';
+  stepsDiv.innerHTML = '<div style="color:var(--accent)">⏳ Starting AI setup...</div>';
 
   try {
     const body = {};
     if (schema) body.schema = schema;
     if (prompt) body.prompt = prompt;
     if (serviceName) body.serviceName = serviceName;
+    if (proxyUrl) body.proxyUrl = proxyUrl;
 
     const r = await fetch('/ai/setup', {
       method: 'POST',
@@ -1337,10 +2404,12 @@ async function runSetup() {
     const data = await r.json();
 
     if (!r.ok) {
-      stepsDiv.innerHTML = '<div style="color:#f85149">✗ ' + (data.error || 'Setup failed') + '</div>';
+      stepsDiv.innerHTML = '<div style="color:var(--red2)">✗ ' + (data.error || 'Setup failed') + '</div>';
       if (data.steps) {
         data.steps.forEach(s => {
-          stepsDiv.innerHTML += '<div style="color:' + (s.status === 'done' ? '#3fb950' : s.status === 'warning' ? '#d29922' : '#f85149') + '">' + (s.status === 'done' ? '✓' : s.status === 'warning' ? '⚠' : '✗') + ' ' + s.step + '</div>';
+          var stepText = (typeof s === 'string') ? s : (s.step || String(s));
+          var status = (typeof s === 'object' && s.status) ? s.status : 'done';
+          stepsDiv.innerHTML += '<div style="color:' + (status === 'done' ? 'var(--green2)' : status === 'warning' ? 'var(--yellow)' : 'var(--red2)') + '">' + (status === 'done' ? '✓' : status === 'warning' ? '⚠' : '✗') + ' ' + stepText + '</div>';
         });
       }
       return;
@@ -1348,38 +2417,57 @@ async function runSetup() {
 
     stepsDiv.innerHTML = '';
     (data.steps || []).forEach(s => {
-      const icon = s.status === 'done' ? '✓' : s.status === 'warning' ? '⚠' : '○';
-      const color = s.status === 'done' ? '#3fb950' : s.status === 'warning' ? '#d29922' : '#8b949e';
-      stepsDiv.innerHTML += '<div style="color:' + color + '">' + icon + ' ' + s.step + '</div>';
+      var stepText = (typeof s === 'string') ? s : (s.step || String(s));
+      var status = (typeof s === 'object' && s.status) ? s.status : 'done';
+      var icon = status === 'done' ? '✓' : status === 'warning' ? '⚠' : '○';
+      var color = status === 'done' ? 'var(--green2)' : status === 'warning' ? 'var(--yellow)' : 'var(--fg3)';
+      stepsDiv.innerHTML += '<div style="color:' + color + '">' + icon + ' ' + stepText + '</div>';
     });
+
+    if (proxyUrl && data.serviceName) {
+      try {
+        await fetch('/api/proxy-url', {
+          method: 'POST', headers: getHeaders(),
+          body: JSON.stringify({ service: data.serviceName, url: proxyUrl })
+        });
+      } catch(_) {}
+      try {
+        await fetch('/api/upstream-url', {
+          method: 'POST', headers: getHeaders(),
+          body: JSON.stringify({ url: proxyUrl })
+        });
+      } catch(_) {}
+    }
 
     resultDiv.style.display = 'block';
     const isRest = data.schemaType === 'openapi';
     let html = '<div style="margin-bottom:.75rem"><strong>Service:</strong> ' + data.serviceName + ' &nbsp;|&nbsp; <strong>Operations:</strong> ' + data.operationCount + ' &nbsp;|&nbsp; <strong>Type:</strong> ' + (isRest ? 'REST (OpenAPI)' : 'GraphQL') + '</div>';
     if (isRest) {
-      html += '<div style="margin-bottom:.75rem"><strong>REST Base:</strong> <code style="background:#21262d;padding:2px 6px;border-radius:4px;color:#58a6ff">' + data.restEndpoint + '</code></div>';
+      html += '<div style="margin-bottom:.75rem"><strong>REST Base:</strong> <code style="background:var(--border);padding:2px 6px;border-radius:4px;color:var(--accent)">' + data.restEndpoint + '</code></div>';
     } else {
-      html += '<div style="margin-bottom:.75rem"><strong>GraphQL Endpoint:</strong> <code style="background:#21262d;padding:2px 6px;border-radius:4px;color:#58a6ff">POST ' + data.graphqlEndpoint + '</code></div>';
+      html += '<div style="margin-bottom:.75rem"><strong>GraphQL Endpoint:</strong> <code style="background:var(--border);padding:2px 6px;border-radius:4px;color:var(--accent)">POST ' + data.graphqlEndpoint + '</code></div>';
     }
     html += '<div style="margin-bottom:.5rem"><strong>Mock Routes:</strong></div>';
-    html += '<div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:.5rem;max-height:200px;overflow:auto">';
+    html += '<div style="background:var(--code-bg);border:1px solid var(--border2);border-radius:6px;padding:.5rem;max-height:200px;overflow:auto">';
     (data.mockRoutes || []).forEach(route => {
-      const statusDot = route.exampleGenerated ? '<span style="color:#3fb950">●</span>' : '<span style="color:#d29922">●</span>';
+      const statusDot = route.exampleGenerated ? '<span style="color:var(--green2)">●</span>' : '<span style="color:var(--yellow)">●</span>';
       if (isRest) {
-        html += '<div style="font-family:monospace;font-size:.78rem;padding:2px 0;color:#c9d1d9">' + statusDot + ' ' + route.method + ' ' + route.path + '</div>';
+        html += '<div style="font-family:monospace;font-size:.78rem;padding:2px 0;color:var(--fg2)">' + statusDot + ' ' + route.method + ' ' + route.path + '</div>';
       } else {
-        html += '<div style="font-family:monospace;font-size:.78rem;padding:2px 0;color:#c9d1d9">' + statusDot + ' ' + route.method + ' ' + route.operation + ' → ' + (route.returnType || '') + (route.isList ? '[]' : '') + '</div>';
+        html += '<div style="font-family:monospace;font-size:.78rem;padding:2px 0;color:var(--fg2)">' + statusDot + ' ' + route.method + ' ' + route.operation + ' → ' + (route.returnType || '') + (route.isList ? '[]' : '') + '</div>';
       }
     });
     html += '</div>';
     const filesArr = [data.schemaFile || data.openapiFile, data.examplesFile].filter(Boolean);
-    html += '<div style="margin-top:.75rem;font-size:.78rem;color:#8b949e">Files: ' + filesArr.map(f => '<code>' + f + '</code>').join(', ') + '</div>';
+    html += '<div style="margin-top:.75rem;font-size:.78rem;color:var(--fg3)">Files: ' + filesArr.map(f => '<code>' + f + '</code>').join(', ') + '</div>';
     resultContent.innerHTML = html;
 
-    lastFetch = 0;
-    fetch('/api/services').then(r => r.json()).then(() => {});
+    addServiceToSidebar(data.serviceName, data.schemaType || 'graphql', data.mockRoutes || []);
+    if (currentWorkspace) {
+      await filterSidebarByWorkspace();
+    }
   } catch (err) {
-    stepsDiv.innerHTML = '<div style="color:#f85149">✗ Network error: ' + err.message + '</div>';
+    stepsDiv.innerHTML = '<div style="color:var(--red2)">✗ Network error: ' + err.message + '</div>';
   } finally {
     btn.disabled = false;
     btn.textContent = 'Generate & Deploy';
@@ -1392,8 +2480,8 @@ async function runSetup() {
 function handleFileDrop(e) {
   e.preventDefault();
   const dz = document.getElementById('setup-dropzone');
-  dz.style.borderColor = '#30363d';
-  dz.style.background = '#161b22';
+  dz.style.borderColor = 'var(--border2)';
+  dz.style.background = 'var(--bg2)';
   const file = e.dataTransfer.files[0];
   if (file) readSchemaFile(file);
 }
@@ -1422,12 +2510,57 @@ function readSchemaFile(file) {
 
     // DO NOT auto-trigger generation - wait for user to provide prompt
     // User must click "Generate & Deploy" button
-    document.getElementById('editor-result').innerHTML = '<div style="color:#58a6ff">✓ Schema loaded. Now enter a prompt and click Generate & Deploy</div>';
+    document.getElementById('editor-result').innerHTML = '<div style="color:var(--accent)">✓ Schema loaded. Now enter a prompt and click Generate & Deploy</div>';
   };
   reader.readAsText(file);
 }
 
 // ── Re-generate service mock data ──────────────────────
+
+function deleteService(serviceName) {
+  var overlay = document.createElement('div');
+  overlay.className = 'regen-modal-overlay';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = '<div class="regen-modal">'
+    + '<h3 style="color:#da3633;margin:0 0 .75rem;font-size:.95rem">Delete service</h3>'
+    + '<p style="color:var(--fg3);font-size:.82rem;margin-bottom:1rem">Permanently remove <strong style="color:var(--fg2)">' + serviceName + '</strong> from Microcks? This cannot be undone.</p>'
+    + '<div id="del-status" style="display:none;margin-bottom:.75rem;font-family:monospace;font-size:.78rem"></div>'
+    + '<div style="display:flex;gap:.5rem;justify-content:flex-end">'
+    + '<button onclick="this.closest(\\'.regen-modal-overlay\\').remove()" style="background:var(--bg3);color:var(--fg2);border:1px solid var(--border2);padding:.4rem 1rem;border-radius:6px;cursor:pointer;font-size:.82rem">Cancel</button>'
+    + '<button id="del-go-btn" onclick="doDeleteService(\\'' + serviceName.replace(/'/g, "\\\\'") + '\\')" style="background:#da3633;color:#fff;border:none;padding:.4rem 1rem;border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:600">Delete</button>'
+    + '</div></div>';
+  document.body.appendChild(overlay);
+}
+
+async function doDeleteService(serviceName) {
+  var btn = document.getElementById('del-go-btn');
+  var statusEl = document.getElementById('del-status');
+  btn.disabled = true;
+  btn.textContent = 'Deleting...';
+  btn.style.opacity = '0.6';
+  statusEl.style.display = 'block';
+  statusEl.innerHTML = '<div style="color:var(--accent)">Deleting ' + serviceName + '...</div>';
+  try {
+    var r = await fetch('/api/services/' + encodeURIComponent(serviceName), { method: 'DELETE', headers: getHeaders() });
+    var data = await r.json();
+    if (r.status === 403) {
+      statusEl.innerHTML = '<div style="color:#da3633">⛔ ' + (data.error || 'Namespace violation — cannot delete services outside your namespace') + '</div>';
+      btn.textContent = 'Blocked';
+      return;
+    }
+    if (!r.ok || !data.deleted) {
+      statusEl.innerHTML = '<div style="color:#da3633">✗ ' + (data.error || data.reason || 'Delete failed') + '</div>';
+      btn.textContent = 'Failed';
+      return;
+    }
+    statusEl.innerHTML = '<div style="color:var(--green2)">✓ Deleted successfully</div>';
+    btn.textContent = 'Done';
+    setTimeout(function() { window.location.reload(); }, 800);
+  } catch (err) {
+    statusEl.innerHTML = '<div style="color:#da3633">✗ ' + err.message + '</div>';
+    btn.textContent = 'Error';
+  }
+}
 
 function regenService(serviceName, type) {
   const overlay = document.createElement('div');
@@ -1435,14 +2568,14 @@ function regenService(serviceName, type) {
   overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
 
   overlay.innerHTML = '<div class="regen-modal">'
-    + '<h3 style="color:#c9d1d9;margin:0 0 .75rem;font-size:.95rem">Re-generate: ' + serviceName + '</h3>'
-    + '<p style="color:#8b949e;font-size:.78rem;margin-bottom:1rem">AI will regenerate all mock data for this service. Optionally provide a prompt to customize the data.</p>'
-    + '<div style="margin-bottom:.75rem"><label style="color:#8b949e;font-size:.78rem;display:block;margin-bottom:.25rem">Prompt (optional)</label>'
-    + '<input id="regen-prompt" type="text" placeholder="e.g. Use NFL teams, realistic scores, 2025 season data" style="width:100%;padding:.5rem;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:.85rem;box-sizing:border-box"></div>'
-    + '<div id="regen-status" style="display:none;margin-bottom:.75rem;font-family:monospace;font-size:.78rem;color:#8b949e"></div>'
+    + '<h3 style="color:var(--fg2);margin:0 0 .75rem;font-size:.95rem">Re-generate: ' + serviceName + '</h3>'
+    + '<p style="color:var(--fg3);font-size:.78rem;margin-bottom:1rem">AI will regenerate all mock data for this service. Optionally provide a prompt to customize the data.</p>'
+    + '<div style="margin-bottom:.75rem"><label style="color:var(--fg3);font-size:.78rem;display:block;margin-bottom:.25rem">Prompt (optional)</label>'
+    + '<input id="regen-prompt" type="text" placeholder="e.g. Use NFL teams, realistic scores, 2025 season data" style="width:100%;padding:.5rem;background:var(--code-bg);border:1px solid var(--border2);border-radius:6px;color:var(--fg2);font-size:.85rem;box-sizing:border-box"></div>'
+    + '<div id="regen-status" style="display:none;margin-bottom:.75rem;font-family:monospace;font-size:.78rem;color:var(--fg3)"></div>'
     + '<div style="display:flex;gap:.5rem;justify-content:flex-end">'
-    + '<button onclick="this.closest(\\'.regen-modal-overlay\\').remove()" style="background:#21262d;color:#c9d1d9;border:1px solid #30363d;padding:.4rem 1rem;border-radius:6px;cursor:pointer;font-size:.82rem">Cancel</button>'
-    + '<button id="regen-go-btn" onclick="doRegen(\\'' + serviceName + '\\',\\'' + type + '\\')" style="background:#238636;color:#fff;border:none;padding:.4rem 1rem;border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:600">Re-generate</button>'
+    + '<button onclick="this.closest(\\'.regen-modal-overlay\\').remove()" style="background:var(--bg3);color:var(--fg2);border:1px solid var(--border2);padding:.4rem 1rem;border-radius:6px;cursor:pointer;font-size:.82rem">Cancel</button>'
+    + '<button id="regen-go-btn" onclick="doRegen(\\'' + serviceName + '\\',\\'' + type + '\\')" style="background:var(--green);color:#fff;border:none;padding:.4rem 1rem;border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:600">Re-generate</button>'
     + '</div></div>';
 
   document.body.appendChild(overlay);
@@ -1458,7 +2591,7 @@ async function doRegen(serviceName, type) {
   btn.textContent = 'Generating...';
   btn.style.opacity = '0.6';
   statusEl.style.display = 'block';
-  statusEl.innerHTML = '<div style="color:#58a6ff">⏳ Finding schema for ' + serviceName + '...</div>';
+  statusEl.innerHTML = '<div style="color:var(--accent)">⏳ Finding schema for ' + serviceName + '...</div>';
 
   // Spin the sidebar icon
   const allIcons = document.querySelectorAll('.regen-icon');
@@ -1476,8 +2609,8 @@ async function doRegen(serviceName, type) {
     const schemaData = await schemaR.json();
     if (schemaData.error) throw new Error(schemaData.error);
 
-    statusEl.innerHTML += '<div style="color:#3fb950">✓ Schema loaded (' + (schemaData.schema.length/1024).toFixed(1) + ' KB)</div>';
-    statusEl.innerHTML += '<div style="color:#58a6ff">⏳ Running AI setup...</div>';
+    statusEl.innerHTML += '<div style="color:var(--green2)">✓ Schema loaded (' + (schemaData.schema.length/1024).toFixed(1) + ' KB)</div>';
+    statusEl.innerHTML += '<div style="color:var(--accent)">⏳ Running AI setup...</div>';
 
     const body = { schema: schemaData.schema, serviceName: serviceName };
     if (prompt) body.prompt = prompt;
@@ -1494,13 +2627,13 @@ async function doRegen(serviceName, type) {
     statusEl.innerHTML = '';
     (data.steps || []).forEach(function(s) {
       const icon = s.status === 'done' ? '✓' : s.status === 'warning' ? '⚠' : '○';
-      const color = s.status === 'done' ? '#3fb950' : s.status === 'warning' ? '#d29922' : '#8b949e';
+      const color = s.status === 'done' ? 'var(--green2)' : s.status === 'warning' ? 'var(--yellow)' : 'var(--fg3)';
       statusEl.innerHTML += '<div style="color:' + color + '">' + icon + ' ' + s.step + '</div>';
     });
-    statusEl.innerHTML += '<div style="color:#3fb950;font-weight:600;margin-top:.5rem">✓ Done — ' + (data.operationCount || 0) + ' operations regenerated</div>';
+    statusEl.innerHTML += '<div style="color:var(--green2);font-weight:600;margin-top:.5rem">✓ Done — ' + (data.operationCount || 0) + ' operations regenerated</div>';
 
     btn.textContent = 'Done!';
-    btn.style.background = '#23863688';
+    btn.style.background = 'color-mix(in srgb, var(--green) 50%, transparent)';
     setTimeout(function() {
       const modal = document.querySelector('.regen-modal-overlay');
       if (modal) modal.remove();
@@ -1510,7 +2643,7 @@ async function doRegen(serviceName, type) {
     lastFetch = 0;
     schemaCache = {};
   } catch (err) {
-    statusEl.innerHTML += '<div style="color:#f85149">✗ ' + err.message + '</div>';
+    statusEl.innerHTML += '<div style="color:var(--red2)">✗ ' + err.message + '</div>';
     btn.disabled = false;
     btn.textContent = 'Re-generate';
     btn.style.opacity = '1';

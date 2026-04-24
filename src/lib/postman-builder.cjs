@@ -1,13 +1,23 @@
 const { SCALAR_TYPES } = require('./graphql-utils.cjs');
 
-function buildPostmanCollection(serviceName, operationName, responseBody, fields) {
+function buildPostmanCollection(serviceName, operationName, responseBody, fields, variables) {
   const bodyStr = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody);
   const selSet = (fields && fields.length > 0) ? fields.join(' ') : '';
   const queryStr = selSet ? `${operationName} { ${selSet} }` : operationName;
   const fullQuery = `{ ${queryStr} }`;
+
+  const exampleName = variables && Object.keys(variables).length > 0
+    ? Object.values(variables).map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join('-').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 60)
+    : 'ai-injected';
+
+  const requestBody = { query: fullQuery };
+  if (variables && Object.keys(variables).length > 0) {
+    requestBody.variables = variables;
+  }
+
   return {
     info: {
-      _postman_id: `ai-inject-${serviceName}-${operationName}`,
+      _postman_id: `ai-inject-${serviceName}-${operationName}-${Date.now()}`,
       name: serviceName,
       description: `version=1.0 - AI injected example for ${operationName}`,
       schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
@@ -18,14 +28,14 @@ function buildPostmanCollection(serviceName, operationName, responseBody, fields
         method: 'POST',
         url: `http://${operationName}`,
         header: [{ key: 'Content-Type', value: 'application/json' }],
-        body: { mode: 'raw', raw: JSON.stringify({ query: fullQuery }) },
+        body: { mode: 'raw', raw: JSON.stringify(requestBody) },
       },
       response: [{
-        name: 'ai-injected',
+        name: exampleName,
         originalRequest: {
           method: 'POST',
           url: `http://${operationName}`,
-          body: { mode: 'raw', raw: JSON.stringify({ query: fullQuery }) },
+          body: { mode: 'raw', raw: JSON.stringify(requestBody) },
         },
         code: 200,
         header: [{ key: 'Content-Type', value: 'application/json' }],
@@ -38,8 +48,27 @@ function buildPostmanCollection(serviceName, operationName, responseBody, fields
 function buildSingleOpRestCollection(serviceName, operationName, responseBody, details) {
   const bodyStr = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody);
   const method = details.method || 'GET';
-  const url = details.url || `http://example.com${operationName}`;
   const statusCode = details.statusCode || 200;
+  const resolvedPath = details.resolvedPath || null;
+  const templatePath = details.templatePath || null;
+
+  let exampleName = 'ai-injected';
+  let exampleUrl = details.url || `http://example.com${operationName}`;
+
+  if (resolvedPath && templatePath) {
+    const tParts = templatePath.split('/');
+    const rParts = resolvedPath.split('/');
+    const paramValues = [];
+    for (let i = 0; i < tParts.length; i++) {
+      if (tParts[i] && tParts[i].startsWith('{') && rParts[i]) {
+        paramValues.push(rParts[i]);
+      }
+    }
+    if (paramValues.length > 0) {
+      exampleName = paramValues.join('-');
+    }
+    exampleUrl = `http://example.com${resolvedPath}`;
+  }
 
   return {
     info: {
@@ -52,14 +81,14 @@ function buildSingleOpRestCollection(serviceName, operationName, responseBody, d
       name: operationName,
       request: {
         method,
-        url,
+        url: exampleUrl,
         header: [{ key: 'Content-Type', value: 'application/json' }],
       },
       response: [{
-        name: 'ai-injected',
+        name: exampleName,
         originalRequest: {
           method,
-          url,
+          url: exampleUrl,
           header: [{ key: 'Content-Type', value: 'application/json' }],
         },
         code: statusCode,
@@ -124,6 +153,24 @@ function buildVariablesForArgs(args) {
   return vars;
 }
 
+function buildVariantVariables(baseVars, index) {
+  const variant = {};
+  for (const [key, val] of Object.entries(baseVars)) {
+    if (typeof val === 'string') {
+      variant[key] = index === 0 ? val : `${val}-${index + 1}`;
+    } else if (typeof val === 'number') {
+      variant[key] = val + index;
+    } else if (typeof val === 'boolean') {
+      variant[key] = index % 2 === 0 ? val : !val;
+    } else if (Array.isArray(val)) {
+      variant[key] = val.map(v => typeof v === 'string' ? (index === 0 ? v : `${v}-${index + 1}`) : v);
+    } else {
+      variant[key] = val;
+    }
+  }
+  return variant;
+}
+
 function buildAutoPostmanCollection(serviceName, operations, types, generatedData, version = '1.0') {
   const items = [];
 
@@ -143,9 +190,8 @@ function buildAutoPostmanCollection(serviceName, operations, types, generatedDat
     const queryStr = fieldsStr
       ? `${sigPart} { ${callPart} { ${fieldsStr} } }`
       : `${sigPart} { ${callPart} }`;
-    const variables = buildVariablesForArgs(op.args);
-
-    const bodyRaw = JSON.stringify({ query: queryStr, variables });
+    const baseVariables = buildVariablesForArgs(op.args);
+    const hasArgs = Object.keys(baseVariables).length > 0;
 
     const responseData = generatedData[op.name];
     const responses = [];
@@ -156,12 +202,14 @@ function buildAutoPostmanCollection(serviceName, operations, types, generatedDat
         const exampleBody = example && example.data
           ? JSON.stringify(example)
           : JSON.stringify({ data: { [op.name]: example } });
+        const exampleVars = hasArgs ? buildVariantVariables(baseVariables, i) : baseVariables;
+        const exampleBodyRaw = JSON.stringify({ query: queryStr, variables: exampleVars });
         responses.push({
           name: `example-${i + 1}`,
           originalRequest: {
             method: 'POST',
             url: `http://${op.name}`,
-            body: { mode: 'raw', raw: bodyRaw },
+            body: { mode: 'raw', raw: exampleBodyRaw },
           },
           code: 200,
           header: [{ key: 'Content-Type', value: 'application/json' }],
@@ -182,7 +230,7 @@ function buildAutoPostmanCollection(serviceName, operations, types, generatedDat
         originalRequest: {
           method: 'POST',
           url: `http://${op.name}`,
-          body: { mode: 'raw', raw: bodyRaw },
+          body: { mode: 'raw', raw: JSON.stringify({ query: queryStr, variables: baseVariables }) },
         },
         code: 200,
         header: [{ key: 'Content-Type', value: 'application/json' }],
@@ -190,13 +238,14 @@ function buildAutoPostmanCollection(serviceName, operations, types, generatedDat
       });
     }
 
+    const defaultBodyRaw = JSON.stringify({ query: queryStr, variables: baseVariables });
     items.push({
       name: op.name,
       request: {
         method: 'POST',
         url: `http://${op.name}`,
         header: [{ key: 'Content-Type', value: 'application/json' }],
-        body: { mode: 'raw', raw: bodyRaw },
+        body: { mode: 'raw', raw: defaultBodyRaw },
       },
       response: responses,
     });
@@ -213,29 +262,58 @@ function buildAutoPostmanCollection(serviceName, operations, types, generatedDat
   };
 }
 
+function extractPathParamValue(dataItem, paramName) {
+  if (!dataItem || typeof dataItem !== 'object') return null;
+  if (dataItem._pathParams && typeof dataItem._pathParams === 'object' && dataItem._pathParams[paramName]) {
+    return String(dataItem._pathParams[paramName]);
+  }
+  if (typeof dataItem[paramName] === 'string' && !dataItem[paramName].includes('://')) {
+    return dataItem[paramName];
+  }
+  return null;
+}
+
+function sanitizeForUrl(val) {
+  return val.replace(/[^a-zA-Z0-9._~-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+}
+
+function stripPathParams(dataItem) {
+  if (!dataItem || !dataItem._pathParams) return dataItem;
+  const copy = Object.assign({}, dataItem);
+  delete copy._pathParams;
+  return copy;
+}
+
 function buildRestPostmanCollection(serviceName, version, operations, generatedData) {
   const items = [];
   for (const op of operations) {
     const responses = [];
     const data = generatedData[op.name];
 
-    // Extract path parameter names (e.g. {id}, {userId})
     const pathParams = [];
     op.path.replace(/\{(\w+)\}/g, (_, name) => { pathParams.push(name); });
 
     if (Array.isArray(data) && data.length > 0) {
       for (let i = 0; i < data.length; i++) {
         let exampleUrl = op.path;
+        const paramValues = [];
         for (const param of pathParams) {
-          const val = (data[i] && data[i][param]) || `val-${i + 1}`;
+          let val = extractPathParamValue(data[i], param);
+          if (!val) val = `val-${i + 1}`;
+          val = sanitizeForUrl(val);
           exampleUrl = exampleUrl.replace(`{${param}}`, val);
+          paramValues.push(val);
         }
+        const exName = paramValues.length > 0
+          ? paramValues.join('-')
+          : `example-${i + 1}`;
+        const cleanData = stripPathParams(data[i]);
         responses.push({
-          name: `example-${i + 1}`,
+          name: exName,
           originalRequest: { method: op.method, url: exampleUrl },
           code: op.responseCode,
           header: [{ key: 'Content-Type', value: 'application/json' }],
-          body: JSON.stringify(data[i]),
+          body: JSON.stringify(cleanData),
         });
       }
     } else {
@@ -243,12 +321,13 @@ function buildRestPostmanCollection(serviceName, version, operations, generatedD
       for (const param of pathParams) {
         exampleUrl = exampleUrl.replace(`{${param}}`, 'default');
       }
+      const cleanData = stripPathParams(data);
       responses.push({
-        name: 'ai-generated',
+        name: 'default',
         originalRequest: { method: op.method, url: exampleUrl },
         code: op.responseCode,
         header: [{ key: 'Content-Type', value: 'application/json' }],
-        body: JSON.stringify(data || {}),
+        body: JSON.stringify(cleanData || {}),
       });
     }
 
@@ -283,12 +362,22 @@ function injectExamplesIntoOpenAPI(spec, operations, generatedData) {
     const data = generatedData[op.name];
     if (!data) continue;
 
-    // Add FALLBACK dispatcher so any parameter values return a response
     const pathParams = [];
     op.path.replace(/\{(\w+)\}/g, (_, name) => { pathParams.push(name); });
     const queryParams = (op.parameters || [])
       .filter(p => p.in === 'query')
       .map(p => p.name);
+
+    let firstExampleName = 'default';
+    if (pathParams.length > 0 && Array.isArray(data) && data.length > 0) {
+      const vals = [];
+      for (const param of pathParams) {
+        let v = extractPathParamValue(data[0], param);
+        if (!v) v = 'val-1';
+        vals.push(sanitizeForUrl(v));
+      }
+      firstExampleName = vals.join('-');
+    }
 
     if (pathParams.length > 0) {
       methodDef['x-microcks-operation'] = {
@@ -296,7 +385,7 @@ function injectExamplesIntoOpenAPI(spec, operations, generatedData) {
         dispatcherRules: JSON.stringify({
           dispatcher: 'URI_PARTS',
           dispatcherRules: pathParams.join(' && '),
-          fallback: 'example-1',
+          fallback: firstExampleName,
         }),
       };
     } else if (queryParams.length > 0) {
@@ -305,30 +394,15 @@ function injectExamplesIntoOpenAPI(spec, operations, generatedData) {
         dispatcherRules: JSON.stringify({
           dispatcher: 'URI_PARAMS',
           dispatcherRules: queryParams.join(' && '),
-          fallback: 'example-1',
+          fallback: firstExampleName,
         }),
       };
     } else {
       methodDef['x-microcks-operation'] = {
         dispatcher: 'FALLBACK',
-        dispatcherRules: JSON.stringify({ fallback: 'example-1' }),
+        dispatcherRules: JSON.stringify({ fallback: firstExampleName }),
       };
     }
-
-    const successCode = String(op.responseCode);
-    if (!methodDef.responses) methodDef.responses = {};
-    if (!methodDef.responses[successCode]) methodDef.responses[successCode] = { description: 'OK' };
-    const resp = methodDef.responses[successCode];
-    if (!resp.content) resp.content = { 'application/json': {} };
-    const ct = resp.content['application/json'] || (resp.content[Object.keys(resp.content)[0]]);
-
-    const examples = {};
-    if (Array.isArray(data)) {
-      data.forEach((d, i) => { examples[`example-${i + 1}`] = { summary: `AI generated example ${i + 1}`, value: d }; });
-    } else {
-      examples['example-1'] = { summary: 'AI generated example', value: data };
-    }
-    ct.examples = examples;
   }
   return updated;
 }

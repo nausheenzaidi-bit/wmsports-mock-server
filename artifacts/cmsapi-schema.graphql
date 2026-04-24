@@ -1,0 +1,1460 @@
+# microcksId: cmsAPI : 1.0
+directive @cacheControl(maxAge: Int, scope: CacheControlScope, inheritMaxAge: Boolean) on FIELD_DEFINITION | OBJECT | INTERFACE | UNION
+
+directive @context(name: String!) repeatable on INTERFACE | OBJECT | UNION
+
+directive @fromContext(field: ContextFieldValue) on ARGUMENT_DEFINITION
+
+directive @oneOf on INPUT_OBJECT
+
+directive @hashKey(from: [String]) on OBJECT
+
+extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@shareable", "@external", "@requires", "@inaccessible", "@override"]) {
+  query: Query
+}
+
+scalar ContextFieldValue
+
+enum CacheControlScope {
+  PUBLIC
+  PRIVATE
+}
+
+type Query {
+  """getArticleByCmsId | CMS API"""
+  getArticleByCmsId(cmsId: String, tenant: Tenant!, publishedOnly: Boolean = true): Article
+  """getArticleByUUID | CMS API"""
+  getArticleByUUID(uuid: String, tenant: Tenant!, publishedOnly: Boolean = true): Article
+  """getArticleByDisplayId | CMS API"""
+  getArticleByDisplayId(
+    """The display id of the article"""
+    displayId: Int!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): Article
+  """getArticleBySlug | CMS API"""
+  getArticleBySlug(slug: String, tenant: Tenant!, publishedOnly: Boolean = true): Article
+  """getAllArticles | CMS API"""
+  getAllArticles(tenant: Tenant!, publishedOnly: Boolean = true, before: String, after: String, limit: Int, skip: Int, searchParams: ArticleFindManyParametersInput, sort: ContentLibrarySortParametersInput): ArticleConnection
+  """getAllVideos | CMS API"""
+  getAllVideos(limit: Int = 25, order: String = "asc", skip: Int = 0, videoFilters: VideoFiltersInput, tenant: Tenant!, publishedOnly: Boolean = true): [Video]
+  """getVideosByEventId | CMS API"""
+  getVideosByEventId(
+    """
+    The expected value is the Sport Radar ID of the Event (ex. `sr:match:1234`).
+    """
+    eventId: String
+    limit: Int = 25
+    order: String = "asc"
+    skip: Int = 0
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): [Video]
+  """getVideoById | CMS API"""
+  getVideoById(id: String, tenant: Tenant!, publishedOnly: Boolean = true): Video
+  """getVideoByCmsId | CMS API"""
+  getVideoByCmsId(cmsId: String, limit: Int = 25, skip: Int = 0, tenant: Tenant!, publishedOnly: Boolean = true): Video
+  """getVideosByTeamId | CMS API"""
+  getVideosByTeamId(
+    """
+    The expected value is the Sport Radar ID of the Team (ex. `sr:competitor:1234`).
+    """
+    teamId: String
+    limit: Int = 25
+    order: String = "desc"
+    skip: Int = 0
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): [Video]
+  """getPageByUri | CMS API"""
+  getPageByUri(uri: String!, componentFilters: PageComponentFiltersInput, tenant: Tenant!, publishedOnly: Boolean = true): Page
+  """getAllPlaylists | CMS API"""
+  getAllPlaylists(tenant: Tenant!, publishedOnly: Boolean = true): [Playlist]
+  """getPlaylistById | CMS API"""
+  getPlaylistById(id: String, tenant: Tenant!, publishedOnly: Boolean = true): Playlist
+  """getPlaylistByCmsId | CMS API"""
+  getPlaylistByCmsId(cmsId: String, tenant: Tenant!, publishedOnly: Boolean = true): Playlist
+  """getPlaylistByEventId | CMS API"""
+  getPlaylistByEventId(
+    tenant: Tenant!
+    """
+    The expected value is the Sport Radar ID of the Event (ex. `sr:match:123`). **NOT** the LET ID.
+    """
+    eventId: String
+    publishedOnly: Boolean = true
+  ): Playlist
+  """getTaxonomyByIdAndType | CMS API"""
+  getTaxonomyByIdAndType(id: String!, type: TaxonomyType!, tenant: Tenant!, publishedOnly: Boolean = true): TaxonomyTerm
+  """getAllMenus | CMS API"""
+  getAllMenus(tenant: Tenant!, publishedOnly: Boolean = true): [Menu]
+  """getMenuById | CMS API"""
+  getMenuById(
+    """The **text** ID of the Menu. This is an ID such as `main` or `footer`."""
+    id: String
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): Menu
+  """getConfigJsonByUri | CMS API"""
+  getConfigJsonByUri(uri: String!, tenant: Tenant!, publishedOnly: Boolean = true): ConfigJson
+  """getTagByForeignId | CMS API"""
+  getTagByForeignId(
+    """The foreign ID to look up matching tags"""
+    foreignId: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): TagV2
+  """getTagByForeignIds | CMS API"""
+  getTagByForeignIds(
+    """A list of foreign IDs to look up matching tags"""
+    foreignIds: [String!]!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): [TagV2]
+  """getTagByUUID | CMS API"""
+  getTagByUUID(
+    """The UUID of the Tag"""
+    uuid: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): TagV2
+  """getTagBySlugs | CMS API"""
+  getTagBySlugs(
+    """A list of slugs to lookup matching tags"""
+    slugs: [String!]!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): [TagV2]
+  """tags | CMS API"""
+  tags(tagParams: TagsQueryInput!, paginationControl: PaginationControlInput, tenant: Tenant!, publishedOnly: Boolean = true): TagV2Connection @cacheControl(maxAge: 300)
+  """getTagGroupByUUID | CMS API"""
+  getTagGroupByUUID(
+    """The UUID of the Tag Group"""
+    uuid: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): TagGroup
+  """getTagGroupsBySlugs | CMS API"""
+  getTagGroupsBySlugs(
+    """A list of slugs to lookup matching tag groups"""
+    slugs: [String!]!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): [TagGroup]
+  """getChannelByCmsId | CMS API"""
+  getChannelByCmsId(cmsId: String, tenant: Tenant!, publishedOnly: Boolean = true): Channel
+  """getChannelByTagUUID | CMS API"""
+  getChannelByTagUUID(
+    """The UUID of the Tag (TagV2) of the Channel"""
+    tagUUID: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): Channel @cacheControl(maxAge: 30)
+  """getChannelByUUID | CMS API"""
+  getChannelByUUID(
+    """The UUID of the Channel"""
+    uuid: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): Channel
+  """getChannelBySlug | CMS API"""
+  getChannelBySlug(
+    """The slug of the Tag (TagV2) of the Channel"""
+    slug: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): Channel @cacheControl(maxAge: 30)
+  """getAllVideosV2 | CMS API"""
+  getAllVideosV2(playable: Boolean, contentType: VideoContentType, videoType: VideoType, tag: String, tenant: Tenant!, publishedOnly: Boolean = true): [VideoV2]
+  """getVideoV2ByCmsId | CMS API"""
+  getVideoV2ByCmsId(cmsId: String, tenant: Tenant!, publishedOnly: Boolean = true): VideoV2
+  """getVideoV2ById | CMS API"""
+  getVideoV2ById(
+    """Search by eventId"""
+    eventId: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): VideoV2
+  """getVideoV2ByEditId | CMS API"""
+  getVideoV2ByEditId(
+    """search by Offering.editId"""
+    editId: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): VideoV2
+  """getVideoV2TagIdsFromEventIds | CMS API"""
+  getVideoV2TagIdsFromEventIds(
+    """List of VideoV2 eventIds to resolve tag ids for"""
+    eventIds: [String!]!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): [VideoV2TagIds!] @deprecated(reason: "No longer in use")
+  """searchTagByMatchTerm | CMS API"""
+  searchTagByMatchTerm(searchParams: TagSearchParamsInput, tenant: Tenant!, publishedOnly: Boolean = true): [TagV2!]! @cacheControl(maxAge: 30)
+  """searchTagByMatchTermInternal | CMS API"""
+  searchTagByMatchTermInternal(searchParams: TagSearchParamsInput, tenant: Tenant!, publishedOnly: Boolean = true): [TagV2!]! @cacheControl(maxAge: 30)
+  """searchContentLibrary | CMS API"""
+  searchContentLibrary(tenant: Tenant!, publishedOnly: Boolean = true, searchParams: ContentLibrarySearchParametersInput, sort: ContentLibrarySortParametersInput): [ContentLibrarySearchResult] @cacheControl(maxAge: 60)
+  """findContentBrandBySourceUrl | CMS API"""
+  findContentBrandBySourceUrl(
+    """
+    The source identifier (typically a base url such as si.com) to find a matching ContentBrand for
+    """
+    source: String!
+    tenant: Tenant!
+    publishedOnly: Boolean = true
+  ): ContentBrand @cacheControl(maxAge: 86400)
+  getHelloWorld: String @deprecated(reason: "No longer needed")
+}
+
+"""
+The `ComponentCursor` scalar type is a base64 encoded string that represents an opaque and unique identifier for Page components.
+"""
+scalar ComponentCursor
+
+scalar Date
+
+"""
+The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](https://en.wikipedia.org/wiki/IEEE_floating_point).
+"""
+scalar Float
+
+"""
+The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `"4"`) or integer (such as `4`) input value will be accepted as an ID.
+"""
+scalar ID
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSON
+
+"""
+The `ID` scalar type represents a unique MongoDB identifier in collection. MongoDB by default use 12-byte ObjectId value (https://docs.mongodb.com/manual/reference/bson-types/#objectid). But MongoDB also may accepts string or integer as correct values for _id field.
+"""
+scalar MongoID
+
+enum ArticleType {
+  ARTICLE
+  SLIDESHOW
+}
+
+enum ChannelType {
+  League
+  SmallTeam
+  PopularTeam
+  Interest
+  GameCast
+  Home
+  Following
+  FollowingAddTags
+  Alerts
+  Discovery
+  Creator
+  User
+  Onboarding
+  OnboardingAddTags
+  Scores
+}
+
+enum ContentLibrarySortDirection {
+  ASC
+  DESC
+}
+
+enum ContentSearchType {
+  Article
+  Tweet
+  VideoV2
+}
+
+enum CreatorTier {
+  Platinum
+  Gold
+  Silver
+  Bronze
+}
+
+enum EnumTagGroupType {
+  Suggested
+  Location
+  Programming
+  League
+}
+
+enum EnumTagV2ChannelState {
+  PreGame
+  LiveGame
+  PostGame
+  Standard
+}
+
+enum GameState {
+  PreGame
+  LiveGame
+  PostGame
+  Standard
+}
+
+enum SearchSource {
+  TITLE
+  USERNAME
+  XPOST
+  XAUTHOR
+}
+
+enum SemanticID {
+  StatsGamecast
+  StatsScoreboard
+  StatsScorecard
+  StatsBetting
+  StatsVenue
+  StatsInjuryReport
+  StatsLiveOdds
+  StatsSeasonPerformance
+  StatsLeagueRankings
+  StatsGameInfo
+  StatsPreviousMeetings
+  StatsLineScore
+  StatsPlayPreview
+  StatsPlaySummary
+  StatsMatchTimeline
+  StatsDriveChart
+  StatsBaseball
+  StatsPlays
+  StatsGameStats
+  StatsTeamComparison
+  StatsOdds
+  StatsSeasonLeaders
+  StatsPlayersOnIce
+  StatsHockeyGameState
+  StatsPitchingInfo
+  StatsLineup
+  StatsSubstitutions
+  StatsStandings
+  StatsScores
+  StatsSchedule
+  StatsMoneyline
+  StatsTotalPoints
+  StatsSpread
+  StatsScoringPlays
+  StatsDrawNoBet
+  Header
+  UserHeader
+  SearchBar
+  Chat
+  ExternalLink
+  TrendingClips
+  Ads
+  TagFollowing
+  TagRecommended
+  TagOnboarding
+  TagSearch
+  ContentPremiumVideo
+  ContentSocialFeed
+  ContentCommunityFeed
+  ContentHighlights
+  ContentFullGameHighlights
+  ContentChannelFeed
+  ContentWhatsBuzzing
+  ContentTopHeadlines
+  ContentTrendingVideos
+  UgcFromTheFans
+  UgcFeed
+  UgcPosts
+  UgcComments
+  Dummy
+  AlertFollowingFeed
+  AlertActivitiesFeed
+  LiveAndUpcoming
+  LiveNow
+  LiveUpcoming
+  ContentHomeLandscape
+  ContentHomePortraitCollection
+  ContentHomeHeadlines
+  ContentHomeCommunityCollections
+  ContentShortGameHighlights
+  ContentTrendingBets
+  RecForYou
+  RecYouMightLike
+  RecCreatorsInYourCommunities
+  RecMostFollowedTeams
+  RecMostFollowedLeagues
+  RecTopInterests
+  RecTopCreators
+  RecRelatedCommunities
+  StatsPlayerStats
+  StatsScoresStrip
+  StatsThreeWayMoneyline
+  StatsHeadToHead
+  StatsPlayerProp
+  StatsPodium
+  StatsPodiumEntry
+  StatsRaceInfo
+  AffiliateWatchBanner
+}
+
+enum SemanticType {
+  AdsData
+  ContentModuleData
+  StatsData
+  SocialData
+  StatsPlaceholder
+  TagData
+  UserData
+  AlertData
+  Default
+  RecommendationData
+}
+
+enum TagTypeV2 {
+  Conference
+  Creator
+  Division
+  Editor
+  Editorial
+  Event
+  GameCast
+  Interest
+  League
+  Page
+  Player
+  Person
+  Sport
+  Team
+}
+
+enum TaxonomyType {
+  seriesTaxonomy
+  showTaxonomy
+}
+
+enum Tenant {
+  aewGame
+  bleacherReport
+  estadioArgentina
+  estadioBrazil
+  estadioChile
+  ncaa
+}
+
+enum VideoContentType {
+  CONTENT_TYPE_UNSPECIFIED
+  CONTENT_TYPE_VOD
+  CONTENT_TYPE_LIVE
+  CONTENT_TYPE_FULL_EVENT_REPLAY
+  CONTENT_TYPE_START_OVER
+  CONTENT_TYPE_ADVERTISEMENT
+  CONTENT_TYPE_CLIP
+  CONTENT_TYPE_QUICKVOD
+}
+
+enum VideoContentTypeFilter {
+  FULL_LENGTH
+  CLIP
+}
+
+enum VideoState {
+  UPCOMING
+  LIVE
+  ENDED
+  VOD
+}
+
+enum VideoType {
+  VIDEO_TYPE_CLIP
+  VIDEO_TYPE_EPISODE
+  VIDEO_TYPE_LIVE
+  VIDEO_TYPE_MOVIE
+  VIDEO_TYPE_PROMO
+  VIDEO_TYPE_STANDALONE
+  VIDEO_TYPE_STANDALONE_EVENT
+  VIDEO_TYPE_TRAILER
+  VIDEO_TYPE_UNSPECIFIED
+}
+
+union ContentLibrarySearchResult = Article | VideoV2 | Tweet
+
+type Action {
+  download: Allowed
+  list: Allowed
+  play: Allowed
+}
+
+type AllowAll {
+  allowAll: Boolean
+}
+
+type Allowed {
+  allowed: Boolean
+}
+
+type Article @key(fields: "uuid") @key(fields: "hash") @cacheControl(maxAge: 120) {
+  schemaVersion: String
+  uuid: String!
+  cmsId: String!
+  tenant: String
+  contentType: String!
+  contentSubtype: String
+  created: String @deprecated(reason: "use field createdAt which is a correctly typed Date")
+  changed: String @deprecated(reason: "use field updatedAt which is a correctly typed Date")
+  publishedDateTime: Date
+  isPublished: Boolean!
+  isDeleted: Boolean @inaccessible
+  isAdSensitive: Boolean
+  isEvergreen: Boolean
+  isPtScheduled: Boolean
+  hideBetModule: Boolean
+  title: String!
+  language: String
+  displayId: Int
+  legacy: Boolean
+  primaryTag: TagV2!
+  image: Image
+  metatags: [PageMetatags]
+  description: String
+  slug: String
+  ampUrl: String
+  tags: [TagV2]
+  betTags: [TagV2]
+  containsGeoblockedContent: Boolean
+  author: ArticleAuthor
+  slides: [Slide]
+  createdAt: Date
+  updatedAt: Date
+  _id: MongoID!
+  hash: String
+}
+
+type ArticleAuthor {
+  id: String
+  name: String
+  photoUrl: String
+  title: String
+  socialMediaHandles: [SocialMediaHandle]
+}
+
+type ArticleConnection {
+  """The total number of items *found* by the search"""
+  totalFound: Int!
+  """The total number of items *returned* by the search"""
+  totalReturned: Int!
+  edges: [ArticleEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ArticleEdge {
+  cursor: String!
+  node: Article!
+}
+
+type BillingOrder {
+  scope: String
+  value: Int
+}
+
+type Brand {
+  id: Identifier
+  primary: Boolean
+}
+
+type Channel @key(fields: "uuid") @cacheControl(maxAge: 30) {
+  schemaVersion: String
+  isDeleted: Boolean @inaccessible
+  tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  language: String
+  title: String
+  headline: String
+  type: ChannelType
+  tag: TagV2!
+  isTemplate: Boolean
+  created: String @deprecated(reason: "use field createdAt which is a correctly typed Date")
+  changed: String @deprecated(reason: "use field updatedAt which is a correctly typed Date")
+  createdAt: Date
+  updatedAt: Date
+  metatags: [PageMetatags]
+  gameState: GameState
+  components: [ChannelComponent]!
+  groupings(
+    """The groupHeader id string to filter by"""
+    filter: String
+  ): [Grouping]
+  groupingList: [GroupingHeader]
+  _id: MongoID!
+}
+
+type ChannelComponent @key(fields: "uuid") @cacheControl(inheritMaxAge: true) {
+  tagUUID: String
+  tagSlug: String
+  tagType: String
+  semanticID: SemanticID
+  semanticType: SemanticType
+  isDomesticOnly: Boolean
+  weight: Int
+  headline: String
+  subheadline: String
+  description: String
+  uuid: String!
+  link: Link
+  images: [ImageWithStyle]
+  interlacingInterval: Int
+  tagData: [TagV2]
+  watchInfo(
+    """
+    Optionally specify a specific affiliate to return. If omitted all affiliates will be returned
+    """
+    providerName: String
+  ): [WatchInfo]
+}
+
+type ChannelStreamMetaData @key(fields: "id") @cacheControl(inheritMaxAge: true) {
+  id: String
+  semanticID: SemanticID
+  tagUUID: String
+  weight: Float
+  _id: MongoID
+}
+
+type Component @cacheControl(inheritMaxAge: true) @key(fields: "type") {
+  type: String
+  weight: Float
+  headline: String
+  subheadline: String
+  description: String
+  startTime: Date
+  endTime: Date
+  link: Link
+  id: String
+  uuid: String!
+  format: String
+  orientation: String
+  isFavoriteTeam: Boolean
+  image: Image
+  images: [ImageWithStyle]
+  content: [Content]
+  _id: MongoID
+}
+
+type ComponentEdge @cacheControl(inheritMaxAge: true) {
+  cursor: ComponentCursor!
+  node: Component!
+}
+
+type ComponentsConnection @cacheControl(inheritMaxAge: true) {
+  totalCount: Int!
+  edges: [ComponentEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ConfigJson @key(fields: "_id") @cacheControl(maxAge: 30) {
+  schemaVersion: String
+  tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  language: String
+  title: String
+  created: String
+  changed: String
+  uri: String!
+  jsonBlob: String
+  _id: MongoID!
+}
+
+type Content @hashKey(from: ["allowedTypes", "filters", "sort", "series", "event", "liveChannel", "league", "tournament", "team", "clip"]) @key(fields: "hash") @cacheControl(inheritMaxAge: true) {
+  hash: String
+  weight: Float
+  allowedTypes: [String]
+  filters: ContentFilters
+  sort: ContentSort
+  clip: String @deprecated(reason: "This field will be removed. Please use the \"clips\" (plural) field to get Video entity data")
+  event: String @deprecated(reason: "This field is deprecated. Please use the \"events\" (plural) field to get the full Event entity")
+  liveStream: String
+  league: String
+  tournament: String @deprecated(reason: "This field is deprecated. Please use the \"tournaments\" (plural) field to get the full Tournament entity")
+  team: String @deprecated(reason: "This field is deprecated. Please use the \"teams\" (plural) field to get the full Competitor entity")
+  product: [Product]
+  form: ContentForm
+  show: ContentShow
+  image: Image
+  item: Item
+  stream: StreamMetaData
+  channelStream: ChannelStreamMetaData
+  _id: MongoID
+  clips: [Video]
+}
+
+"""The Brand or Source for content. Primarily for External Articles"""
+type ContentBrand @key(fields: "source") @cacheControl(maxAge: 86400) {
+  tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  isDeleted: Boolean
+  language: String
+  brandSourceUrls: [String]
+  isPartner: Boolean
+  logos: [ImageWithStyle]
+  name: String!
+  source: String!
+}
+
+type ContentFilters {
+  isFavoriteTeam: Boolean
+  maxItems: Float
+  status: [String]
+  timeWindow: [Float]
+  shows: [String]
+  collections: [String]
+  tags: [String]
+  _id: MongoID
+}
+
+type ContentForm {
+  element: FormElement
+}
+
+type ContentShow {
+  id: String
+  title: String
+  image: Image
+  weight: Float
+  _id: MongoID
+}
+
+type ContentSort {
+  field: String
+  order: String
+}
+
+type Credit {
+  billingOrders: [BillingOrder]
+  id: String
+  personId: ID
+  role: String
+}
+
+type Element @cacheControl(inheritMaxAge: true) {
+  content: ElementContent
+  contentType: String
+  order: Int
+}
+
+type ElementContent @cacheControl(inheritMaxAge: true) {
+  html: String
+  media: VideoV2
+  image: Image
+  url: String
+  wordCount: Float
+}
+
+type FollowingMetadata @key(fields: "uuid") {
+  primaryLabel: String
+  secondaryLabel: String
+  chipLabel: String
+  categoryLogo: Image
+  uuid: String!
+}
+
+type FormElement {
+  weight: Float
+  type: String
+  headline: String
+  options: JSON
+  _id: MongoID
+}
+
+type Grouping @cacheControl(inheritMaxAge: true) {
+  header: GroupingHeader
+  components: [ChannelComponent]
+}
+
+type GroupingHeader @cacheControl(inheritMaxAge: true) @key(fields: "id slug") {
+  id: String
+  title: String
+  isDefault: Boolean
+  isDomesticOnly: Boolean
+  applicableGameStates: [GameState]
+  image: Image
+  """GameCast slug for this GroupingHeader"""
+  slug: String
+  """GameCast start time for this GroupingHeader"""
+  gameStartTime: Date
+  """GameCast end time for this GroupingHeader"""
+  gameEndTime: Date
+}
+
+type Identifier {
+  id: String
+  namespace: String
+}
+
+type Image @cacheControl(inheritMaxAge: true) {
+  url: String!
+  alt: String
+  width: String
+  height: String
+  focalPointX: Float
+  focalPointY: Float
+  accreditation: String
+  caption: String
+  copyright: String
+  _id: MongoID
+}
+
+type ImageWithStyle @cacheControl(inheritMaxAge: true) {
+  image: Image
+  style: String
+  type: String
+  _id: MongoID
+}
+
+type Item {
+  headline: String
+  subheadline: String
+  description: String
+  style: String
+  link: Link
+  startTime: Date
+  endTime: Date
+  images: [ImageWithStyle]
+  _id: MongoID
+}
+
+type Limitation {
+  adPlacement: AllowAll
+  audioLanguage: AllowAll
+  technicalQuality: AllowAll
+  textLanguage: AllowAll
+}
+
+type Link {
+  uri: String
+  text: String
+  _id: MongoID
+}
+
+type Localization {
+  value: String
+  language: String
+}
+
+type Media {
+  image: Image
+  clip: String
+  _id: MongoID
+}
+
+type Menu @cacheControl(maxAge: 30) {
+  schemaVersion: String!
+  tenant: String!
+  uuid: String
+  cmsId: String
+  isPublished: Boolean
+  language: String!
+  id: String!
+  title: String!
+  links: [MenuLinks]
+  _id: MongoID!
+}
+
+type MenuLinks @cacheControl(inheritMaxAge: true) {
+  text: String!
+  url: String
+  weight: String!
+  tagGroups: [TagGroup]
+  tags: [TagV2]
+  options: MenuOptions
+  _id: MongoID
+  children: [MenuLinks]
+}
+
+type MenuOptions @cacheControl(inheritMaxAge: true) {
+  target: String
+  expanded: Boolean
+  images: [ImageWithStyle]
+  routes: [MenuRoutes]
+  attributes: MenuOptionsAttributes
+  _id: MongoID
+}
+
+type MenuOptionsAttributes @cacheControl(inheritMaxAge: true) {
+  title: String
+  class: [String]
+}
+
+type MenuRoutes @cacheControl(inheritMaxAge: true) {
+  id: String
+  path: String
+  title: String
+  _id: MongoID
+}
+
+type Offering {
+  id: String
+  contentClass: String
+  contentId: String
+  editId: String @cacheControl(maxAge: 10)
+  actions: Action
+  alternateIds: [Identifier]
+  appNames: VideoAppName
+  brands: [Brand]
+  limitations: Limitation
+  packages: [String]
+  platforms: AllowAll
+  productLines: [ProductLine]
+  territories: [String]
+  startDate: String
+  createdDateTime: String
+  endDate: String
+  firstAvailableDate: String
+  lastModifiedDateTime: String
+}
+
+type Page @key(fields: "_id") @cacheControl(maxAge: 30) {
+  schemaVersion: String
+  tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  language: String
+  type: String
+  uri: String!
+  title: String
+  headline: String
+  body: PageBody
+  created: String
+  changed: String
+  metatags: [PageMetatags]
+  components: [Component] @deprecated(reason: "This field will be removed. Please use the \"componentsConnection\" field which provides support for component pagination")
+  _id: MongoID!
+  componentsConnection(before: ComponentCursor, after: ComponentCursor, first: Int, last: Int): ComponentsConnection!
+}
+
+type PageBody {
+  value: String
+  summary: String
+  format: String
+  _id: MongoID
+}
+
+"""  PageInfo in this context provides metadata for **pagination** It is not related to the Page type.
+"""
+type PageInfo @shareable @cacheControl(inheritMaxAge: true) {
+  hasNextPage: Boolean
+  hasPreviousPage: Boolean
+  startCursor: String
+  endCursor: String
+}
+
+type PageMetatags @cacheControl(inheritMaxAge: true) {
+  type: String
+  key: String
+  content: String
+  _id: MongoID
+}
+
+type Playlist @cacheControl(maxAge: 30) {
+  schemaVersion: String
+  tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  language: String
+  title: String
+  headline: String
+  type: String
+  created: String
+  changed: String
+  tagging: Tagging
+  media: [Media]
+  _id: MongoID!
+}
+
+type Product {
+  weight: Float
+  productId: String
+  cta: String
+  price: String
+  headline: String
+  subHeadline: String
+  disclaimer: String
+  isPayPalEnabled: Boolean
+  _id: MongoID
+}
+
+type ProductLine {
+  id: Identifier
+  label: String
+}
+
+type Program {
+  id: String
+  entityClass: String
+  entityType: String
+  titles: [VideoTitle]
+  alternateIds: [Identifier]
+  credits: [Credit]
+  ratings: [Rating]
+  taxonomyReferenceGroups: [TaxonomyReferenceGroup]
+  createdDateTime: String
+  lastModifiedDateTime: String
+}
+
+type Rating {
+  classifier: String
+  contentDescriptors: [String]
+  ratingAuthority: String
+}
+
+type Slide @cacheControl(inheritMaxAge: true) {
+  id: Int
+  slideNumber: Int
+  title: String!
+  featuredMedia: Element!
+  elements: [Element]
+}
+
+type SocialMediaHandle {
+  platform: String
+  handle: String
+}
+
+type StreamMetaData @key(fields: "id") @cacheControl(inheritMaxAge: true) {
+  id: String
+  headline: String
+  subtype: String
+  weight: Float
+  _id: MongoID
+}
+
+type Tagging {
+  tags: [String]
+  shows: [String]
+  _id: MongoID
+  events: [Event]
+  tournaments: [Tournament]
+  competitors: [Competitor]
+}
+
+type TagGroup {
+  schemaVersion: String
+  isDeleted: Boolean @inaccessible
+  tenant: String
+  uuid: String!
+  cmsId: String
+  isPublished: Boolean
+  language: String
+  slug: String!
+  displayName: String
+  children: [TagV2]
+  type: EnumTagGroupType!
+  _id: MongoID!
+}
+
+type TagV2 @key(fields: "uuid") @key(fields: "slug") @key(fields: "hash") {
+  schemaVersion: String
+  isDeleted: Boolean @inaccessible
+  tenant: String
+  uuid: String!
+  cmsId: String
+  foreignId: String
+  isPublished: Boolean
+  language: String
+  slug: String!
+  type: TagTypeV2
+  displayName: String
+  description: String
+  shortName: String
+  abbreviation: String
+  eyebrow: String
+  ticketLink: String
+  isChannel: Boolean
+  isFeatured: Boolean
+  gameStatus: String
+  channelState: EnumTagV2ChannelState
+  logo: Image
+  followingMetadata: FollowingMetadata @shareable
+  startTime: Date
+  endTime: Date
+  changed: String @deprecated(reason: "use field updatedAt which is a correctly typed Date")
+  updatedAt: Date
+  root: TagV2
+  parent: TagV2
+  parents: [TagV2]
+  children: [TagV2]
+  colorPrimary: String
+  colorSecondary: String
+  isVisibleContentTool: Boolean
+  isVisibleProgrammingTool: Boolean
+  creatorTier: CreatorTier
+  _id: MongoID!
+  hash: String
+  watchInfo(
+    """
+    Optionally specify a specific affiliate to return. If omitted all affiliates will be returned
+    """
+    providerName: String
+  ): [WatchInfo]
+  menu: Menu
+  locationRelatedTags: [TagV2]
+}
+
+type TagV2Connection @cacheControl(inheritMaxAge: true) {
+  totalCount: Int!
+  edges: [TagV2Edge!]!
+  pageInfo: PageInfo!
+}
+
+type TagV2Edge @cacheControl(inheritMaxAge: true) {
+  cursor: ComponentCursor!
+  node: TagV2!
+}
+
+type TaxonomyReference {
+  taxonomyId: Identifier
+}
+
+type TaxonomyReferenceGroup {
+  kind: String
+  taxonomyReferences: [TaxonomyReference]
+}
+
+type TaxonomyTerm @cacheControl(maxAge: 30) {
+  schemaVersion: String
+  tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  language: String
+  type: String
+  id: String!
+  parentId: String
+  name: String
+  description: String
+  created: String
+  changed: String
+  sportsRadarId: String
+  tournamentId: String
+  year: String
+  image: Image
+  _id: MongoID!
+}
+
+type Tweet @key(fields: "id", resolvable: false) {
+  id: ID!
+}
+
+type Video @key(fields: "_id") @cacheControl(maxAge: 30) {
+  schemaVersion: String
+  tenant: String
+  uuid: String!
+  cmsId: String!
+  isPublished: Boolean
+  language: String
+  thumbnail: String
+  mediaId: String
+  title: String
+  headline: String
+  subHeadline: String
+  duration: String
+  cardLabel: String
+  sortDate: String
+  collectionName: String
+  episodeNumber: String
+  tagging: Tagging
+  created: String
+  changed: String
+  _id: MongoID!
+  events: [Event] @deprecated(reason: "Use Video.tagging.events.")
+}
+
+type VideoAppName {
+  allowValues: [String]
+}
+
+type VideoTitle {
+  localizations: [Localization]
+  scope: String
+  type: String
+}
+
+type VideoV2 @key(fields: "eventId") @key(fields: "hash") @cacheControl(maxAge: 30) {
+  schemaVersion: String
+  isDeleted: Boolean @inaccessible
+  tenant: String
+  cmsId: String
+  uuid: String
+  eventId: String!
+  title: String
+  description: String
+  headline: String
+  subHeadline: String
+  isPublished: Boolean
+  playable: Boolean
+  durationSeconds: Float
+  height: Int
+  width: Int
+  contentType: VideoContentType
+  videoSource: String
+  videoType: VideoType
+  videoState: VideoState @cacheControl(maxAge: 10)
+  isPtScheduled: Boolean
+  program: Program
+  offering: Offering
+  deliverableImage: Image
+  tags: [TagV2]
+  createdDateTime: String @deprecated(reason: "use field createdAt which is a correctly typed Date")
+  lastModifiedDateTime: String @deprecated(reason: "use field updatedAt which is a correctly typed Date")
+  created: String @inaccessible @deprecated(reason: "use field createdAt")
+  changed: String @inaccessible @deprecated(reason: "use field updatedAt")
+  createdAt: Date
+  updatedAt: Date
+  _id: MongoID!
+  hash: String
+}
+
+type VideoV2TagData @cacheControl(inheritMaxAge: true) {
+  """List of tags on a given VideoV2"""
+  uuid: String!
+  """The type of tag for the associated id"""
+  type: TagTypeV2!
+}
+
+type VideoV2TagIds @cacheControl(inheritMaxAge: true) {
+  """VideoV2 eventId"""
+  eventId: String!
+  """Ordered list of tag UUIDs associated with the video"""
+  tagData: [VideoV2TagData]
+}
+
+"""
+Returns Affiliate TV Link information for Games/Events
+if any are configured for a given GameCast tag/channel
+"""
+type WatchInfo @cacheControl(maxAge: 28800) {
+  name: String
+  url: String
+  text: [String]
+  logoUrl: String
+}
+
+input ArticleFindManyParametersInput {
+  """
+  The term to search for.
+  
+  Requires a minimum of 3 characters to start getting results.
+  
+  Supports passing (1) "OR/AND" boolean operator in queries.
+  
+  (example OR: "nba OR nfl") (example AND: "coach AND LeBron")
+  """
+  query: String
+  """
+  List of tag UUIDs to apply to the search. Multiple UUIDs will be treated as an *OR* operation
+  """
+  tagUUIDList: [String!]
+  """Filter search results to ARTICLE or SLIDESHOW types"""
+  type: ArticleType
+  """
+  Filter search results by a date range of when the articles were created.
+  
+  The range is inclusive of the dates provided (ie. >= <=)
+  """
+  createdDateRange: DateRangeFilter
+  """
+  Filter search results by a date range of when the articles were updated.
+  
+  The range is inclusive of the dates provided (ie. >= <=)
+  """
+  updatedDateRange: DateRangeFilter
+  """
+  Filter search results by a date range of when the articles were published.
+  
+  The range is inclusive of the dates provided (ie. >= <=)
+  """
+  publishedDateRange: DateRangeFilter
+}
+
+input ContentLibrarySearchParametersInput {
+  """
+  The term to search for.
+  
+  Requires a minimum of 3 characters to start getting results.
+  
+  Supports passing (1) "OR/AND" boolean operator in queries.
+  
+  (example OR: "nba OR nfl") (example AND: "coach AND LeBron")
+  """
+  query: String
+  """
+  List of tag UUIDs to apply to the search. Multiple UUIDs will be treated as an *OR* operation
+  """
+  tagUUIDList: [String!]
+  """Filter search results to specific content types"""
+  contentTypeFilter: [ContentSearchType!]
+  """Provides the ability to search on specific source fields."""
+  sourceType: SearchSource
+  """
+  Filter VideoV2 search results by whether or not a video is full length or a clip
+  """
+  videoContentTypeFilter: VideoContentTypeFilter
+  """Whether or not the content should be scheduled in the Programming Tool"""
+  isPtScheduled: Boolean
+  """
+  Filter search results by a date range of when the content was created.
+  
+  The range is inclusive of the dates provided (ie. >= <=)
+  """
+  createdDateRange: DateRangeFilter
+  """
+  Toggle using either parital-text match (ie. autocomplete) or full-text match.
+  A different search algorithm will be run depending on this flag.
+  Partial-Text match (ie. autocomplete) is the default.
+  """
+  useFullTextSearch: Boolean
+}
+
+input ContentLibrarySortParametersInput {
+  """sort by the date the content was created. (sorts on field createdAt)"""
+  created: ContentLibrarySortDirection
+  """
+  sort by the date the content was last updated. (sorts on field updatedAt)
+  """
+  changed: ContentLibrarySortDirection
+  """sort by the title of content"""
+  title: ContentLibrarySortDirection
+}
+
+input DateRangeFilter {
+  """
+  Upper value of the createdDateRange.
+  
+  Must be an ISODate. The format is YYYY-MM-DD HH:MM.SS.millis (ex. 2024-07-01T00:00:00.000Z)
+  """
+  high: Date
+  """
+  Lower value of the createdDateRange.
+  
+  Must be an ISODate. The format is YYYY-MM-DD HH:MM.SS.millis (ex. 2024-04-01T00:00:00.000Z)
+  """
+  low: Date
+}
+
+input PageComponentFiltersInput {
+  """
+  Filter Page Components by a User's favorite Team. Value passed should be **sportradar_id** (ex. `sr:competitor:1234`)
+  """
+  team: String
+}
+
+input PaginationControlInput {
+  after: ComponentCursor
+  before: ComponentCursor
+  first: Int
+  last: Int
+}
+
+input TagSearchParamsInput {
+  """
+  Term or characters to search for.
+  
+  Requires a minimum of 2 characters to start getting results.
+  """
+  term: String!
+  """Whether or not the tag should be visible in the Content Tool"""
+  isVisibleInContentTool: Boolean
+  """Whether or not the tag should be visible in the Programming Tool"""
+  isVisibleInProgrammingTool: Boolean
+  """Filter search results to only Tags that have a Channel"""
+  isChannel: Boolean
+}
+
+input TagsQueryInput @oneOf {
+  uuids: [String!]
+  slugs: [String!]
+}
+
+"""Passing multiple filter values is currently **not supported**"""
+input VideoFiltersInput {
+  """
+  Provides the ability to filter video clips to a specific Team. Value passed should be the **sportradar_id** (ex. `sr:competitor:1234`)
+  """
+  team: String
+  """
+  Provides the ability to filter video clips to a specific Event. Value passed should be the **sportradar_id** (ex. `sr:match:1234`)
+  """
+  event: String
+}
+
+extend type Event @key(fields: "hash") {
+  hash: String @external
+}
+
+extend type Tournament @key(fields: "hash") {
+  hash: String @external
+}
+
+extend type Competitor @key(fields: "hash") {
+  hash: String @external
+}
+
+extend type Series @key(fields: "hash") {
+  hash: String @external
+  taxonomy: TaxonomyTerm
+}
+
+extend type Show @key(fields: "hash") {
+  hash: String @external
+  taxonomy(tenant: Tenant!): TaxonomyTerm
+}
+
+extend type Tag @key(fields: "id") {
+  id: ID!
+  permalink: String! @external
+  root: Tag @external
+  menu(tenant: Tenant!): Menu @requires(fields: "permalink root { permalink }")
+}
+
+extend type ScoresLeague @key(fields: "id") {
+  id: String
+  slug: String @external
+  tagV2(tenant: Tenant!): TagV2 @requires(fields: "slug")
+}
+
+type ScoresGame @key(fields: "id") {
+  id: String
+  gamecast: String @external
+  "Returns the tag for a given game's gamecast slug"
+  gamecastTag(tenant: Tenant!): TagV2 @requires(fields: "gamecast")
+}
+
+type ExternalArticle @key(fields: "id") {
+  id: ID!
+  source: String! @external
+  providerName: String! @external
+  brand(tenant: Tenant!): ContentBrand @requires(fields: "source providerName")
+}
+
+type ScoresEvent @key(fields: "id") {
+  id: String
+  gamecast: String @external
+  """Returns the tag for a given event's gamecast slug"""
+  gamecastTag(tenant: Tenant!): TagV2 @requires(fields: "gamecast")
+}
+
+enum Actions {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+type ModuleMetaData @key(fields: "hash") {
+  hash: String!
+  videoContentId: String @external
+  tenant: Tenant @external
+  brand: ContentBrand
+  author: TagV2 @requires(fields: "videoContentId tenant") @override(from: "content-modules-api") @cacheControl(maxAge: 300)
+}

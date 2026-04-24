@@ -1,4 +1,4 @@
-# microcksId: test : 1.0
+# microcksId: testql : 1.0
 type Query {
   resourceName: Resource
 }

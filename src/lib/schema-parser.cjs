@@ -121,7 +121,21 @@ function parseGraphQLSchema(schemaText) {
     }
   }
 
-  return { types, operations, enums };
+  const scalars = new Set();
+  const inputs = {};
+  for (const def of doc.definitions) {
+    if (def.kind === 'ScalarTypeDefinition') {
+      scalars.add(def.name.value);
+    }
+    if (def.kind === 'InputObjectTypeDefinition') {
+      inputs[def.name.value] = {};
+      for (const field of (def.fields || [])) {
+        inputs[def.name.value][field.name.value] = unwrapGqlType(field.type);
+      }
+    }
+  }
+
+  return { types, operations, enums, scalars, inputs };
 }
 
 function validateGraphQLSchema(schemaText) {
@@ -129,11 +143,10 @@ function validateGraphQLSchema(schemaText) {
   const errors = [];
 
   try {
-    const { types, enums, operations } = parseGraphQLSchema(schemaText);
+    const { types, enums, operations, scalars, inputs } = parseGraphQLSchema(schemaText);
     
-    // Collect all defined type names (scalars, built-ins, custom types, enums)
     const builtInScalars = new Set(['String', 'Int', 'Float', 'Boolean', 'ID']);
-    const definedTypes = new Set([...Object.keys(types), ...Object.keys(enums), ...builtInScalars]);
+    const definedTypes = new Set([...Object.keys(types), ...Object.keys(enums), ...Object.keys(inputs), ...scalars, ...builtInScalars]);
 
     // Check all field type references
     for (const [typeName, fields] of Object.entries(types)) {

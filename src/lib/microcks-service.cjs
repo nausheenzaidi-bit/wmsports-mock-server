@@ -4,6 +4,16 @@ const fs = require('fs');
 const path = require('path');
 const { MICROCKS_URL, CACHE_TTL } = require('../config.cjs');
 const { httpGet, httpGetLong } = require('./http-helpers.cjs');
+const { authHeaders, isAuthEnabled, invalidateToken } = require('./microcks-auth.cjs');
+const {
+  assertInNamespace,
+  isInNamespace,
+  NamespaceViolationError,
+} = require('./microcks-namespace.cjs');
+
+async function microcksAuthHeaders() {
+  return isAuthEnabled() ? await authHeaders() : {};
+}
 
 let microcksServices = [];
 let lastFetch = 0;
@@ -51,44 +61,68 @@ function parseCurlResult(result) {
 
 async function deleteServiceFromMicrocks(serviceId) {
   try {
-    const result = curlExec(`-X DELETE "${MICROCKS_URL}/api/services/${serviceId}"`);
-    const { status } = parseCurlResult(result);
+    const url = new URL(`${MICROCKS_URL}/api/services/${serviceId}`);
+    const transport = url.protocol === 'https:' ? https : http;
+    const headers = await microcksAuthHeaders();
+    const status = await new Promise((resolve, reject) => {
+      const r = transport.request({
+        hostname: url.hostname,
+        port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        path: url.pathname + url.search,
+        method: 'DELETE',
+        headers,
+        timeout: 15000,
+      }, (resp) => {
+        resp.on('data', () => {});
+        resp.on('end', () => resolve(resp.statusCode));
+      });
+      r.on('error', reject);
+      r.on('timeout', () => { r.destroy(); reject(new Error('timeout')); });
+      r.end();
+    });
+    if (status === 401 && isAuthEnabled()) invalidateToken();
     return status >= 200 && status < 300;
   } catch (_) { return false; }
 }
 
-function importArtifactToMicrocks(filePath, isMain = true) {
+async function importArtifactToMicrocks(filePath, isMain = true) {
+  const fileName = path.basename(filePath);
+  const ext = path.extname(fileName).toLowerCase();
+  const mimeTypes = { '.graphql': 'text/plain', '.json': 'application/json', '.yaml': 'text/yaml', '.yml': 'text/yaml' };
+  const mime = mimeTypes[ext] || 'application/octet-stream';
+  const mainParam = isMain ? 'true' : 'false';
+
+  const fileContent = fs.readFileSync(filePath);
+  const boundary = '----FormBoundary' + Date.now().toString(36);
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${mime}\r\n\r\n`),
+    fileContent,
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ]);
+
+  const url = new URL(`${MICROCKS_URL}/api/artifact/upload?mainArtifact=${mainParam}`);
+  const transport = url.protocol === 'https:' ? https : http;
+  const auth = await microcksAuthHeaders();
+  const opts = {
+    hostname: url.hostname,
+    port: url.port || (url.protocol === 'https:' ? 443 : 80),
+    path: url.pathname + url.search,
+    method: 'POST',
+    headers: {
+      'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      'Content-Length': body.length,
+      ...auth,
+    },
+    timeout: 60000,
+  };
+
   return new Promise((resolve, reject) => {
-    const fileName = path.basename(filePath);
-    const ext = path.extname(fileName).toLowerCase();
-    const mimeTypes = { '.graphql': 'text/plain', '.json': 'application/json', '.yaml': 'text/yaml', '.yml': 'text/yaml' };
-    const mime = mimeTypes[ext] || 'application/octet-stream';
-    const mainParam = isMain ? 'true' : 'false';
-
-    const fileContent = fs.readFileSync(filePath);
-    const boundary = '----FormBoundary' + Date.now().toString(36);
-    const body = Buffer.concat([
-      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${mime}\r\n\r\n`),
-      fileContent,
-      Buffer.from(`\r\n--${boundary}--\r\n`),
-    ]);
-
-    const url = new URL(`${MICROCKS_URL}/api/artifact/upload?mainArtifact=${mainParam}`);
-    const transport = url.protocol === 'https:' ? https : http;
-    const opts = {
-      hostname: url.hostname,
-      port: url.port || (url.protocol === 'https:' ? 443 : 80),
-      path: url.pathname + url.search,
-      method: 'POST',
-      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length },
-      timeout: 60000,
-    };
-
     const r = transport.request(opts, (resp) => {
       let d = '';
       resp.on('data', c => d += c);
       resp.on('end', () => {
         const code = resp.statusCode;
+        if (code === 401 && isAuthEnabled()) invalidateToken();
         if (code === 200 || code === 201) {
           resolve({ success: true, file: fileName, code });
         } else {
@@ -106,6 +140,15 @@ function importArtifactToMicrocks(filePath, isMain = true) {
 function clearServiceDispatchers(serviceName) {
   return new Promise(async (resolve) => {
     try {
+      assertInNamespace(serviceName, 'clear dispatchers on');
+    } catch (err) {
+      if (err instanceof NamespaceViolationError) {
+        resolve({ cleared: 0, error: err.message, namespaceViolation: true });
+        return;
+      }
+      throw err;
+    }
+    try {
       const data = await httpGetLong(`${MICROCKS_URL}/api/services?page=0&size=200`);
       const services = JSON.parse(data);
       const norm = serviceName.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -113,7 +156,12 @@ function clearServiceDispatchers(serviceName) {
         || services.find(s => s.name.toLowerCase() === serviceName.toLowerCase())
         || services.find(s => s.name.toLowerCase().replace(/[^a-z0-9]/g, '') === norm);
       if (!svc) { resolve({ cleared: 0 }); return; }
+      if (!isInNamespace(svc.name)) {
+        resolve({ cleared: 0, error: `matched service "${svc.name}" is outside namespace`, namespaceViolation: true });
+        return;
+      }
 
+      const auth = await microcksAuthHeaders();
       let cleared = 0;
       for (const op of (svc.operations || [])) {
         if (op.dispatcher === 'QUERY_ARGS' || op.dispatcher === 'JSON_BODY' || op.dispatcher === 'FALLBACK') {
@@ -126,7 +174,11 @@ function clearServiceDispatchers(serviceName) {
               const opts = {
                 hostname: url.hostname, port: url.port || (url.protocol === 'https:' ? 443 : 80),
                 path: url.pathname + url.search, method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Content-Length': Buffer.byteLength(body),
+                  ...auth,
+                },
                 timeout: 15000,
               };
               const r = transport.request(opts, (resp) => {
@@ -151,6 +203,15 @@ function clearServiceDispatchers(serviceName) {
 function configureServiceDispatchers(serviceName, dispatcher, rules) {
   return new Promise(async (resolve) => {
     try {
+      assertInNamespace(serviceName, 'configure dispatchers on');
+    } catch (err) {
+      if (err instanceof NamespaceViolationError) {
+        resolve({ configured: 0, error: err.message, namespaceViolation: true });
+        return;
+      }
+      throw err;
+    }
+    try {
       const data = await httpGetLong(`${MICROCKS_URL}/api/services?page=0&size=200`);
       const services = JSON.parse(data);
       const norm = serviceName.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -158,7 +219,12 @@ function configureServiceDispatchers(serviceName, dispatcher, rules) {
         || services.find(s => s.name.toLowerCase() === serviceName.toLowerCase())
         || services.find(s => s.name.toLowerCase().replace(/[^a-z0-9]/g, '') === norm);
       if (!svc) { resolve({ configured: 0 }); return; }
+      if (!isInNamespace(svc.name)) {
+        resolve({ configured: 0, error: `matched service "${svc.name}" is outside namespace`, namespaceViolation: true });
+        return;
+      }
 
+      const auth = await microcksAuthHeaders();
       let configured = 0;
       for (const op of (svc.operations || [])) {
         try {
@@ -170,7 +236,11 @@ function configureServiceDispatchers(serviceName, dispatcher, rules) {
             const opts = {
               hostname: url.hostname, port: url.port || (url.protocol === 'https:' ? 443 : 80),
               path: url.pathname + url.search, method: 'PUT',
-              headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+              headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body),
+                ...auth,
+              },
               timeout: 15000,
             };
             const r = transport.request(opts, (resp) => {
@@ -191,6 +261,145 @@ function configureServiceDispatchers(serviceName, dispatcher, rules) {
   });
 }
 
+async function getMicrocksExamples(serviceName, operationName) {
+  try {
+    const data = await httpGetLong(`${MICROCKS_URL}/api/services?page=0&size=200`);
+    const services = JSON.parse(data);
+    const norm = serviceName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const svc = services.find(s => s.name === serviceName)
+      || services.find(s => s.name.toLowerCase() === serviceName.toLowerCase())
+      || services.find(s => s.name.toLowerCase().replace(/[^a-z0-9]/g, '') === norm);
+    if (!svc) return { examples: [], service: null };
+
+    const svcDetail = await httpGetLong(`${MICROCKS_URL}/api/services/${svc.id}?messages=true`);
+    const detail = JSON.parse(svcDetail);
+    const messagesMap = detail.messagesMap || {};
+
+    const examples = [];
+    for (const [opKey, pairs] of Object.entries(messagesMap)) {
+      const opMatch = opKey === operationName
+        || opKey.replace(/^QUERY\s+/, '') === operationName
+        || opKey.replace(/^MUTATION\s+/, '') === operationName;
+      if (!opMatch) continue;
+
+      for (const pair of pairs) {
+        const req = pair.request || {};
+        const resp = pair.response || {};
+        let variables = null;
+        try {
+          const reqContent = req.content ? JSON.parse(req.content) : null;
+          if (reqContent && reqContent.variables && Object.keys(reqContent.variables).length > 0) {
+            variables = reqContent.variables;
+          }
+        } catch (_) {}
+
+        let body = null;
+        try { body = JSON.parse(resp.content || '{}'); } catch (_) {}
+
+        examples.push({
+          name: resp.name || 'default',
+          variables,
+          body,
+          status: resp.status || '200',
+          dispatchCriteria: resp.dispatchCriteria || null,
+        });
+      }
+    }
+
+    return { examples, service: { id: svc.id, name: svc.name, version: svc.version } };
+  } catch (err) {
+    return { examples: [], error: err.message };
+  }
+}
+
+async function deleteExistingService(serviceName) {
+  try {
+    assertInNamespace(serviceName, 'delete');
+  } catch (err) {
+    if (err instanceof NamespaceViolationError) {
+      return { deleted: false, error: err.message, namespaceViolation: true };
+    }
+    throw err;
+  }
+  try {
+    const serviceId = await getMicrocksServiceId(serviceName);
+    if (!serviceId) return { deleted: false, reason: 'Service not found' };
+    // Defence in depth: re-verify the resolved service name is actually ours
+    // before issuing the DELETE, in case fuzzy matching cross-namespace'd us.
+    const services = await fetchMicrocksServices();
+    const svc = services.find(s => s.id === serviceId);
+    if (svc && !isInNamespace(svc.name)) {
+      return {
+        deleted: false,
+        error: `resolved service "${svc.name}" is outside namespace — refusing to delete`,
+        namespaceViolation: true,
+      };
+    }
+    const result = await deleteServiceFromMicrocks(serviceId);
+    return { deleted: result, serviceId };
+  } catch (err) {
+    return { deleted: false, error: err.message };
+  }
+}
+
+async function configureOperationDispatcher(serviceName, operationName, dispatcher, rules) {
+  try {
+    assertInNamespace(serviceName, 'configure operation on');
+  } catch (err) {
+    if (err instanceof NamespaceViolationError) {
+      return { configured: false, error: err.message, namespaceViolation: true };
+    }
+    throw err;
+  }
+  try {
+    const data = await httpGetLong(`${MICROCKS_URL}/api/services?page=0&size=200`);
+    const services = JSON.parse(data);
+    const norm = serviceName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const svc = services.find(s => s.name === serviceName)
+      || services.find(s => s.name.toLowerCase() === serviceName.toLowerCase())
+      || services.find(s => s.name.toLowerCase().replace(/[^a-z0-9]/g, '') === norm);
+    if (!svc) return { configured: false, reason: 'Service not found' };
+    if (!isInNamespace(svc.name)) {
+      return {
+        configured: false,
+        error: `matched service "${svc.name}" is outside namespace`,
+        namespaceViolation: true,
+      };
+    }
+
+    const opName = encodeURIComponent(operationName);
+    const url = new URL(`${MICROCKS_URL}/api/services/${svc.id}/operation?operationName=${opName}`);
+    const transport = url.protocol === 'https:' ? https : http;
+    const body = JSON.stringify({ dispatcher, dispatcherRules: rules });
+    const auth = await microcksAuthHeaders();
+
+    return new Promise((resolve) => {
+      const opts = {
+        hostname: url.hostname, port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        path: url.pathname + url.search, method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          ...auth,
+        },
+        timeout: 15000,
+      };
+      const r = transport.request(opts, (resp) => {
+        let d = ''; resp.on('data', c => d += c);
+        resp.on('end', () => {
+          if (resp.statusCode === 401 && isAuthEnabled()) invalidateToken();
+          resolve({ configured: resp.statusCode < 300, status: resp.statusCode });
+        });
+      });
+      r.on('error', (err) => resolve({ configured: false, error: err.message }));
+      r.on('timeout', () => { r.destroy(); resolve({ configured: false, error: 'timeout' }); });
+      r.write(body); r.end();
+    });
+  } catch (err) {
+    return { configured: false, error: err.message };
+  }
+}
+
 module.exports = {
   fetchMicrocksServices,
   invalidateCache,
@@ -198,7 +407,10 @@ module.exports = {
   curlExec,
   parseCurlResult,
   deleteServiceFromMicrocks,
+  deleteExistingService,
   importArtifactToMicrocks,
   clearServiceDispatchers,
   configureServiceDispatchers,
+  getMicrocksExamples,
+  configureOperationDispatcher,
 };
