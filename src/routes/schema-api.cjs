@@ -288,18 +288,36 @@ router.get('/ai/service-schema', async (req, res) => {
        fl.endsWith('.yaml') || fl.endsWith('.yml'));
   };
 
-  const candidates = allFiles.filter(f => {
-    if (!isSchemaOrSpec(f)) return false;
+  // Tiered matching: exact-slug-prefix first, then loose word match as fallback.
+  // Exact match prevents `wmsports-test` from being satisfied by an unrelated
+  // file like `wmsports-sportssearchapi-schema.graphql`.
+  const fileSlugOf = (fl) => fl.replace(/\.[^.]+$/, '').replace(/[^a-z0-9]+/g, '-');
+
+  const allSchemaSpecFiles = allFiles.filter(isSchemaOrSpec);
+
+  const exactCandidates = allSchemaSpecFiles.filter(f => {
+    const fs_ = fileSlugOf(f.toLowerCase());
+    return fs_ === slug || fs_.startsWith(slug + '-');
+  });
+
+  const looseCandidates = allSchemaSpecFiles.filter(f => {
+    if (exactCandidates.includes(f)) return false;
     const fl = f.toLowerCase();
     if (fl.includes(slug) || fl.includes(service.toLowerCase())) return true;
-    const fileSlug = fl.replace(/\.[^.]+$/, '').replace(/[^a-z0-9]+/g, '-');
-    const fileWords = fileSlug.split('-').filter(Boolean);
+    const fileWords = fileSlugOf(fl).split('-').filter(Boolean);
     return slugWords.some(w => w.length >= 3 && fileWords.some(fw => fw.includes(w) || w.includes(fw)));
   });
 
-  const schemaFile = candidates.find(f => f.includes('schema') || f.endsWith('.graphql') || f.endsWith('.gql'))
-    || candidates.find(f => f.includes('openapi'))
-    || candidates[0];
+  // Pick the best candidate, preferring exact matches and respecting file
+  // type signal: prefer the schema/spec file over auxiliary files in the same
+  // group. Within exact matches, choose graphql > openapi > json > yaml.
+  const pickBest = (list) =>
+    list.find(f => f.endsWith('.graphql') || f.endsWith('.gql'))
+    || list.find(f => f.toLowerCase().includes('openapi'))
+    || list.find(f => f.toLowerCase().includes('schema'))
+    || list[0];
+
+  const schemaFile = pickBest(exactCandidates) || pickBest(looseCandidates);
 
   if (schemaFile) {
     const content = fs.readFileSync(path.join(dir, schemaFile), 'utf-8');

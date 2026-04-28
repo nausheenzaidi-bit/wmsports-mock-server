@@ -15,6 +15,23 @@ let upstreamUrl = null;
 const serviceRegistry = {};
 let registrySeeded = false;
 
+// Microcks-style example dispatcher registry (URI_PARTS / URI_PARAMS).
+// Shape:
+//   exampleRegistry[serviceName] = {
+//     [`${METHOD} ${pathTemplate}`]: {
+//       dispatcher: 'URI_PARTS' | 'URI_PARAMS' | 'FALLBACK',
+//       dispatcherRules: ['id', 'status', ...],   // param names to match on
+//       fallback: '<exampleName>' | null,
+//       examples: {
+//         <exampleName>: {
+//           request: { pathParams: { id: '1' }, queryParams: { ... } },
+//           response: { status: 200, body: <any>, headers?: {...} }
+//         }
+//       }
+//     }
+//   }
+const exampleRegistry = {};
+
 // ── Persistence ────────────────────────────────────────────────
 // Debounced write-to-disk. Collects rapid mutations into a single I/O.
 let saveTimer = null;
@@ -31,6 +48,7 @@ function getSnapshot() {
     responseOverrides,
     variableMockStore,
     serviceRegistry,
+    exampleRegistry,
     upstreamUrl,
     savedAt: new Date().toISOString(),
   };
@@ -65,6 +83,7 @@ function loadFromDisk() {
     if (data.responseOverrides) Object.assign(responseOverrides, data.responseOverrides);
     if (data.variableMockStore) Object.assign(variableMockStore, data.variableMockStore);
     if (data.serviceRegistry) Object.assign(serviceRegistry, data.serviceRegistry);
+    if (data.exampleRegistry) Object.assign(exampleRegistry, data.exampleRegistry);
     if (data.upstreamUrl) upstreamUrl = data.upstreamUrl;
 
     const wsCount = Object.keys(workspaces).length;
@@ -145,6 +164,88 @@ function markDirty() {
   scheduleSave();
 }
 
+// ── Example dispatcher (Microcks-style) ────────────────────────
+
+function registerOperationExamples(serviceName, opKey, entry) {
+  if (!serviceName || !opKey || !entry) return;
+  if (!exampleRegistry[serviceName]) exampleRegistry[serviceName] = {};
+  exampleRegistry[serviceName][opKey] = entry;
+  scheduleSave();
+}
+
+function clearServiceExamples(serviceName) {
+  if (exampleRegistry[serviceName]) {
+    delete exampleRegistry[serviceName];
+    scheduleSave();
+  }
+}
+
+// Match the actual request path against a path template like `/books/{id}`.
+// Returns extracted path params on match, or null on miss.
+function matchPathTemplate(actualPath, templatePath) {
+  const a = actualPath.split('/').filter(Boolean);
+  const t = templatePath.split('/').filter(Boolean);
+  if (a.length !== t.length) return null;
+  const params = {};
+  for (let i = 0; i < t.length; i++) {
+    if (t[i].startsWith('{') && t[i].endsWith('}')) {
+      params[t[i].slice(1, -1)] = decodeURIComponent(a[i]);
+    } else if (t[i] !== a[i]) {
+      return null;
+    }
+  }
+  return params;
+}
+
+// Pick the example whose request shape matches the incoming request.
+// Mirrors Microcks URI_PARTS / URI_PARAMS dispatchers.
+function dispatchExample(serviceName, method, actualPath, queryParams) {
+  const svcOps = exampleRegistry[serviceName];
+  if (!svcOps) return null;
+
+  for (const [opKey, op] of Object.entries(svcOps)) {
+    const [opMethod, opPath] = opKey.split(' ');
+    if (opMethod !== method) continue;
+    const pathParams = matchPathTemplate(actualPath, opPath);
+    if (!pathParams) continue;
+
+    const dispatcher = op.dispatcher || 'FALLBACK';
+    const rules = op.dispatcherRules || [];
+    const examples = op.examples || {};
+
+    if (dispatcher === 'URI_PARTS' || dispatcher === 'URI_PARAMS') {
+      for (const [name, ex] of Object.entries(examples)) {
+        const exReq = ex.request || {};
+        const exPath = exReq.pathParams || {};
+        const exQuery = exReq.queryParams || {};
+        let allMatch = true;
+        for (const rule of rules) {
+          const actual = pathParams[rule] !== undefined
+            ? pathParams[rule]
+            : (queryParams ? queryParams[rule] : undefined);
+          const expected = exPath[rule] !== undefined ? exPath[rule] : exQuery[rule];
+          if (expected === undefined) continue;
+          if (String(actual) !== String(expected)) { allMatch = false; break; }
+        }
+        if (allMatch && rules.length > 0) {
+          return { exampleName: name, response: ex.response, opKey };
+        }
+      }
+    }
+
+    // Fallback to a named default example, or first available.
+    if (op.fallback && examples[op.fallback]) {
+      return { exampleName: op.fallback, response: examples[op.fallback].response, opKey };
+    }
+    const first = Object.entries(examples)[0];
+    if (first) {
+      return { exampleName: first[0], response: first[1].response, opKey };
+    }
+  }
+
+  return null;
+}
+
 module.exports = {
   responseOverrides,
   aiRemovedFields,
@@ -153,6 +254,7 @@ module.exports = {
   variableMockStore,
   proxyUrls,
   serviceRegistry,
+  exampleRegistry,
   get upstreamUrl() { return upstreamUrl; },
   set upstreamUrl(v) { upstreamUrl = v; scheduleSave(); },
   getUserScope,
@@ -163,5 +265,8 @@ module.exports = {
   isServiceVisibleInWorkspace,
   getServicesForWorkspace,
   unregisterWorkspaceServices,
+  registerOperationExamples,
+  clearServiceExamples,
+  dispatchExample,
   markDirty,
 };

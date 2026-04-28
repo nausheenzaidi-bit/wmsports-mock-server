@@ -156,9 +156,25 @@ function resolveSchemaRef(ref, spec) {
   return result || {};
 }
 
-function generateMockFromOpenAPISchema(schema, spec, depth = 0) {
+function pickNamedExample(examples, preferredName) {
+  if (!examples || typeof examples !== 'object') return undefined;
+  const keys = Object.keys(examples);
+  if (keys.length === 0) return undefined;
+  const chosenKey = preferredName && examples[preferredName] ? preferredName : keys[0];
+  const ex = examples[chosenKey];
+  // OpenAPI examples are wrapped: { value: ..., summary?, description? }
+  if (ex && typeof ex === 'object' && 'value' in ex) return ex.value;
+  return ex;
+}
+
+function generateMockFromOpenAPISchema(schema, spec, depth = 0, exampleName = null) {
   if (depth > 3) return null;
   if (schema.$ref) schema = resolveSchemaRef(schema.$ref, spec);
+
+  // Honor spec-provided examples before falling through to faker.
+  if (schema.example !== undefined) return schema.example;
+  const namedExample = pickNamedExample(schema.examples, exampleName);
+  if (namedExample !== undefined) return namedExample;
 
   if (schema.type === 'object' || schema.properties) {
     const obj = {};
@@ -167,6 +183,17 @@ function generateMockFromOpenAPISchema(schema, spec, depth = 0) {
       const resolved = prop.$ref ? resolveSchemaRef(prop.$ref, spec) : prop;
       const fn = key.toLowerCase();
       const isRequired = required.includes(key);
+
+      // Per-property examples take precedence over generated values.
+      if (resolved.example !== undefined) {
+        obj[key] = resolved.example;
+        continue;
+      }
+      const propNamedExample = pickNamedExample(resolved.examples, exampleName);
+      if (propNamedExample !== undefined) {
+        obj[key] = propNamedExample;
+        continue;
+      }
 
       if (resolved.type === 'string') {
         if (resolved.format === 'uuid' || fn === 'id' || fn.endsWith('id'))
@@ -243,9 +270,9 @@ function generateMockFromOpenAPISchema(schema, spec, depth = 0) {
       } else if (resolved.type === 'boolean') {
         obj[key] = Math.random() > 0.5;
       } else if (resolved.type === 'array') {
-        obj[key] = [generateMockFromOpenAPISchema(resolved.items || {}, spec, depth + 1)];
+        obj[key] = [generateMockFromOpenAPISchema(resolved.items || {}, spec, depth + 1, exampleName)];
       } else if (resolved.type === 'object' || resolved.properties) {
-        const nestedObj = generateMockFromOpenAPISchema(resolved, spec, depth + 1);
+        const nestedObj = generateMockFromOpenAPISchema(resolved, spec, depth + 1, exampleName);
         // For optional fields, if object is empty or null, use null instead of {}
         if (!isRequired && (!nestedObj || Object.keys(nestedObj).length === 0)) {
           obj[key] = null;
@@ -261,8 +288,8 @@ function generateMockFromOpenAPISchema(schema, spec, depth = 0) {
   }
 
   if (schema.type === 'array' && schema.items) {
-    return [generateMockFromOpenAPISchema(schema.items, spec, depth + 1),
-            generateMockFromOpenAPISchema(schema.items, spec, depth + 1)];
+    return [generateMockFromOpenAPISchema(schema.items, spec, depth + 1, exampleName),
+            generateMockFromOpenAPISchema(schema.items, spec, depth + 1, exampleName)];
   }
 
   if (schema.type === 'string') return faker.lorem.word();
@@ -270,6 +297,100 @@ function generateMockFromOpenAPISchema(schema, spec, depth = 0) {
   if (schema.type === 'number') return +(Math.random() * 100).toFixed(2);
   if (schema.type === 'boolean') return true;
   return null;
+}
+
+// Extract Microcks-style named examples from an OpenAPI spec and build a
+// dispatcher-ready registry. Pairs request-side examples (parameter values)
+// with response-side examples sharing the same name (e.g. `get_books_404`).
+//
+// Returns { [`${METHOD} ${pathTemplate}`]: { dispatcher, dispatcherRules,
+//   fallback, examples: { name: { request: { pathParams, queryParams },
+//   response: { status, body, headers } } } } }
+function extractExampleRegistryFromSpec(spec) {
+  if (!spec || !spec.paths) return {};
+  const registry = {};
+
+  for (const [pathKey, methods] of Object.entries(spec.paths)) {
+    for (const [method, opDef] of Object.entries(methods || {})) {
+      if (!['get', 'post', 'put', 'patch', 'delete'].includes(method)) continue;
+      const opKey = `${method.toUpperCase()} ${pathKey}`;
+
+      // Collect parameter examples by example-name → param-name → value
+      const paramsByExampleName = {}; // { exampleName: { pathParams, queryParams } }
+      const dispatcherRulesSet = new Set();
+      let dispatcher = 'FALLBACK';
+
+      for (const param of opDef.parameters || []) {
+        const resolvedParam = param.$ref ? resolveSchemaRef(param.$ref, spec) : param;
+        if (!resolvedParam || !resolvedParam.examples) continue;
+        if (resolvedParam.in === 'path') dispatcher = 'URI_PARTS';
+        else if (resolvedParam.in === 'query' && dispatcher === 'FALLBACK') dispatcher = 'URI_PARAMS';
+        dispatcherRulesSet.add(resolvedParam.name);
+
+        for (const [exName, exObj] of Object.entries(resolvedParam.examples)) {
+          if (!paramsByExampleName[exName]) {
+            paramsByExampleName[exName] = { pathParams: {}, queryParams: {} };
+          }
+          const value = (exObj && typeof exObj === 'object' && 'value' in exObj) ? exObj.value : exObj;
+          if (resolvedParam.in === 'path') {
+            paramsByExampleName[exName].pathParams[resolvedParam.name] = value;
+          } else if (resolvedParam.in === 'query') {
+            paramsByExampleName[exName].queryParams[resolvedParam.name] = value;
+          }
+        }
+      }
+
+      // Walk responses → for each named example, build response entry.
+      const examples = {};
+      const responses = opDef.responses || {};
+      for (const [statusCode, respDef] of Object.entries(responses)) {
+        const resolvedResp = respDef.$ref ? resolveSchemaRef(respDef.$ref, spec) : respDef;
+        if (!resolvedResp) continue;
+
+        const refs = resolvedResp['x-microcks-refs'] || [];
+        const content = resolvedResp.content || {};
+        const ctype = Object.keys(content)[0];
+        const responseExamples = ctype ? (content[ctype].examples || {}) : {};
+
+        // Track which example names live in this response (status code).
+        const namesForThisStatus = new Set([...Object.keys(responseExamples), ...refs]);
+
+        for (const exName of namesForThisStatus) {
+          const exObj = responseExamples[exName];
+          let body;
+          if (exObj) {
+            body = (exObj && typeof exObj === 'object' && 'value' in exObj) ? exObj.value : exObj;
+          } else {
+            body = undefined; // 204 / no-body refs
+          }
+          const reqShape = paramsByExampleName[exName] || { pathParams: {}, queryParams: {} };
+          examples[exName] = {
+            request: reqShape,
+            response: {
+              status: parseInt(statusCode, 10) || 200,
+              body,
+              headers: ctype ? { 'Content-Type': ctype } : undefined,
+            },
+          };
+        }
+      }
+
+      if (Object.keys(examples).length === 0) continue;
+
+      // Default fallback: prefer 2xx example name if present.
+      const fallback = Object.entries(examples).find(([, ex]) =>
+        ex.response.status >= 200 && ex.response.status < 300
+      )?.[0] || null;
+
+      registry[opKey] = {
+        dispatcher,
+        dispatcherRules: [...dispatcherRulesSet],
+        fallback,
+        examples,
+      };
+    }
+  }
+  return registry;
 }
 
 module.exports = {
@@ -280,4 +401,5 @@ module.exports = {
   generateStadiumName,
   generateGameStatus,
   generateMockFromOpenAPISchema,
+  extractExampleRegistryFromSpec,
 };

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { scenarioStore, getUserScope, getWorkspaceId } = require('../state.cjs');
+const { scenarioStore, getUserScope, getWorkspaceId, dispatchExample } = require('../state.cjs');
 const { proxyToMicrocks, proxyToMicrocksAsText } = require('../lib/http-helpers.cjs');
 const { fetchMicrocksServices } = require('../lib/microcks-service.cjs');
 
@@ -48,6 +48,26 @@ function pathMatchesTemplate(actualPath, templatePath) {
 // the dashboard now store against the resolved path so each unique
 // parameter value gets its own response.
 
+function tryExampleDispatch(req, res, service) {
+  const subPath = '/' + (req.params[0] || '');
+  const dispatched = dispatchExample(service, req.method, subPath, req.query || {});
+  if (!dispatched) return false;
+  const { exampleName, response } = dispatched;
+  const status = response.status || 200;
+  if (response.headers) {
+    for (const [k, v] of Object.entries(response.headers)) res.setHeader(k, v);
+  }
+  res.setHeader('X-Source', 'example-dispatcher');
+  res.setHeader('X-Example-Name', exampleName);
+  res.status(status);
+  if (response.body === undefined || response.body === null) {
+    res.end();
+  } else {
+    res.json(response.body);
+  }
+  return true;
+}
+
 function handleRestVersioned(req, res) {
   const service = req.params.service;
   const entry = checkRestScenario(req, service);
@@ -55,6 +75,7 @@ function handleRestVersioned(req, res) {
     res.setHeader('X-Source', entry.source === 'ai-setup' ? 'ai-setup-workspace' : 'ai-scenario');
     return res.json(entry.data);
   }
+  if (tryExampleDispatch(req, res, service)) return;
   const version = req.params.version;
   const subPath = req.params[0] || '';
   const search = req._parsedUrl.search || '';
@@ -69,6 +90,7 @@ function handleRestNoVersion(req, res) {
     res.setHeader('X-Source', entry.source === 'ai-setup' ? 'ai-setup-workspace' : 'ai-scenario');
     return res.json(entry.data);
   }
+  if (tryExampleDispatch(req, res, service)) return;
   const subPath = req.params[0] || '';
   const search = req._parsedUrl.search || '';
   const restPath = `/rest/${service}/1.0/${subPath}${search}`;

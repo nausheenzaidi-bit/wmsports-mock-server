@@ -2641,7 +2641,7 @@ async function doRegen(serviceName, type) {
 
     // Refresh page to pick up new data
     lastFetch = 0;
-    schemaCache = {};
+    Object.keys(schemaCache).forEach(function(k) { delete schemaCache[k]; });
   } catch (err) {
     statusEl.innerHTML += '<div style="color:var(--red2)">✗ ' + err.message + '</div>';
     btn.disabled = false;

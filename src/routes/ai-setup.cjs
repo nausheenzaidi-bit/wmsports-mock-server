@@ -19,7 +19,7 @@ const {
   parseSamplesFromPrompt,
   enhanceSchemaWithAI,
 } = require('../lib/schema-parser.cjs');
-const { generateMockValue, generateMockObject, generateMockFromOpenAPISchema } = require('../lib/mock-generators.cjs');
+const { generateMockValue, generateMockObject, generateMockFromOpenAPISchema, extractExampleRegistryFromSpec } = require('../lib/mock-generators.cjs');
 const {
   buildAutoPostmanCollection,
   buildRestPostmanCollection,
@@ -35,12 +35,13 @@ const {
   getMicrocksServiceId,
   clearServiceDispatchers,
   configureServiceDispatchers,
+  configureGraphQLOperationDispatchers,
   invalidateCache,
 } = require('../lib/microcks-service.cjs');
 const { loadSchemaFiles, isValidJSON } = require('../lib/schema-loader.cjs');
 const { validateMockData, nearestEnumValue } = require('../lib/validation.cjs');
 const { SCALAR_TYPES } = require('../lib/graphql-utils.cjs');
-const { scenarioStore, workspaces, getUserScope, getWorkspaceId, registerService, markDirty } = require('../state.cjs');
+const { scenarioStore, workspaces, getUserScope, getWorkspaceId, registerService, registerOperationExamples, clearServiceExamples, markDirty } = require('../state.cjs');
 const { applyPrefix } = require('../lib/microcks-namespace.cjs');
 
 const router = express.Router();
@@ -254,6 +255,22 @@ if (trimmed.startsWith('{')) {
 
       if (operations.length === 0) {
         return res.status(400).json({ error: 'No REST operations found in OpenAPI spec', steps });
+      }
+
+      // Extract Microcks-style named examples from the spec and register
+      // them for the local dispatcher (URI_PARTS / URI_PARAMS / FALLBACK).
+      try {
+        const exReg = extractExampleRegistryFromSpec(spec);
+        const opCount = Object.keys(exReg).length;
+        if (opCount > 0) {
+          clearServiceExamples(microcksRestServiceName);
+          for (const [opKey, entry] of Object.entries(exReg)) {
+            registerOperationExamples(microcksRestServiceName, opKey, entry);
+          }
+          steps.push({ step: `Registered named examples for ${opCount} operation(s) in local dispatcher`, status: 'done' });
+        }
+      } catch (e) {
+        steps.push({ step: `Example dispatcher registration skipped: ${e.message}`, status: 'warning' });
       }
 
       steps.push({ step: `Generating mock data for ${operations.length} REST operations...`, status: 'running' });
@@ -668,7 +685,8 @@ Format: { "opName1": [example1, ...], "opName2": [example1, ...] }`;
       steps[steps.length - 1] = { step: `Examples import: ${err.message}`, status: 'warning' };
     }
 
-    // Clear QUERY_ARGS dispatchers and configure new ones
+    // Clear inferred dispatchers, then configure SCRIPT-based variable
+    // dispatching so different variable values return different examples.
     steps.push({ step: 'Configuring dispatchers...', status: 'running' });
     try {
       let totalCleared = 0;
@@ -679,8 +697,18 @@ Format: { "opName1": [example1, ...], "opName2": [example1, ...] }`;
         totalCleared += dispResult.cleared || 0;
         if (totalCleared > 0) break;
       }
-      
-      steps[steps.length - 1] = { step: `Dispatchers configured (${totalCleared} cleared)`, status: 'done' };
+
+      const scriptResults = await configureGraphQLOperationDispatchers(
+        serviceName,
+        operations,
+        samplesPerOp,
+      );
+      const scripted = scriptResults.filter(r => r.configured).length;
+      const skipped = scriptResults.filter(r => !r.configured).length;
+      steps[steps.length - 1] = {
+        step: `Dispatchers configured (${totalCleared} cleared, ${scripted} scripted, ${skipped} skipped)`,
+        status: 'done',
+      };
     } catch (err) {
       steps[steps.length - 1] = { step: `Dispatcher config: ${err.message}`, status: 'warning' };
     }

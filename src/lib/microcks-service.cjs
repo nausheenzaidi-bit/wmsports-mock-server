@@ -342,6 +342,68 @@ async function deleteExistingService(serviceName) {
   }
 }
 
+// Pick the best GraphQL operation argument to dispatch on.
+// Preference: first Int (cleanest 1/2/3 mapping) > first String > first primitive.
+// Returns the chosen arg or null if none suitable.
+function pickGraphQLDispatchArg(args) {
+  if (!Array.isArray(args) || args.length === 0) return null;
+  const PRIMITIVE = new Set(['Int', 'Float', 'String', 'ID', 'Boolean', 'Tenant', 'DateTime']);
+  const usable = args.filter(a => a && a.type && !a.type.isList && PRIMITIVE.has(a.type.name));
+  if (usable.length === 0) return null;
+  return usable.find(a => a.type.name === 'Int' || a.type.name === 'Float')
+    || usable.find(a => a.type.name === 'String' || a.type.name === 'ID')
+    || usable[0];
+}
+
+// Mirror of postman-builder.buildVariantVariables for a single field, used to
+// predict the example values produced for each variant index N (0-based).
+function predictVariantValue(arg, index) {
+  const defaults = {
+    'String': 'example', 'Int': 1, 'Float': 1.0, 'Boolean': true, 'ID': 'id-001',
+    'Tenant': 'bleacherReport', 'DateTime': '2026-03-01T00:00:00Z',
+  };
+  const base = defaults[arg.type.name];
+  if (typeof base === 'string') return index === 0 ? base : `${base}-${index + 1}`;
+  if (typeof base === 'number') return base + index;
+  if (typeof base === 'boolean') return index % 2 === 0 ? base : !base;
+  return base;
+}
+
+// Build a Groovy SCRIPT-dispatcher payload that maps inbound GraphQL variable
+// values to example names. Returns null if no usable dispatch arg.
+function buildGraphQLDispatchScript(op, sampleCount) {
+  const arg = pickGraphQLDispatchArg(op.args);
+  if (!arg) return null;
+  const n = Math.max(1, sampleCount || 1);
+  const lines = [
+    "def json = new groovy.json.JsonSlurper().parseText(mockRequest.requestContent)",
+    `def v = json?.variables?.${arg.name}`,
+  ];
+  for (let i = 0; i < n; i++) {
+    const expected = predictVariantValue(arg, i);
+    const literal = typeof expected === 'string'
+      ? `"${expected.replace(/"/g, '\\"')}"`
+      : String(expected);
+    lines.push(`if (v == ${literal}) return "example-${i + 1}"`);
+  }
+  lines.push('return "example-1"');
+  return lines.join('\n');
+}
+
+async function configureGraphQLOperationDispatchers(serviceName, operations, sampleCount) {
+  const results = [];
+  for (const op of operations || []) {
+    const script = buildGraphQLDispatchScript(op, sampleCount);
+    if (!script) {
+      results.push({ operation: op.name, configured: false, reason: 'no dispatch arg' });
+      continue;
+    }
+    const r = await configureOperationDispatcher(serviceName, op.name, 'SCRIPT', script);
+    results.push({ operation: op.name, ...r });
+  }
+  return results;
+}
+
 async function configureOperationDispatcher(serviceName, operationName, dispatcher, rules) {
   try {
     assertInNamespace(serviceName, 'configure operation on');
@@ -413,4 +475,6 @@ module.exports = {
   configureServiceDispatchers,
   getMicrocksExamples,
   configureOperationDispatcher,
+  configureGraphQLOperationDispatchers,
+  buildGraphQLDispatchScript,
 };

@@ -1,2 +1,7 @@
 node_modules/
 sports-stats-api/
+.DS_Store
+gqa-microcks-main/
+gqa-microcks-main.zip
+contract-testing-example-main/
+contract-testing-example-main.zip
