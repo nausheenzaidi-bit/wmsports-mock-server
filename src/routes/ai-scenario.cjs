@@ -25,8 +25,7 @@ const {
   configureOperationDispatcher,
 } = require('../lib/microcks-service.cjs');
 const { buildPostmanCollection, buildSingleOpRestCollection } = require('../lib/postman-builder.cjs');
-
-const ARTIFACTS_DIR = path.join(__dirname, '..', '..', 'artifacts');
+const { ARTIFACTS_DIR } = require('../config.cjs');
 
 function findMainArtifact(serviceName) {
   const norm = serviceName.toLowerCase().replace(/api$/i, '').replace(/[^a-z0-9]/g, '');

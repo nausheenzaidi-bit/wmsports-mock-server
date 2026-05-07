@@ -3,7 +3,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-require('../config.cjs');
+const { ARTIFACTS_DIR } = require('../config.cjs');
 const { callLLM, callLLMWithHighTokens, SETUP_SYSTEM_PROMPT, FAILURE_SCENARIOS } = require('../lib/ai-client.cjs');
 const {
   detectSchemaType,
@@ -42,7 +42,7 @@ const { loadSchemaFiles, isValidJSON } = require('../lib/schema-loader.cjs');
 const { validateMockData, nearestEnumValue } = require('../lib/validation.cjs');
 const { SCALAR_TYPES } = require('../lib/graphql-utils.cjs');
 const { scenarioStore, workspaces, getUserScope, getWorkspaceId, registerService, registerOperationExamples, clearServiceExamples, markDirty } = require('../state.cjs');
-const { applyPrefix } = require('../lib/microcks-namespace.cjs');
+const { applyPrefix, getDisplayName } = require('../lib/microcks-namespace.cjs');
 
 const router = express.Router();
 
@@ -115,6 +115,12 @@ async function handleAiSetup(req, res) {
   const steps = [];
   let finalSchema = schemaText;
   let serviceName = reqServiceName;
+
+  // Workspace-scoped naming: same base name in different workspaces must not
+  // collide in Microcks. We fold the workspace id into the service name before
+  // applying the global namespace prefix.
+  const wsId = getWorkspaceId(req);
+  const wsScope = (name) => applyPrefix(wsId ? `${wsId}-${name}` : name);
 
   try {
     // ── Detect schema type early ─────────────────────────────
@@ -245,12 +251,16 @@ if (trimmed.startsWith('{')) {
       // ── OpenAPI / REST flow ──────────────────────────────────────────
       steps.push({ step: 'Detected OpenAPI spec, parsing...', status: 'running' });
       const { spec, serviceName: parsedName, serviceVersion, operations } = parseOpenAPISpec(finalSchema);
-      if (!serviceName) serviceName = parsedName;
-      // Apply namespace prefix so Microcks stores the service under our namespace.
-      // Must update info.title in the spec itself — Microcks derives the service name from it.
-      serviceName = applyPrefix(serviceName);
-      const microcksRestServiceName = applyPrefix(parsedName);
-      if (spec.info) spec.info.title = microcksRestServiceName;
+      // Canonical name resolution: prefer client-supplied name, fall back to
+      // the OpenAPI info.title. We then apply workspace + namespace scoping
+      // ONCE and treat the result as the single source of truth for Microcks,
+      // the local registry, route URLs, and on-disk slug. Mirror the scoped
+      // name back into spec.info.title so Microcks stores it under that name.
+      const baseName = serviceName || parsedName;
+      serviceName = wsScope(baseName);
+      if (spec.info) spec.info.title = serviceName;
+      // Kept for backwards compatibility in the response body.
+      const microcksRestServiceName = serviceName;
       steps[steps.length - 1].status = 'done';
 
       if (operations.length === 0) {
@@ -369,21 +379,28 @@ Format:
       steps[steps.length - 1].status = 'done';
 
       steps.push({ step: 'Writing artifacts...', status: 'running' });
-      const artifactsDir = path.join(__dirname, '..', '..', 'artifacts');
+      const artifactsDir = ARTIFACTS_DIR;
       const slugName = serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
       const openapiFile = path.join(artifactsDir, `${slugName}-openapi.json`);
       const postmanFile = path.join(artifactsDir, `${slugName}-examples.postman.json`);
-      fs.writeFileSync(openapiFile, JSON.stringify(updatedSpec, null, 2), 'utf-8');
-      fs.writeFileSync(postmanFile, JSON.stringify(collection, null, 2), 'utf-8');
-      steps[steps.length - 1].status = 'done';
+      try {
+        if (!fs.existsSync(artifactsDir)) fs.mkdirSync(artifactsDir, { recursive: true });
+        fs.writeFileSync(openapiFile, JSON.stringify(updatedSpec, null, 2), 'utf-8');
+        fs.writeFileSync(postmanFile, JSON.stringify(collection, null, 2), 'utf-8');
+        steps[steps.length - 1].status = 'done';
+      } catch (err) {
+        steps[steps.length - 1] = { step: `Writing artifacts failed: ${err.message}`, status: 'error' };
+        return res.status(500).json({
+          error: `Failed to persist artifacts to ${artifactsDir}: ${err.message}`,
+          hint: 'Verify the artifacts directory is writable (check ARTIFACTS_DIR env var and volume mounts).',
+          steps,
+        });
+      }
 
       // Delete existing service to prevent stale default examples
       steps.push({ step: 'Cleaning up existing service in Microcks...', status: 'running' });
       try {
-        let delResult = await deleteExistingService(microcksRestServiceName);
-        if (!delResult.deleted && serviceName !== microcksRestServiceName) {
-          delResult = await deleteExistingService(serviceName);
-        }
+        const delResult = await deleteExistingService(serviceName);
         if (delResult.deleted) {
           steps[steps.length - 1].status = 'done';
           await new Promise(r => setTimeout(r, 2000));
@@ -428,6 +445,7 @@ Format:
       return res.json({
         success: true,
         serviceName,
+        displayName: getDisplayName(serviceName, wsId),
         microcksServiceName: microcksRestServiceName,
         schemaType: 'openapi',
         operationCount: operations.length,
@@ -451,7 +469,9 @@ Format:
     if (!serviceName) {
       serviceName = (reqServiceName || 'AIGeneratedAPI').replace(/\s+/g, '');
     }
-    serviceName = applyPrefix(serviceName);
+    // Workspace-scope the service name so the same base name in different
+    // workspaces produces distinct Microcks services.
+    serviceName = wsScope(serviceName);
 
     // Rewrite or inject microcksId with the prefixed name
     if (finalSchema.includes('microcksId')) {
@@ -640,14 +660,24 @@ Format: { "opName1": [example1, ...], "opName2": [example1, ...] }`;
 
     // Write files to artifacts
     steps.push({ step: 'Writing artifacts...', status: 'running' });
-    const artifactsDir = path.join(__dirname, '..', '..', 'artifacts');
+    const artifactsDir = ARTIFACTS_DIR;
     const slugName = serviceName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     const schemaFile = path.join(artifactsDir, `${slugName}-schema.graphql`);
     const postmanFile = path.join(artifactsDir, `${slugName}-examples.postman.json`);
 
-    fs.writeFileSync(schemaFile, finalSchema, 'utf-8');
-    fs.writeFileSync(postmanFile, JSON.stringify(collection, null, 2), 'utf-8');
-    steps[steps.length - 1].status = 'done';
+    try {
+      if (!fs.existsSync(artifactsDir)) fs.mkdirSync(artifactsDir, { recursive: true });
+      fs.writeFileSync(schemaFile, finalSchema, 'utf-8');
+      fs.writeFileSync(postmanFile, JSON.stringify(collection, null, 2), 'utf-8');
+      steps[steps.length - 1].status = 'done';
+    } catch (err) {
+      steps[steps.length - 1] = { step: `Writing artifacts failed: ${err.message}`, status: 'error' };
+      return res.status(500).json({
+        error: `Failed to persist artifacts to ${artifactsDir}: ${err.message}`,
+        hint: 'Verify the artifacts directory is writable (check ARTIFACTS_DIR env var and volume mounts).',
+        steps,
+      });
+    }
 
     // Reload type maps so the new service is immediately available for scoped queries
     loadSchemaFiles();
@@ -732,6 +762,7 @@ Format: { "opName1": [example1, ...], "opName2": [example1, ...] }`;
     res.json({
       success: true,
       serviceName,
+      displayName: getDisplayName(serviceName, wsId),
       operationCount: operations.length,
       steps,
       mockRoutes,

@@ -3,6 +3,7 @@
 const express = require('express');
 const { workspaces, scenarioStore, responseOverrides, variableMockStore, getUserScope, getWorkspaceId, getServicesForWorkspace, isServiceVisibleInWorkspace, unregisterWorkspaceServices, serviceRegistry, markDirty } = require('../state.cjs');
 const { fetchMicrocksServices, deleteExistingService, invalidateCache } = require('../lib/microcks-service.cjs');
+const { getDisplayName } = require('../lib/microcks-namespace.cjs');
 
 const router = express.Router();
 
@@ -221,7 +222,19 @@ router.get('/api/services-for-workspace', async (req, res) => {
   const wsId = req.query.workspace || null;
   const allServices = await fetchMicrocksServices();
   const visible = allServices.filter(s => isServiceVisibleInWorkspace(s.name, wsId));
-  res.json({ workspace: wsId, services: visible.map(s => s.name), serviceDetails: visible });
+  // Decorate each service with a `displayName` derived by stripping the
+  // global namespace prefix and the workspace id from the canonical name.
+  // The UI uses `displayName` for human-facing labels but keeps `name` for
+  // backend calls (deletes, regenerates, GraphQL/REST routing).
+  const decorated = visible.map(s => ({
+    ...s,
+    displayName: getDisplayName(s.name, serviceRegistry[s.name] || null),
+  }));
+  res.json({
+    workspace: wsId,
+    services: decorated.map(s => s.name),
+    serviceDetails: decorated,
+  });
 });
 
 router.delete('/api/services/:serviceName', async (req, res) => {

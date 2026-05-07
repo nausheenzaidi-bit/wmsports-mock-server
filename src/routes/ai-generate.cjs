@@ -7,8 +7,7 @@ const { responseOverrides, variableMockStore, getUserScope, getEffectiveScope, m
 const { callLLM, AI_SYSTEM_PROMPT, FAILURE_SCENARIOS, buildScenarioPrompt } = require('../lib/ai-client.cjs');
 const { fullTypeMap, queryServiceMap, queryArgsMap, richTypeMap, serviceRichTypeMap } = require('../lib/schema-loader.cjs');
 const { parseOpenAPISpec, describeSchema } = require('../lib/schema-parser.cjs');
-
-const ARTIFACTS_DIR = path.join(__dirname, '..', '..', 'artifacts');
+const { ARTIFACTS_DIR } = require('../config.cjs');
 
 function getOperationReturnType(opName) {
   const files = fs.readdirSync(ARTIFACTS_DIR).filter(f => f.endsWith('.graphql'));

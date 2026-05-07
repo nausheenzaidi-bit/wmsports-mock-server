@@ -18,7 +18,7 @@
  */
 
 const app = require('./src/app.cjs');
-const { PORT, MICROCKS_URL, MICROCKS_AUTH_ENABLED, MICROCKS_SERVICE_PREFIX, STATE_FILE_PATH, AI_API_KEY, AI_MODEL, AI_PROVIDER } = require('./src/config.cjs');
+const { PORT, MICROCKS_URL, MICROCKS_AUTH_ENABLED, MICROCKS_SERVICE_PREFIX, STATE_FILE_PATH, AI_API_KEY, AI_MODEL, AI_PROVIDER, AUTH_ENABLED, MOCK_API_KEY, AUTH_ALLOWED_GROUPS } = require('./src/config.cjs');
 const { fetchMicrocksServices } = require('./src/lib/microcks-service.cjs');
 const { seedRegistryFromMicrocks } = require('./src/state.cjs');
 const { isAuthEnabled, authHeaders } = require('./src/lib/microcks-auth.cjs');
@@ -41,6 +41,13 @@ app.listen(PORT, async () => {
   console.log(`  AI Scenario: POST /ai/scenario (apply failure scenarios to Microcks)`);
   console.log(`  AI:         ${AI_API_KEY || AI_PROVIDER === 'ollama' ? AI_PROVIDER + ' / ' + AI_MODEL : '⚠ Not set (export GROQ_API_KEY or AI_PROVIDER=ollama)'}`);
   console.log(`  Scoping:    Pass X-User header to isolate overrides + scenarios per person`);
+  if (AUTH_ENABLED) {
+    const groups = AUTH_ALLOWED_GROUPS.length ? AUTH_ALLOWED_GROUPS.join(', ') : 'any user assigned to the SAML app in Okta';
+    console.log(`  Dashboard auth: ✓ Okta SAML (allowed: ${groups})`);
+    console.log(`  Service auth:   ${MOCK_API_KEY ? '✓ X-API-Key accepted' : '⚠ MOCK_API_KEY not set — service callers will be blocked'}`);
+  } else {
+    console.log(`  Dashboard auth: ✗ disabled (set AUTH_ENABLED=true to require Okta SAML login)`);
+  }
   console.log('');
 
   if (isAuthEnabled()) {

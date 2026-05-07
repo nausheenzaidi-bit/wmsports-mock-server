@@ -1,0 +1,175 @@
+{
+  "info": {
+    "_postman_id": "ai-setup-rest-wmsports-testjson-1777530843822",
+    "name": "wmsports-testjson",
+    "description": "version=1.0 - AI-generated REST mock examples for wmsports-testjson",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "GET /testjson",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "/testjson"
+      },
+      "response": [
+        {
+          "name": "example-1",
+          "originalRequest": {
+            "method": "GET",
+            "url": "/testjson"
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"id\":\"4f23d45a-5d33-42ef-8e7c-5ad6bba9d2e1\",\"name\":\"Aaron Rodgers\",\"age\":38,\"salary\":43000000,\"company\":\"green-bay-packers\"}"
+        }
+      ]
+    },
+    {
+      "name": "POST /testjson",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "/testjson"
+      },
+      "response": [
+        {
+          "name": "example-1",
+          "originalRequest": {
+            "method": "POST",
+            "url": "/testjson"
+          },
+          "code": 201,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"id\":\"f4f23d45a-5d33-42ef-8e7c-5ad6bba9d2e1\",\"name\":\"Aaron Rodgers\",\"age\":38,\"salary\":43000000,\"company\":\"green-bay-packers\"}"
+        }
+      ]
+    },
+    {
+      "name": "GET /testjson/{id}",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "/testjson/{id}"
+      },
+      "response": [
+        {
+          "name": "mlb",
+          "originalRequest": {
+            "method": "GET",
+            "url": "/testjson/mlb"
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"id\":\"f4f23d45a-5d33-42ef-8e7c-5ad6bba9d2e1\",\"name\":\"Aaron Rodgers\",\"age\":38,\"salary\":43000000,\"company\":\"green-bay-packers\"}"
+        },
+        {
+          "name": "nba",
+          "originalRequest": {
+            "method": "GET",
+            "url": "/testjson/nba"
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"id\":\"f4f23d45a-5d33-42ef-8e7c-5ad6bba9d2e1\",\"name\":\"Aaron Rodgers\",\"age\":38,\"salary\":43000000,\"company\":\"green-bay-packers\"}"
+        }
+      ]
+    },
+    {
+      "name": "PUT /testjson/{id}",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "/testjson/{id}"
+      },
+      "response": [
+        {
+          "name": "patriots-vs-jets",
+          "originalRequest": {
+            "method": "PUT",
+            "url": "/testjson/patriots-vs-jets"
+          },
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"id\":\"f4f23d45a-5d33-42ef-8e7c-5ad6bba9d2e1\",\"name\":\"Aaron Rodgers\",\"age\":38,\"salary\":43000000,\"company\":\"green-bay-packers\"}"
+        }
+      ]
+    },
+    {
+      "name": "DELETE /testjson/{id}",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "/testjson/{id}"
+      },
+      "response": [
+        {
+          "name": "yankees-vs-red-sox",
+          "originalRequest": {
+            "method": "DELETE",
+            "url": "/testjson/yankees-vs-red-sox"
+          },
+          "code": 204,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"message\":\"Test JSON deleted successfully\"}"
+        }
+      ]
+    }
+  ]
+}

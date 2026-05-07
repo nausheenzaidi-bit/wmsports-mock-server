@@ -3,6 +3,7 @@ const path = require('path');
 const { parse: gqlParse, Kind } = require('graphql');
 const yaml = require('js-yaml');
 const { unwrapGqlType, gqlTypeStr } = require('./graphql-utils.cjs');
+const { ARTIFACTS_DIR } = require('../config.cjs');
 
 const fullTypeMap = {};
 const richTypeMap = {};
@@ -21,7 +22,7 @@ function isValidJSON(str) {
 }
 
 function loadSchemaFiles() {
-  const artifactsDir = path.join(__dirname, '..', '..', 'artifacts');
+  const artifactsDir = ARTIFACTS_DIR;
   if (!fs.existsSync(artifactsDir)) return;
 
   // Clear existing maps to allow reload
@@ -89,7 +90,7 @@ function loadSchemaFiles() {
 const asyncApiSpecs = {};
 
 function loadAsyncApiSpecs() {
-  const artifactsDir = path.join(__dirname, '..', '..', 'artifacts');
+  const artifactsDir = ARTIFACTS_DIR;
   if (!fs.existsSync(artifactsDir)) return;
 
   const yamlFiles = fs.readdirSync(artifactsDir).filter(f => f.includes('asyncapi') && (f.endsWith('.yaml') || f.endsWith('.yml')));

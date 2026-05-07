@@ -1,0 +1,183 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "wmsports-testjson",
+    "version": "1.0",
+    "description": "Auto-generated CRUD API for testjson"
+  },
+  "paths": {
+    "/testjson": {
+      "get": {
+        "operationId": "getAlltestjsons",
+        "summary": "List all testjsons",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/testjson"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": "{\"fallback\":\"default\"}"
+        }
+      },
+      "post": {
+        "operationId": "createtestjson",
+        "summary": "Create a new testjson",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/testjson"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/testjson"
+                }
+              }
+            }
+          }
+        },
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": "{\"fallback\":\"default\"}"
+        }
+      }
+    },
+    "/testjson/{id}": {
+      "get": {
+        "operationId": "gettestjsonById",
+        "summary": "Get testjson by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/testjson"
+                }
+              }
+            }
+          }
+        },
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": "{\"dispatcher\":\"URI_PARTS\",\"dispatcherRules\":\"id\",\"fallback\":\"mlb\"}"
+        }
+      },
+      "put": {
+        "operationId": "updatetestjson",
+        "summary": "Update testjson",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/testjson"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/testjson"
+                }
+              }
+            }
+          }
+        },
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": "{\"dispatcher\":\"URI_PARTS\",\"dispatcherRules\":\"id\",\"fallback\":\"patriots-vs-jets\"}"
+        }
+      },
+      "delete": {
+        "operationId": "deletetestjson",
+        "summary": "Delete testjson",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        },
+        "x-microcks-operation": {
+          "dispatcher": "FALLBACK",
+          "dispatcherRules": "{\"dispatcher\":\"URI_PARTS\",\"dispatcherRules\":\"id\",\"fallback\":\"yankees-vs-red-sox\"}"
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "testjson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "age": {
+            "type": "integer"
+          },
+          "salary": {
+            "type": "number"
+          },
+          "company": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { MICROCKS_URL } = require('../config.cjs');
 const { fetchMicrocksServices } = require('../lib/microcks-service.cjs');
-const { isServiceVisibleInWorkspace } = require('../state.cjs');
-const { isInNamespace } = require('../lib/microcks-namespace.cjs');
+const { isServiceVisibleInWorkspace, serviceRegistry } = require('../state.cjs');
+const { isInNamespace, getDisplayName } = require('../lib/microcks-namespace.cjs');
 
 function parseCookies(cookieHeader) {
   const cookies = {};
@@ -20,7 +20,15 @@ router.get('/', async (req, res) => {
   const cookies = parseCookies(req.headers.cookie);
   const activeWs = cookies.mock_workspace || null;
 
-  const services = allServices.filter(s => isServiceVisibleInWorkspace(s.name, activeWs));
+  // Decorate services with `displayName` (prefix + workspace-id stripped) so
+  // the UI can render human-friendly labels while keeping `name` as the
+  // canonical identifier for backend operations.
+  const services = allServices
+    .filter(s => isServiceVisibleInWorkspace(s.name, activeWs))
+    .map(s => ({
+      ...s,
+      displayName: getDisplayName(s.name, serviceRegistry[s.name] || null),
+    }));
 
   if (req.headers.accept && req.headers.accept.includes('application/json')) {
     return res.json({ services, microcks: MICROCKS_URL });
@@ -58,12 +66,12 @@ router.get('/', async (req, res) => {
       const opPath = parts.slice(1).join(' ') || '/';
       return `<div class="rest-ep"><span class="method ${method.toLowerCase()}">${method}</span><code>${host}/rest/${s.name}/${s.version}${opPath}</code><button onclick="tryRest('${method}','${host}/rest/${s.name}/${s.version}${opPath}')">Try</button></div>`;
     }).join('\n');
-    return `<div class="rest-svc" data-svc="${s.name}"><h3>${s.name} <span class="badge rest">REST</span> <span class="ops-count">${s.operations?.length || 0}</span></h3>${ops}</div>`;
+    return `<div class="rest-svc" data-svc="${s.name}"><h3>${s.displayName || s.name} <span class="badge rest">REST</span> <span class="ops-count">${s.operations?.length || 0}</span></h3>${ops}</div>`;
   }).join('\n');
 
   const eventRows = eventSvcs.map(s => {
     const ops = (s.operations || []).map(o => o.name).join(', ');
-    return `<tr><td><strong>${s.name}</strong></td><td><span class="badge event">Event</span></td><td><span class="ops-count">${s.operations?.length || 0}</span></td><td>${ops}</td></tr>`;
+    return `<tr><td><strong>${s.displayName || s.name}</strong></td><td><span class="badge event">Event</span></td><td><span class="ops-count">${s.operations?.length || 0}</span></td><td>${ops}</td></tr>`;
   }).join('\n');
 
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -251,20 +259,20 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
       ${graphqlSvcs.map(s => {
         const qc = (s.operations||[]).filter(o=>o.method==='QUERY').length;
         const mc = (s.operations||[]).filter(o=>o.method==='MUTATION').length;
-        return `<button class="svc-btn" data-svc="${s.name}" data-type="graphql" onclick="selectService('${s.name}')"><span class="svc-name">${s.name}</span><span class="svc-actions">${delIcon(s.name)}<span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService('${s.name}','graphql')">↻</span><span class="cnt">${qc}Q${mc?'/'+mc+'M':''}</span></span></button>`;
+        return `<button class="svc-btn" data-svc="${s.name}" data-type="graphql" onclick="selectService('${s.name}')"><span class="svc-name">${s.displayName || s.name}</span><span class="svc-actions">${delIcon(s.name)}<span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService('${s.name}','graphql')">↻</span><span class="cnt">${qc}Q${mc?'/'+mc+'M':''}</span></span></button>`;
       }).join('\n')}
       </div>
     </div>
     <div class="sidebar-section" id="section-rest">
       <h3 onclick="toggleSection(this)"><span class="section-arrow">▼</span> REST APIs</h3>
       <div class="section-items" style="max-height:2000px">
-      ${restSvcs.map(s => `<button class="svc-btn" data-svc="${s.name}" data-type="rest" onclick="showRest()"><span class="svc-name">${s.name}</span><span class="svc-actions">${delIcon(s.name)}<span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService('${s.name}','rest')">↻</span><span class="cnt">${s.operations?.length||0}</span></span></button>`).join('\n')}
+      ${restSvcs.map(s => `<button class="svc-btn" data-svc="${s.name}" data-type="rest" onclick="showRest()"><span class="svc-name">${s.displayName || s.name}</span><span class="svc-actions">${delIcon(s.name)}<span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService('${s.name}','rest')">↻</span><span class="cnt">${s.operations?.length||0}</span></span></button>`).join('\n')}
       </div>
     </div>
     <div class="sidebar-section" id="section-event">
       <h3 onclick="toggleSection(this)"><span class="section-arrow">▼</span> Event / Async</h3>
       <div class="section-items" style="max-height:2000px">
-      ${eventSvcs.map(s => `<button class="svc-btn" data-svc="${s.name}" data-type="event" onclick="showEvents()"><span class="svc-name">${s.name}</span><span class="svc-actions">${delIcon(s.name)}<span class="cnt">${s.operations?.length||0}</span></span></button>`).join('\n')}
+      ${eventSvcs.map(s => `<button class="svc-btn" data-svc="${s.name}" data-type="event" onclick="showEvents()"><span class="svc-name">${s.displayName || s.name}</span><span class="svc-actions">${delIcon(s.name)}<span class="cnt">${s.operations?.length||0}</span></span></button>`).join('\n')}
       </div>
     </div>
     <div class="sidebar-section" style="border-top:1px solid #30363d;margin-top:auto">
@@ -458,14 +466,14 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 
     <div id="routes-view" class="rest-section">
       <h2 style="color:#c9d1d9;margin-bottom:.5rem">Mock API Routes <span class="badge" style="background:#1f6feb22;color:#58a6ff">Microcks</span></h2>
-      <p style="color:#8b949e;font-size:.85rem;margin-bottom:1rem">These are the live mock endpoints. Hit them directly from any client (curl, Postman, tests).</p>
+      <p style="color:#8b949e;font-size:.85rem;margin-bottom:1rem">Hit these URLs from any client (curl, Postman, tests). Requests flow through this dashboard so workspace overrides, AI-generated variants, and active scenarios are applied before Microcks plays back the response.</p>
       <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem;margin-bottom:1rem">
         <h3 style="color:#c9d1d9;font-size:.9rem;margin-bottom:.5rem">GraphQL Endpoints</h3>
         <p style="color:#8b949e;font-size:.78rem;margin-bottom:.5rem">POST to these URLs with <code>{"query": "{ operationName { fields } }"}</code></p>
-        <table><thead><tr><th>Service</th><th>Mock URL (via dashboard)</th><th>Direct Microcks URL</th><th>Operations</th></tr></thead><tbody>
+        <table><thead><tr><th>Service</th><th>Mock URL</th><th>Operations</th></tr></thead><tbody>
         ${graphqlSvcs.map(s => {
           const oc = (s.operations||[]).length;
-          return `<tr><td style="font-weight:600">${s.name}</td><td><code>/graphql/${s.name}</code></td><td><code style="color:#79c0ff">${MICROCKS_URL}/graphql/${s.name}/${s.version}</code></td><td>${oc}</td></tr>`;
+          return `<tr><td style="font-weight:600">${s.displayName || s.name}</td><td><code style="color:#79c0ff">${host}/graphql/${s.name}</code></td><td>${oc}</td></tr>`;
         }).join('')}
         </tbody></table>
       </div>
@@ -473,19 +481,19 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
         <h3 style="color:#c9d1d9;font-size:.9rem;margin-bottom:.5rem">REST Endpoints</h3>
         ${restSvcs.map(s => {
           const ops = (s.operations||[]);
-          return `<div style="margin-bottom:.8rem"><strong style="color:#c9d1d9">${s.name}</strong> <span style="color:#484f58;font-size:.75rem">${ops.length} operations</span>` +
+          return `<div style="margin-bottom:.8rem"><strong style="color:#c9d1d9">${s.displayName || s.name}</strong> <span style="color:#484f58;font-size:.75rem">${ops.length} operations</span>` +
             ops.map(o => {
               const parts = o.name.split(' ');
               const method = parts[0] || 'GET';
               const path = parts.slice(1).join(' ') || o.name;
               const mc = method.toLowerCase();
-              return `<div style="margin:.2rem 0 .2rem 1rem;font-size:.82rem"><span class="badge ${mc}" style="font-size:.65rem;padding:1px 4px">${method}</span> <code>${MICROCKS_URL}/rest/${s.name}/${s.version}${path}</code></div>`;
+              return `<div style="margin:.2rem 0 .2rem 1rem;font-size:.82rem"><span class="badge ${mc}" style="font-size:.65rem;padding:1px 4px">${method}</span> <code style="color:#79c0ff">${host}/rest/${s.name}/${s.version}${path}</code></div>`;
             }).join('') + '</div>';
         }).join('')}
       </div>
       <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1rem">
         <h3 style="color:#c9d1d9;font-size:.9rem;margin-bottom:.5rem">Event / Async Endpoints</h3>
-        ${eventSvcs.map(s => `<div style="margin-bottom:.3rem"><strong style="color:#c9d1d9">${s.name}</strong> <span style="color:#484f58;font-size:.75rem">${(s.operations||[]).map(o=>o.name).join(', ')}</span></div>`).join('')}
+        ${eventSvcs.map(s => `<div style="margin-bottom:.3rem"><strong style="color:#c9d1d9">${s.displayName || s.name}</strong> <span style="color:#484f58;font-size:.75rem">${(s.operations||[]).map(o=>o.name).join(', ')}</span></div>`).join('')}
       </div>
     </div>
 
@@ -668,9 +676,14 @@ function selectService(name) {
   currentService = name;
   window.__restCtx = null;
 
-  document.querySelector('.svc-btn[data-svc="'+name+'"]').classList.add('active');
+  var activeBtn = document.querySelector('.svc-btn[data-svc="'+name+'"]');
+  activeBtn.classList.add('active');
   document.getElementById('explorer').classList.add('active');
-  document.getElementById('editor-svc').textContent = name;
+  // Prefer the cleaned-up label rendered in the sidebar over the raw scoped
+  // service name so the editor header reads "CensusAPI" not
+  // "wmsports-ws-mc8x9y-CensusAPI".
+  var svcLabel = activeBtn.querySelector('.svc-name');
+  document.getElementById('editor-svc').textContent = svcLabel ? svcLabel.textContent : name;
   document.getElementById('editor-result').textContent = 'Select a query and click Run';
   document.getElementById('editor-result').className = '';
   document.getElementById('editor-timing').innerHTML = '';
@@ -2174,7 +2187,7 @@ async function filterSidebarByWorkspace() {
   showAll();
 }
 
-function addServiceToSidebar(serviceName, schemaType, mockRoutes) {
+function addServiceToSidebar(serviceName, schemaType, mockRoutes, displayName) {
   var isGraphql = schemaType !== 'openapi';
   var sectionId = isGraphql ? 'section-graphql' : 'section-rest';
   var section = document.getElementById(sectionId);
@@ -2185,6 +2198,7 @@ function addServiceToSidebar(serviceName, schemaType, mockRoutes) {
 
   section.style.display = '';
   var q = String.fromCharCode(39);
+  var label = displayName || serviceName;
 
   if (isGraphql) {
     var queries = (mockRoutes || []).filter(function(r) { return r.method === 'QUERY'; });
@@ -2196,13 +2210,13 @@ function addServiceToSidebar(serviceName, schemaType, mockRoutes) {
     };
     var qc = queries.length;
     var mc = mutations.length;
-    var label = qc + 'Q' + (mc ? '/' + mc + 'M' : '');
+    var cntLabel = qc + 'Q' + (mc ? '/' + mc + 'M' : '');
     var btn = document.createElement('button');
     btn.className = 'svc-btn';
     btn.setAttribute('data-svc', serviceName);
     btn.setAttribute('data-type', 'graphql');
     btn.onclick = function() { selectService(serviceName); };
-    btn.innerHTML = '<span class="svc-name">' + serviceName + '</span><span class="svc-actions"><span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService(' + q + serviceName + q + ',' + q + 'graphql' + q + ')">↻</span><span class="cnt">' + label + '</span></span>';
+    btn.innerHTML = '<span class="svc-name">' + label + '</span><span class="svc-actions"><span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService(' + q + serviceName + q + ',' + q + 'graphql' + q + ')">↻</span><span class="cnt">' + cntLabel + '</span></span>';
     section.querySelector('.section-items').appendChild(btn);
   } else {
     var opCount = (mockRoutes || []).length;
@@ -2211,7 +2225,7 @@ function addServiceToSidebar(serviceName, schemaType, mockRoutes) {
     btn.setAttribute('data-svc', serviceName);
     btn.setAttribute('data-type', 'rest');
     btn.onclick = function() { showRest(); };
-    btn.innerHTML = '<span class="svc-name">' + serviceName + '</span><span class="svc-actions"><span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService(' + q + serviceName + q + ',' + q + 'rest' + q + ')">↻</span><span class="cnt">' + opCount + '</span></span>';
+    btn.innerHTML = '<span class="svc-name">' + label + '</span><span class="svc-actions"><span class="regen-icon" title="Re-generate mock data" onclick="event.stopPropagation();regenService(' + q + serviceName + q + ',' + q + 'rest' + q + ')">↻</span><span class="cnt">' + opCount + '</span></span>';
     section.querySelector('.section-items').appendChild(btn);
 
     var restView = document.getElementById('rest-view');
@@ -2443,9 +2457,9 @@ async function runSetup() {
     const isRest = data.schemaType === 'openapi';
     let html = '<div style="margin-bottom:.75rem"><strong>Service:</strong> ' + data.serviceName + ' &nbsp;|&nbsp; <strong>Operations:</strong> ' + data.operationCount + ' &nbsp;|&nbsp; <strong>Type:</strong> ' + (isRest ? 'REST (OpenAPI)' : 'GraphQL') + '</div>';
     if (isRest) {
-      html += '<div style="margin-bottom:.75rem"><strong>REST Base:</strong> <code style="background:var(--border);padding:2px 6px;border-radius:4px;color:var(--accent)">' + data.restEndpoint + '</code></div>';
+      html += '<div style="margin-bottom:.75rem"><strong>REST Base:</strong> <code style="background:var(--border);padding:2px 6px;border-radius:4px;color:var(--accent)">' + window.location.origin + data.restEndpoint + '</code></div>';
     } else {
-      html += '<div style="margin-bottom:.75rem"><strong>GraphQL Endpoint:</strong> <code style="background:var(--border);padding:2px 6px;border-radius:4px;color:var(--accent)">POST ' + data.graphqlEndpoint + '</code></div>';
+      html += '<div style="margin-bottom:.75rem"><strong>GraphQL Endpoint:</strong> <code style="background:var(--border);padding:2px 6px;border-radius:4px;color:var(--accent)">POST ' + window.location.origin + data.graphqlEndpoint + '</code></div>';
     }
     html += '<div style="margin-bottom:.5rem"><strong>Mock Routes:</strong></div>';
     html += '<div style="background:var(--code-bg);border:1px solid var(--border2);border-radius:6px;padding:.5rem;max-height:200px;overflow:auto">';
@@ -2462,7 +2476,7 @@ async function runSetup() {
     html += '<div style="margin-top:.75rem;font-size:.78rem;color:var(--fg3)">Files: ' + filesArr.map(f => '<code>' + f + '</code>').join(', ') + '</div>';
     resultContent.innerHTML = html;
 
-    addServiceToSidebar(data.serviceName, data.schemaType || 'graphql', data.mockRoutes || []);
+    addServiceToSidebar(data.serviceName, data.schemaType || 'graphql', data.mockRoutes || [], data.displayName || data.serviceName);
     if (currentWorkspace) {
       await filterSidebarByWorkspace();
     }
@@ -2491,6 +2505,39 @@ function handleFileSelect(input) {
   if (file) readSchemaFile(file);
 }
 
+// Derive a clean service name from the schema's own metadata first, then
+// fall back to a sanitized filename. The filename heuristic strips file
+// extensions AND known suffix words (-schema, -openapi, -asyncapi, -examples,
+// -postman) so files like "sports-search-api-schema.graphql" suggest
+// "SportsSearchAPI" instead of "SportsSearchApiSchema".
+function deriveServiceNameFromSchema(content, filename) {
+  // NOTE: this whole script lives inside a server-side template literal, so
+  // every backslash that needs to reach the browser must be doubled here.
+  // 1. GraphQL: prefer the explicit microcksId directive at the top of the SDL.
+  if (content) {
+    var idMatch = content.match(/^#\\s*microcksId:\\s*([^:\\n\\r]+?)\\s*:/m);
+    if (idMatch && idMatch[1]) return idMatch[1].trim();
+
+    // 2. OpenAPI JSON/YAML: try to pull info.title.
+    var titleMatch = content.match(/"title"\\s*:\\s*"([^"]+)"/);
+    if (titleMatch && titleMatch[1]) return titleMatch[1].trim();
+    var yamlTitleMatch = content.match(/^\\s*title:\\s*['"]?([^'"\\n\\r]+?)['"]?\\s*$/m);
+    if (yamlTitleMatch && yamlTitleMatch[1]) return yamlTitleMatch[1].trim();
+  }
+
+  // 3. Filename fallback: strip extension + known suffixes, then PascalCase.
+  if (!filename) return '';
+  var stem = filename.replace(/\\.(graphql|gql|json|yaml|yml|txt)$/i, '');
+  stem = stem.replace(/[-_](schema|openapi|asyncapi|examples|postman)$/i, '');
+  // If stripping leaves nothing meaningful (e.g. plain "schema.graphql"),
+  // bail out so the user fills it in themselves.
+  if (!stem || /^(schema|openapi|asyncapi|examples|postman)$/i.test(stem)) return '';
+  return stem
+    .replace(/[-_]+/g, ' ')
+    .replace(/\\b\\w/g, function(c) { return c.toUpperCase(); })
+    .replace(/\\s+/g, '');
+}
+
 function readSchemaFile(file) {
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -2500,12 +2547,10 @@ function readSchemaFile(file) {
     fnLabel.textContent = '✓ ' + file.name + ' (' + (content.length / 1024).toFixed(1) + ' KB)';
     fnLabel.style.display = 'block';
 
-    // Auto-detect service name from filename
     const nameInput = document.getElementById('setup-service-name');
     if (!nameInput.value.trim()) {
-      const baseName = file.name.replace(/\.(graphql|gql|json|yaml|yml|txt)$/i, '')
-        .replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).replace(/\s+/g, '');
-      if (baseName) nameInput.value = baseName;
+      const derived = deriveServiceNameFromSchema(content, file.name);
+      if (derived) nameInput.value = derived;
     }
 
     // DO NOT auto-trigger generation - wait for user to provide prompt

@@ -3,13 +3,21 @@ const cors = require('cors');
 const http = require('http');
 const https = require('https');
 const state = require('./state.cjs');
+const auth = require('./middleware/auth.cjs');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.text({ type: 'text/*', limit: '5mb' }));
 
+// Order matters: session must be set up before any route can read req.session;
+// /health stays public so ALB target checks work; /auth/* stays public since
+// it IS the login flow; everything below requireAuth is gated.
+auth.initSession(app);
 app.use(require('./routes/health.cjs'));
+app.use(require('./routes/auth.cjs'));
+app.use(auth.requireAuth);
+
 app.use(require('./routes/workspace.cjs'));
 app.use(require('./routes/schema-api.cjs'));
 app.use(require('./routes/graphql.cjs'));

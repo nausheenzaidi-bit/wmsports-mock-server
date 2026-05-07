@@ -5,3 +5,9 @@ gqa-microcks-main/
 gqa-microcks-main.zip
 contract-testing-example-main/
 contract-testing-example-main.zip
+.env
+.env.local
+.env.*.local
+
+# Cursor IDE session exports (local notes only, never commit)
+cursor_*.md

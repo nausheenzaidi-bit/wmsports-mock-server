@@ -43,6 +43,22 @@ function stripPrefix(serviceName) {
   return serviceName;
 }
 
+// Build a human-friendly display name for a workspace-scoped service.
+// AI-generated services have names like `${prefix}${wsId}-${baseName}`. This
+// strips both the global prefix and the workspace id so the UI can show just
+// the base name (e.g. "CensusAPI" instead of "wmsports-ws-mc8x9y-CensusAPI").
+// When the service does not belong to a workspace, only the prefix is stripped.
+function getDisplayName(serviceName, workspaceId) {
+  const stripped = stripPrefix(serviceName);
+  if (workspaceId && typeof workspaceId === 'string') {
+    const wsPrefix = `${workspaceId}-`;
+    if (stripped.startsWith(wsPrefix)) {
+      return stripped.slice(wsPrefix.length);
+    }
+  }
+  return stripped;
+}
+
 // Hard guard for mutating operations (delete, dispatcher overrides, etc).
 // Throws NamespaceViolationError if called with a service name outside the
 // namespace. Callers should catch and surface a 403-style response.
@@ -72,6 +88,7 @@ module.exports = {
   isInNamespace,
   applyPrefix,
   stripPrefix,
+  getDisplayName,
   assertInNamespace,
   filterToNamespace,
 };

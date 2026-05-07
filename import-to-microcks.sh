@@ -20,8 +20,6 @@ echo "=== Importing main artifacts (schemas + OpenAPI specs) ==="
 for f in "$ARTIFACTS_DIR"/*-schema.graphql "$ARTIFACTS_DIR"/*-openapi.json "$ARTIFACTS_DIR"/*-openapi.yaml "$ARTIFACTS_DIR"/*-asyncapi.yaml; do
   [ -f "$f" ] || continue
   name=$(basename "$f")
-  # Skip supergraph/combined schemas — they merge all queries into one service
-  [[ "$name" == "schema.graphql" || "$name" == "supergraph-schema.graphql" ]] && continue
   case "$name" in
     *.graphql) mime="text/plain" ;;
     *.json)    mime="application/json" ;;

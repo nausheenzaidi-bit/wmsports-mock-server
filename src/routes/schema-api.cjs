@@ -3,7 +3,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { MICROCKS_URL } = require('../config.cjs');
+const { MICROCKS_URL, ARTIFACTS_DIR } = require('../config.cjs');
 const { httpGet } = require('../lib/http-helpers.cjs');
 const state = require('../state.cjs');
 const { proxyUrls } = state;
@@ -19,7 +19,7 @@ const { compareTypes, describeType } = require('../lib/validation.cjs');
 
 const router = express.Router();
 
-const artifactsDir = () => path.join(__dirname, '..', '..', 'artifacts');
+const artifactsDir = () => ARTIFACTS_DIR;
 
 function schemaTypeToJsType(typeName) {
   const map = { String: 'string', Int: 'number', Float: 'number', Boolean: 'boolean', ID: 'string', DateTime: 'string', Date: 'string', Long: 'number', BigDecimal: 'number', URL: 'string', URI: 'string', JSON: 'object' };
