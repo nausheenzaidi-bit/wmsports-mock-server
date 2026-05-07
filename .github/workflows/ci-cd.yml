@@ -21,7 +21,7 @@ jobs:
     needs: version
     uses: "warnermediacode/reusable-workflows/.github/workflows/build-retag-deploy.yml@main"
     with: 
-      ENV: int
+      ENV: dev
       AWS_ASSUME_ROLE: ${{ vars.AWS_ASSUME_ROLE_NONPROD }}
       TIER: app
       VERSION_TAG: ${{ needs.version.outputs.version }}
