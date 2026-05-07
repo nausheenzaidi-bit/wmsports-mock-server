@@ -10,6 +10,7 @@ RUN npm install --production
 COPY server.cjs ./
 COPY import-to-microcks.sh ./
 COPY artifacts/ ./artifacts/
+COPY src/ ./src/
 
 RUN chmod +x import-to-microcks.sh
 

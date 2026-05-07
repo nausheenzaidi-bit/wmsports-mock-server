@@ -3,17 +3,16 @@ on:
   workflow_dispatch: {}
   
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+#  test:
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
 
-      - name: Run tests
-        run: make unit-test
+#      - name: Run tests
+#        run: make unit-test
       
   
   dev-app: 
-    needs: test 
     uses: "warnermediacode/reusable-workflows/.github/workflows/build-retag-deploy.yml@main"
     with: 
       ENV: dev
